@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
   Plus,
@@ -9,8 +10,31 @@ import {
   Route,
   Activity,
   Copy,
+  ExternalLink,
 } from 'lucide-react';
 import type { MockServerConfig } from '../types';
+import {
+  Button,
+  Card,
+  CardContent,
+  Badge,
+  StatusDot,
+  EmptyState,
+} from './ui';
+import { cn } from '../lib/utils';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
 
 export function ServerList() {
   const {
@@ -59,134 +83,162 @@ export function ServerList() {
   return (
     <>
       <header className="content-header">
-        <h1>Servers</h1>
-        <button className="btn btn-primary" onClick={handleCreateServer}>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-500/10">
+            <Server className="w-5 h-5 text-blue-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-surface-50">Servers</h1>
+            <p className="text-sm text-surface-400">{servers.length} servers configured</p>
+          </div>
+        </div>
+        <Button onClick={handleCreateServer}>
           <Plus size={16} />
           New Server
-        </button>
+        </Button>
       </header>
 
       <div className="content-body">
         {servers.length === 0 ? (
-          <div className="empty-state">
-            <Server size={64} />
-            <h3>No servers yet</h3>
-            <p>Create your first mock server to get started</p>
-            <button className="btn btn-primary" onClick={handleCreateServer}>
-              <Plus size={16} />
-              Create Server
-            </button>
-          </div>
+          <EmptyState
+            icon={Server}
+            title="No servers yet"
+            description="Create your first mock server to start intercepting requests"
+            action={{
+              label: 'Create Server',
+              onClick: handleCreateServer,
+            }}
+          />
         ) : (
-          <div className="grid-2">
+          <motion.div
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          >
             {servers.map((server) => {
               const state = serverStates[server.id];
               const isRunning = state?.status === 'running';
+              const isError = state?.status === 'error';
               const requestCount = state?.requestCount || 0;
 
               return (
-                <div key={server.id} className="server-card">
-                  <div className="server-card-header">
-                    <div className="server-info">
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span
-                          className={`status-dot ${isRunning ? 'running' : state?.status === 'error' ? 'error' : 'stopped'}`}
-                        />
-                        <h3>{server.name}</h3>
-                      </div>
-                      <div className="port">
-                        localhost:{server.port}
-                        <button
-                          className="btn btn-ghost btn-icon btn-sm"
-                          onClick={() => copyUrl(server.port)}
-                          title="Copy URL"
-                          style={{ marginLeft: '4px', padding: '2px' }}
-                        >
-                          <Copy size={12} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="server-actions">
-                      <button
-                        className={`btn btn-icon ${isRunning ? 'btn-secondary' : 'btn-success'}`}
-                        onClick={() => handleToggleServer(server)}
-                        title={isRunning ? 'Stop Server' : 'Start Server'}
-                      >
-                        {isRunning ? <Square size={16} /> : <Play size={16} />}
-                      </button>
-                      <button
-                        className="btn btn-icon btn-ghost"
-                        onClick={() => handleEditServer(server)}
-                        title="Edit Server"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button
-                        className="btn btn-icon btn-ghost"
-                        onClick={() => handleDeleteServer(server.id)}
-                        title="Delete Server"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="server-stats">
-                    <span>
-                      <Route size={14} />
-                      {server.routes.length} routes
-                    </span>
-                    <span>
-                      <Activity size={14} />
-                      {requestCount} requests
-                    </span>
-                    <span
-                      className={`badge ${isRunning ? 'badge-success' : 'badge-neutral'}`}
-                    >
-                      {state?.status || 'stopped'}
-                    </span>
-                  </div>
-
-                  {state?.error && (
-                    <div
-                      style={{
-                        marginTop: '12px',
-                        padding: '8px',
-                        background: 'rgba(244, 67, 54, 0.1)',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '12px',
-                        color: 'var(--error)',
-                      }}
-                    >
-                      {state.error}
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: '12px', display: 'flex', gap: '8px' }}>
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      style={{ flex: 1 }}
-                      onClick={() => handleViewRoutes(server.id)}
-                    >
-                      <Route size={14} />
-                      Manage Routes
-                    </button>
-                    {isRunning && (
-                      <a
-                        href={`http://localhost:${server.port}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-ghost btn-sm"
-                      >
-                        Open in Browser
-                      </a>
+                <motion.div key={server.id} variants={itemVariants}>
+                  <Card 
+                    className={cn(
+                      'overflow-hidden transition-all duration-300',
+                      isRunning && 'border-emerald-500/30 shadow-emerald-500/5',
+                      isError && 'border-red-500/30'
                     )}
-                  </div>
-                </div>
+                  >
+                    <CardContent className="p-5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <StatusDot 
+                            status={isRunning ? 'running' : isError ? 'error' : 'stopped'} 
+                            size="lg" 
+                          />
+                          <div>
+                            <h3 className="font-semibold text-surface-50">{server.name}</h3>
+                            <div className="flex items-center gap-1 text-sm text-surface-400 font-mono">
+                              localhost:{server.port}
+                              <button
+                                className="p-1 hover:bg-surface-700 rounded transition-colors"
+                                onClick={() => copyUrl(server.port)}
+                                title="Copy URL"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant={isRunning ? 'secondary' : 'success'}
+                            size="icon-sm"
+                            onClick={() => handleToggleServer(server)}
+                            title={isRunning ? 'Stop Server' : 'Start Server'}
+                          >
+                            {isRunning ? <Square size={14} /> : <Play size={14} />}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleEditServer(server)}
+                            title="Edit Server"
+                          >
+                            <Edit size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleDeleteServer(server.id)}
+                            title="Delete Server"
+                            className="hover:text-red-400"
+                          >
+                            <Trash2 size={14} />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Stats */}
+                      <div className="flex items-center gap-4 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-surface-400">
+                          <Route size={14} />
+                          <span>{server.routes.length} routes</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-surface-400">
+                          <Activity size={14} />
+                          <span>{requestCount} requests</span>
+                        </div>
+                        <Badge variant={isRunning ? 'success' : isError ? 'danger' : 'default'}>
+                          {state?.status || 'stopped'}
+                        </Badge>
+                      </div>
+
+                      {/* Error message */}
+                      {state?.error && (
+                        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                          {state.error}
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => handleViewRoutes(server.id)}
+                        >
+                          <Route size={14} />
+                          Manage Routes
+                        </Button>
+                        {isRunning && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            asChild
+                          >
+                            <a
+                              href={`http://localhost:${server.port}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink size={14} />
+                              Open
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               );
             })}
-          </div>
+          </motion.div>
         )}
       </div>
     </>

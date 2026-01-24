@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
   Plus,
@@ -9,6 +10,28 @@ import {
   Server,
 } from 'lucide-react';
 import type { RouteConfig } from '../types';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  Badge,
+  getMethodVariant,
+  getStatusVariant,
+  EmptyState,
+  Table,
+  TableHeader,
+  TableBody,
+  TableHead,
+  TableRow,
+  TableCell,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui';
+import { cn } from '../lib/utils';
 
 export function RouteList() {
   const {
@@ -57,11 +80,6 @@ export function RouteList() {
     });
   };
 
-  const getMethodClass = (method: string | string[]): string => {
-    const m = Array.isArray(method) ? method[0] : method;
-    return `method-${m.toLowerCase()}`;
-  };
-
   const formatMethod = (method: string | string[]): string => {
     if (Array.isArray(method)) {
       return method.join(', ');
@@ -69,145 +87,156 @@ export function RouteList() {
     return method;
   };
 
+  const getFirstMethod = (method: string | string[]): string => {
+    return Array.isArray(method) ? method[0] : method;
+  };
+
   return (
     <>
       <header className="content-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <h1>Routes</h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-amber-500/10">
+              <Route className="w-5 h-5 text-amber-400" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-surface-50">Routes</h1>
+              <p className="text-sm text-surface-400">Manage API endpoints</p>
+            </div>
+          </div>
 
           {/* Server Selector */}
-          <div className="form-group" style={{ margin: 0, minWidth: '200px' }}>
-            <select
-              className="form-select"
-              value={selectedServerId || ''}
-              onChange={(e) => setSelectedServerId(e.target.value || null)}
-            >
-              <option value="">Select a server...</option>
+          <Select
+            value={selectedServerId || ''}
+            onValueChange={(value) => setSelectedServerId(value || null)}
+          >
+            <SelectTrigger className="w-[220px]">
+              <SelectValue placeholder="Select a server..." />
+            </SelectTrigger>
+            <SelectContent>
               {servers.map((server) => (
-                <option key={server.id} value={server.id}>
+                <SelectItem key={server.id} value={server.id}>
                   {server.name} (:{server.port})
-                </option>
+                </SelectItem>
               ))}
-            </select>
-          </div>
+            </SelectContent>
+          </Select>
         </div>
 
-        <button
-          className="btn btn-primary"
-          onClick={handleCreateRoute}
-          disabled={!selectedServerId}
-        >
+        <Button onClick={handleCreateRoute} disabled={!selectedServerId}>
           <Plus size={16} />
           New Route
-        </button>
+        </Button>
       </header>
 
       <div className="content-body">
         {!selectedServerId ? (
-          <div className="empty-state">
-            <Server size={64} />
-            <h3>Select a server</h3>
-            <p>Choose a server from the dropdown to manage its routes</p>
-          </div>
+          <EmptyState
+            icon={Server}
+            title="Select a server"
+            description="Choose a server from the dropdown to manage its routes"
+          />
         ) : routes.length === 0 ? (
-          <div className="empty-state">
-            <Route size={64} />
-            <h3>No routes yet</h3>
-            <p>Create your first route for {selectedServer?.name}</p>
-            <button className="btn btn-primary" onClick={handleCreateRoute}>
-              <Plus size={16} />
-              Create Route
-            </button>
-          </div>
+          <EmptyState
+            icon={Route}
+            title="No routes yet"
+            description={`Create your first route for ${selectedServer?.name}`}
+            action={{
+              label: 'Create Route',
+              onClick: handleCreateRoute,
+            }}
+          />
         ) : (
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">
-                {selectedServer?.name} Routes ({routes.length})
-              </span>
-            </div>
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px' }}>Status</th>
-                    <th style={{ width: '100px' }}>Method</th>
-                    <th>Path</th>
-                    <th style={{ width: '150px' }}>Name</th>
-                    <th style={{ width: '100px' }}>Response</th>
-                    <th style={{ width: '80px' }}>Code</th>
-                    <th style={{ width: '120px' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>
+                  {selectedServer?.name} Routes ({routes.length})
+                </CardTitle>
+              </CardHeader>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">Status</TableHead>
+                    <TableHead className="w-[100px]">Method</TableHead>
+                    <TableHead>Path</TableHead>
+                    <TableHead className="w-[150px]">Name</TableHead>
+                    <TableHead className="w-[100px]">Type</TableHead>
+                    <TableHead className="w-[80px]">Code</TableHead>
+                    <TableHead className="w-[100px]">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {routes.map((route) => (
-                    <tr key={route.id} style={{ opacity: route.enabled ? 1 : 0.5 }}>
-                      <td>
-                        <button
-                          className="btn btn-ghost btn-icon btn-sm"
+                    <TableRow
+                      key={route.id}
+                      className={cn(!route.enabled && 'opacity-50')}
+                    >
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleToggleRoute(route)}
                           title={route.enabled ? 'Disable route' : 'Enable route'}
                         >
                           {route.enabled ? (
-                            <ToggleRight size={20} color="var(--success)" />
+                            <ToggleRight size={20} className="text-emerald-400" />
                           ) : (
                             <ToggleLeft size={20} />
                           )}
-                        </button>
-                      </td>
-                      <td>
-                        <span className={`method-badge ${getMethodClass(route.method)}`}>
+                        </Button>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getMethodVariant(getFirstMethod(route.method))}>
                           {formatMethod(route.method)}
-                        </span>
-                      </td>
-                      <td>
-                        <code style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs font-mono text-surface-300">
                           {route.path}
                         </code>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>
+                      </TableCell>
+                      <TableCell className="text-surface-400">
                         {route.name}
-                      </td>
-                      <td>
-                        <span className="badge badge-neutral">{route.response.type}</span>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            route.response.statusCode < 400
-                              ? 'badge-success'
-                              : route.response.statusCode < 500
-                              ? 'badge-warning'
-                              : 'badge-error'
-                          }`}
-                        >
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="default">{route.response.type}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(route.response.statusCode)}>
                           {route.response.statusCode}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button
-                            className="btn btn-ghost btn-icon btn-sm"
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => handleEditRoute(route)}
                             title="Edit route"
                           >
                             <Edit size={14} />
-                          </button>
-                          <button
-                            className="btn btn-ghost btn-icon btn-sm"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => handleDeleteRoute(route.id)}
                             title="Delete route"
+                            className="hover:text-red-400"
                           >
                             <Trash2 size={14} />
-                          </button>
+                          </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                </TableBody>
+              </Table>
+            </Card>
+          </motion.div>
         )}
       </div>
     </>

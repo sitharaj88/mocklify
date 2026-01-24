@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from './store';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -11,6 +12,18 @@ import { ServerModal } from './components/ServerModal';
 import { RouteModal } from './components/RouteModal';
 import { DatabaseModal } from './components/DatabaseModal';
 import type { MessageFromExtension } from './types';
+
+const pageVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -10 },
+};
+
+const pageTransition = {
+  type: 'tween',
+  ease: 'easeInOut',
+  duration: 0.2,
+};
 
 function App() {
   const {
@@ -68,29 +81,35 @@ function App() {
   }, []);
 
   const renderContent = () => {
-    switch (activeView) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'servers':
-        return <ServerList />;
-      case 'routes':
-        return <RouteList />;
-      case 'databases':
-        return <DatabaseList />;
-      case 'logs':
-        return <LogsViewer />;
-      case 'settings':
-        return <Settings />;
-      default:
-        return <Dashboard />;
-    }
+    const components: Record<string, JSX.Element> = {
+      dashboard: <Dashboard />,
+      servers: <ServerList />,
+      routes: <RouteList />,
+      databases: <DatabaseList />,
+      logs: <LogsViewer />,
+      settings: <Settings />,
+    };
+
+    return components[activeView] || <Dashboard />;
   };
 
   return (
-    <div className="app">
+    <div className="app-container">
       <Sidebar />
-      <main className="main-content">
-        {renderContent()}
+      <main className="main-content mesh-bg">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeView}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={pageVariants}
+            transition={pageTransition}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            {renderContent()}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       {showServerModal && <ServerModal />}

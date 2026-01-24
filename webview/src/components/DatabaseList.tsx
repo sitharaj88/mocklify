@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
   Plus,
@@ -8,8 +9,32 @@ import {
   HardDrive,
   Cloud,
   TestTube,
+  Info,
 } from 'lucide-react';
 import type { DatabaseConnection } from '../types';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Badge,
+  EmptyState,
+} from './ui';
+import { cn } from '../lib/utils';
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  show: { opacity: 1, y: 0 },
+};
 
 export function DatabaseList() {
   const {
@@ -70,143 +95,165 @@ export function DatabaseList() {
     }
   };
 
+  const getDbGradient = (type: string) => {
+    switch (type) {
+      case 'json':
+        return 'from-amber-500 to-amber-600';
+      case 'sqlite':
+        return 'from-blue-500 to-blue-600';
+      case 'mongodb':
+        return 'from-emerald-500 to-emerald-600';
+      case 'mysql':
+        return 'from-orange-500 to-orange-600';
+      case 'postgresql':
+        return 'from-indigo-500 to-indigo-600';
+      default:
+        return 'from-surface-500 to-surface-600';
+    }
+  };
+
   return (
     <>
       <header className="content-header">
-        <h1>Database Connections</h1>
-        <button className="btn btn-primary" onClick={handleCreateDatabase}>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-purple-500/10">
+            <Database className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-surface-50">Database Connections</h1>
+            <p className="text-sm text-surface-400">{databases.length} connections</p>
+          </div>
+        </div>
+        <Button onClick={handleCreateDatabase}>
           <Plus size={16} />
           New Connection
-        </button>
+        </Button>
       </header>
 
-      <div className="content-body">
+      <div className="content-body space-y-6">
         {databases.length === 0 ? (
-          <div className="empty-state">
-            <Database size={64} />
-            <h3>No database connections</h3>
-            <p>Connect a database to use dynamic data in your mock responses</p>
-            <button className="btn btn-primary" onClick={handleCreateDatabase}>
-              <Plus size={16} />
-              Add Connection
-            </button>
-          </div>
+          <EmptyState
+            icon={Database}
+            title="No database connections"
+            description="Connect a database to use dynamic data in your mock responses"
+            action={{
+              label: 'Add Connection',
+              onClick: handleCreateDatabase,
+            }}
+          />
         ) : (
           <>
             {/* Info Banner */}
-            <div
-              className="card"
-              style={{ marginBottom: '24px', background: 'rgba(33, 150, 243, 0.1)' }}
-            >
-              <div className="card-body" style={{ display: 'flex', gap: '12px' }}>
-                <Database size={24} color="var(--info)" />
+            <Card className="bg-blue-500/5 border-blue-500/20">
+              <CardContent className="p-4 flex gap-3">
+                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <strong style={{ color: 'var(--text-primary)' }}>
-                    Database Integration
-                  </strong>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  <p className="font-medium text-surface-100">Database Integration</p>
+                  <p className="text-sm text-surface-400 mt-1">
                     Connect your mock server to databases for dynamic responses. Use JSON files for
                     simple scenarios or connect to real databases for complex testing.
                   </p>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="grid-2">
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+            >
               {databases.map((database) => (
-                <div key={database.id} className="database-card">
-                  <div className="database-type">
-                    <div className="database-type-icon">
-                      {getDbIcon(database.type)}
-                    </div>
-                    <div>
-                      <h3 style={{ fontSize: '14px', fontWeight: 600 }}>{database.name}</h3>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                        {getDbLabel(database.type)}
-                      </span>
-                    </div>
-                    <span
-                      className={`badge ${database.enabled ? 'badge-success' : 'badge-neutral'}`}
-                      style={{ marginLeft: 'auto' }}
-                    >
-                      {database.enabled ? 'Enabled' : 'Disabled'}
-                    </span>
-                  </div>
+                <motion.div key={database.id} variants={itemVariants}>
+                  <Card hover className="overflow-hidden">
+                    <CardContent className="p-5">
+                      {/* Header */}
+                      <div className="flex items-start gap-4 mb-4">
+                        <div className={cn(
+                          'p-3 rounded-xl bg-gradient-to-br text-white',
+                          getDbGradient(database.type)
+                        )}>
+                          {getDbIcon(database.type)}
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-surface-50">{database.name}</h3>
+                          <p className="text-sm text-surface-400">{getDbLabel(database.type)}</p>
+                        </div>
+                        <Badge variant={database.enabled ? 'success' : 'default'}>
+                          {database.enabled ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                      </div>
 
-                  {/* Connection Details */}
-                  <div
-                    style={{
-                      padding: '12px',
-                      background: 'var(--bg-tertiary)',
-                      borderRadius: 'var(--radius-md)',
-                      marginTop: '12px',
-                      fontSize: '12px',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    {database.type === 'json' && (
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>File: </span>
-                        {(database.config as any).filePath}
+                      {/* Connection Details */}
+                      <div className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 mb-4 font-mono text-xs text-surface-300">
+                        {database.type === 'json' && (
+                          <div>
+                            <span className="text-surface-500">File: </span>
+                            {(database.config as any).filePath}
+                          </div>
+                        )}
+                        {database.type === 'sqlite' && (
+                          <div>
+                            <span className="text-surface-500">File: </span>
+                            {(database.config as any).filePath}
+                          </div>
+                        )}
+                        {database.type === 'mongodb' && (
+                          <div>
+                            <span className="text-surface-500">Database: </span>
+                            {(database.config as any).database}
+                          </div>
+                        )}
+                        {(database.type === 'mysql' || database.type === 'postgresql') && (
+                          <div>
+                            <span className="text-surface-500">Host: </span>
+                            {(database.config as any).host}:{(database.config as any).port}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {database.type === 'sqlite' && (
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>File: </span>
-                        {(database.config as any).filePath}
-                      </div>
-                    )}
-                    {database.type === 'mongodb' && (
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Database: </span>
-                        {(database.config as any).database}
-                      </div>
-                    )}
-                    {(database.type === 'mysql' || database.type === 'postgresql') && (
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Host: </span>
-                        {(database.config as any).host}:{(database.config as any).port}
-                      </div>
-                    )}
-                  </div>
 
-                  <div
-                    style={{ display: 'flex', gap: '8px', marginTop: '12px' }}
-                  >
-                    <button
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleTestConnection(database.id)}
-                    >
-                      <TestTube size={14} />
-                      Test Connection
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleEditDatabase(database)}
-                    >
-                      <Edit size={14} />
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => handleDeleteDatabase(database.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
+                      {/* Actions */}
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => handleTestConnection(database.id)}
+                        >
+                          <TestTube size={14} />
+                          Test Connection
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditDatabase(database)}
+                        >
+                          <Edit size={14} />
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteDatabase(database.id)}
+                          className="hover:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               ))}
-            </div>
+            </motion.div>
           </>
         )}
 
         {/* Supported Databases */}
-        <div className="card" style={{ marginTop: '24px' }}>
-          <div className="card-header">
-            <span className="card-title">Supported Databases</span>
-          </div>
-          <div className="card-body">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Supported Databases</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {[
                 { type: 'json', name: 'JSON File', desc: 'Local JSON storage' },
                 { type: 'sqlite', name: 'SQLite', desc: 'Embedded SQL database' },
@@ -216,25 +263,23 @@ export function DatabaseList() {
               ].map((db) => (
                 <div
                   key={db.type}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    padding: '12px',
-                    background: 'var(--bg-tertiary)',
-                    borderRadius: 'var(--radius-md)',
-                  }}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-surface-800/50 border border-surface-700/50"
                 >
-                  {getDbIcon(db.type)}
+                  <div className={cn(
+                    'p-2 rounded-lg bg-gradient-to-br text-white',
+                    getDbGradient(db.type)
+                  )}>
+                    {getDbIcon(db.type)}
+                  </div>
                   <div>
-                    <div style={{ fontWeight: 500, fontSize: '13px' }}>{db.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{db.desc}</div>
+                    <p className="font-medium text-sm text-surface-100">{db.name}</p>
+                    <p className="text-xs text-surface-500">{db.desc}</p>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </>
   );
