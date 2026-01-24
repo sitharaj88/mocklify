@@ -10,6 +10,19 @@ import type {
 
 type ActiveView = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
 
+interface RecordingState {
+  isRecording: boolean;
+  recordingCount: number;
+  targetUrl?: string;
+}
+
+interface SearchFilters {
+  query: string;
+  method: string | null;
+  status: string | null;
+  tags: string[];
+}
+
 interface AppStore {
   // State
   servers: MockServerConfig[];
@@ -27,6 +40,15 @@ interface AppStore {
   showServerModal: boolean;
   showRouteModal: boolean;
   showDatabaseModal: boolean;
+
+  // Search & Filter state
+  searchFilters: SearchFilters;
+  
+  // Recording state
+  recordingStates: Record<string, RecordingState>;
+
+  // Theme
+  theme: 'light' | 'dark' | 'system';
 
   // Actions
   setServers: (servers: MockServerConfig[]) => void;
@@ -47,10 +69,26 @@ interface AppStore {
   setShowRouteModal: (show: boolean) => void;
   setShowDatabaseModal: (show: boolean) => void;
 
+  // Search & Filter actions
+  setSearchQuery: (query: string) => void;
+  setMethodFilter: (method: string | null) => void;
+  setStatusFilter: (status: string | null) => void;
+  setTagsFilter: (tags: string[]) => void;
+  clearFilters: () => void;
+
+  // Recording actions
+  setRecordingState: (serverId: string, state: RecordingState) => void;
+
+  // Theme actions
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
+
   // Helpers
   getSelectedServer: () => MockServerConfig | undefined;
   getSelectedRoute: () => RouteConfig | undefined;
   getServerState: (serverId: string) => ServerRuntimeState | undefined;
+  getFilteredRoutes: () => RouteConfig[];
+  getFilteredLogs: () => RequestLogEntry[];
+  getAllTags: () => string[];
 }
 
 export const useStore = create<AppStore>((set, get) => ({
@@ -70,6 +108,20 @@ export const useStore = create<AppStore>((set, get) => ({
   showServerModal: false,
   showRouteModal: false,
   showDatabaseModal: false,
+
+  // Search & Filter initial state
+  searchFilters: {
+    query: '',
+    method: null,
+    status: null,
+    tags: [],
+  },
+
+  // Recording initial state
+  recordingStates: {},
+
+  // Theme
+  theme: 'system',
 
   // Actions
   setServers: (servers) => set({ servers }),
@@ -96,6 +148,29 @@ export const useStore = create<AppStore>((set, get) => ({
   setShowRouteModal: (showRouteModal) => set({ showRouteModal }),
   setShowDatabaseModal: (showDatabaseModal) => set({ showDatabaseModal }),
 
+  // Search & Filter actions
+  setSearchQuery: (query) =>
+    set((s) => ({ searchFilters: { ...s.searchFilters, query } })),
+  setMethodFilter: (method) =>
+    set((s) => ({ searchFilters: { ...s.searchFilters, method } })),
+  setStatusFilter: (status) =>
+    set((s) => ({ searchFilters: { ...s.searchFilters, status } })),
+  setTagsFilter: (tags) =>
+    set((s) => ({ searchFilters: { ...s.searchFilters, tags } })),
+  clearFilters: () =>
+    set({
+      searchFilters: { query: '', method: null, status: null, tags: [] },
+    }),
+
+  // Recording actions
+  setRecordingState: (serverId, state) =>
+    set((s) => ({
+      recordingStates: { ...s.recordingStates, [serverId]: state },
+    })),
+
+  // Theme actions
+  setTheme: (theme) => set({ theme }),
+
   // Helpers
   getSelectedServer: () => {
     const { servers, selectedServerId } = get();
@@ -107,6 +182,80 @@ export const useStore = create<AppStore>((set, get) => ({
     return server?.routes.find((r) => r.id === selectedRouteId);
   },
   getServerState: (serverId) => get().serverStates[serverId],
+
+  getFilteredRoutes: () => {
+    const { servers, selectedServerId, searchFilters } = get();
+    const server = servers.find((s) => s.id === selectedServerId);
+    if (!server) return [];
+
+    let routes = [...server.routes];
+    const { query, method, tags } = searchFilters;
+
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      routes = routes.filter(
+        (r) =>
+          r.name.toLowerCase().includes(lowerQuery) ||
+          r.path.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    if (method) {
+      routes = routes.filter((r) => r.method === method);
+    }
+
+    if (tags.length > 0) {
+      routes = routes.filter(
+        (r) => r.tags && tags.some((t) => r.tags?.includes(t))
+      );
+    }
+
+    return routes;
+  },
+
+  getFilteredLogs: () => {
+    const { logs, selectedServerId, searchFilters } = get();
+    let filtered = selectedServerId
+      ? logs.filter((l) => l.serverId === selectedServerId)
+      : logs;
+
+    const { query, method, status } = searchFilters;
+
+    if (query) {
+      const lowerQuery = query.toLowerCase();
+      filtered = filtered.filter(
+        (l) =>
+          l.request.path.toLowerCase().includes(lowerQuery) ||
+          l.request.method.toLowerCase().includes(lowerQuery)
+      );
+    }
+
+    if (method) {
+      filtered = filtered.filter((l) => l.request.method === method);
+    }
+
+    if (status) {
+      const statusCode = parseInt(status, 10);
+      const statusRange = Math.floor(statusCode / 100) * 100;
+      filtered = filtered.filter((l) => {
+        const code = l.response?.statusCode || 0;
+        return code >= statusRange && code < statusRange + 100;
+      });
+    }
+
+    return filtered;
+  },
+
+  getAllTags: () => {
+    const { servers } = get();
+    const tagSet = new Set<string>();
+    servers.forEach((server) => {
+      server.routes.forEach((route) => {
+        route.tags?.forEach((tag) => tagSet.add(tag));
+      });
+    });
+    return Array.from(tagSet).sort();
+  },
 }));
 
 // VS Code API

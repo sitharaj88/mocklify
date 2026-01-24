@@ -195,6 +195,49 @@ export class WebViewManager {
         this.manager.clearLogs(message.serverId);
         await this.sendState();
         break;
+
+      // Import/Export handlers
+      case 'importOpenApi':
+        await this.importOpenApi(message.serverId!, message.data as { content: string });
+        break;
+
+      case 'importPostman':
+        await this.importPostman(message.serverId!, message.data as { content: string });
+        break;
+
+      case 'exportServer':
+        if (message.serverId) {
+          await this.exportServer(message.serverId);
+        }
+        break;
+
+      case 'exportLogs':
+        await this.exportLogs(message.serverId, message.data as { format: string } | undefined);
+        break;
+
+      // Recording handlers
+      case 'startRecording':
+        if (message.serverId) {
+          await this.startRecording(message.serverId, message.data as { targetUrl: string; pathFilter?: string });
+        }
+        break;
+
+      case 'stopRecording':
+        if (message.serverId) {
+          await this.stopRecording(message.serverId, message.data as { action: string });
+        }
+        break;
+
+      case 'getRecordingStatus':
+        if (message.serverId) {
+          this.sendRecordingStatus(message.serverId);
+        }
+        break;
+
+      // Search/filter - handled on frontend, but can request filtered data
+      case 'searchRoutes':
+        await this.searchRoutes(message.data as { query: string; serverId?: string });
+        break;
     }
   }
 
@@ -309,6 +352,200 @@ export class WebViewManager {
 
   private sendSuccess(message: string): void {
     this.panel?.webview.postMessage({ type: 'success', message });
+  }
+
+  // Import/Export implementations
+  private async importOpenApi(serverId: string, data: { content: string }): Promise<void> {
+    try {
+      const openApiService = this.manager.getOpenApiService();
+      const routes = openApiService.parseSpec(data.content);
+      
+      for (const route of routes) {
+        await this.manager.addRoute(serverId, route);
+      }
+      
+      await this.sendState();
+      this.sendSuccess(`Imported ${routes.length} routes from OpenAPI spec`);
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to import OpenAPI spec');
+    }
+  }
+
+  private async importPostman(serverId: string, data: { content: string }): Promise<void> {
+    try {
+      const postmanService = this.manager.getPostmanService();
+      const routes = postmanService.parseCollection(data.content);
+      
+      for (const route of routes) {
+        await this.manager.addRoute(serverId, route);
+      }
+      
+      await this.sendState();
+      this.sendSuccess(`Imported ${routes.length} routes from Postman collection`);
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to import Postman collection');
+    }
+  }
+
+  private async exportServer(serverId: string): Promise<void> {
+    try {
+      const exportService = this.manager.getExportService();
+      const server = await this.manager.getServer(serverId);
+      
+      if (!server) {
+        this.sendError('Server not found');
+        return;
+      }
+      
+      const routes: RouteConfig[] = [];
+      for (const route of server.routes) {
+        routes.push(route);
+      }
+      
+      const content = exportService.exportServerConfig({
+        name: server.name,
+        port: server.port,
+        routes,
+      });
+      
+      this.panel?.webview.postMessage({
+        type: 'exportResult',
+        format: 'json',
+        content,
+        filename: `${server.name.replace(/\s+/g, '-')}-config.json`,
+      });
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to export server');
+    }
+  }
+
+  private async exportLogs(serverId: string | undefined, data?: { format: string }): Promise<void> {
+    try {
+      const exportService = this.manager.getExportService();
+      const logs = this.manager.getLogEntries(serverId);
+      const format = data?.format || 'har';
+      
+      let content: string;
+      let extension: string;
+      
+      if (format === 'curl') {
+        const server = serverId ? await this.manager.getServer(serverId) : null;
+        content = exportService.exportLogsToCurl(logs, server?.port || 3000);
+        extension = 'sh';
+      } else {
+        content = exportService.exportLogsToHar(logs);
+        extension = 'har';
+      }
+      
+      this.panel?.webview.postMessage({
+        type: 'exportResult',
+        format,
+        content,
+        filename: `specter-logs.${extension}`,
+      });
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to export logs');
+    }
+  }
+
+  // Recording implementations
+  private async startRecording(
+    serverId: string,
+    data: { targetUrl: string; pathFilter?: string }
+  ): Promise<void> {
+    try {
+      const recordingManager = this.manager.getRecordingManager();
+      
+      const session = recordingManager.createSession(serverId, data.targetUrl, {
+        pathFilter: data.pathFilter ? new RegExp(data.pathFilter) : undefined,
+      });
+      
+      session.start();
+      
+      this.sendRecordingStatus(serverId);
+      this.sendSuccess('Recording started');
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to start recording');
+    }
+  }
+
+  private async stopRecording(serverId: string, data: { action: string }): Promise<void> {
+    try {
+      const recordingManager = this.manager.getRecordingManager();
+      const session = recordingManager.getSession(serverId);
+      
+      if (!session) {
+        this.sendError('No active recording session');
+        return;
+      }
+      
+      session.stop();
+      const recordings = session.getRecordings();
+      
+      if (data.action === 'generate' && recordings.length > 0) {
+        const routes = session.generateRoutes();
+        for (const route of routes) {
+          await this.manager.addRoute(serverId, route);
+        }
+        this.sendSuccess(`Generated ${routes.length} routes from recordings`);
+      } else if (data.action === 'save') {
+        await recordingManager.saveSession(serverId);
+        this.sendSuccess('Recordings saved');
+      }
+      
+      recordingManager.deleteSession(serverId);
+      await this.sendState();
+      this.sendRecordingStatus(serverId);
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Failed to stop recording');
+    }
+  }
+
+  private sendRecordingStatus(serverId: string): void {
+    const recordingManager = this.manager.getRecordingManager();
+    const session = recordingManager.getSession(serverId);
+    
+    this.panel?.webview.postMessage({
+      type: 'recordingStatus',
+      serverId,
+      isRecording: session?.isRecording() || false,
+      recordingCount: session?.getRecordings().length || 0,
+      targetUrl: session ? (session as { targetUrl?: string }).targetUrl : undefined,
+    });
+  }
+
+  private async searchRoutes(data: { query: string; serverId?: string }): Promise<void> {
+    const servers = await this.manager.getServers();
+    const results: { serverId: string; serverName: string; routes: RouteConfig[] }[] = [];
+    
+    const query = data.query.toLowerCase();
+    
+    for (const server of servers) {
+      if (data.serverId && server.id !== data.serverId) continue;
+      
+      const matchingRoutes = server.routes.filter((route) => {
+        return (
+          route.name.toLowerCase().includes(query) ||
+          route.path.toLowerCase().includes(query) ||
+          route.method.toLowerCase().includes(query) ||
+          (route.tags && route.tags.some((tag) => tag.toLowerCase().includes(query)))
+        );
+      });
+      
+      if (matchingRoutes.length > 0) {
+        results.push({
+          serverId: server.id,
+          serverName: server.name,
+          routes: matchingRoutes,
+        });
+      }
+    }
+    
+    this.panel?.webview.postMessage({
+      type: 'searchResults',
+      query: data.query,
+      results,
+    });
   }
 
   private getNonce(): string {

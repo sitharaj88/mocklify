@@ -43,6 +43,16 @@ export class CommandRegistry {
     );
     this.register('specter.refresh', () => this.refresh());
     this.register('specter.showQuickPick', () => this.showQuickPick());
+
+    // New import/export commands
+    this.register('specter.importOpenApi', () => this.importOpenApi());
+    this.register('specter.importPostman', () => this.importPostman());
+    this.register('specter.exportServer', (item?: ServerTreeItem) => this.exportServer(item));
+    this.register('specter.exportLogs', (item?: ServerTreeItem) => this.exportLogs(item));
+
+    // Recording commands
+    this.register('specter.startRecording', (item?: ServerTreeItem) => this.startRecording(item));
+    this.register('specter.stopRecording', (item?: ServerTreeItem) => this.stopRecording(item));
   }
 
   private register(command: string, callback: (...args: unknown[]) => unknown): void {
@@ -460,6 +470,271 @@ export class CommandRegistry {
     });
 
     return selection?.serverId;
+  }
+
+  private async importOpenApi(): Promise<void> {
+    const fileUri = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: {
+        'OpenAPI/Swagger': ['json', 'yaml', 'yml'],
+      },
+      title: 'Select OpenAPI/Swagger file',
+    });
+
+    if (!fileUri || fileUri.length === 0) {
+      return;
+    }
+
+    const serverId = await this.selectServer();
+    if (!serverId) {
+      // Create new server for imported routes
+      const name = await vscode.window.showInputBox({
+        prompt: 'Enter server name for imported routes',
+        placeHolder: 'Imported API',
+      });
+      if (!name) return;
+
+      try {
+        const server = await this.manager.createServer(name);
+        const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, server.id);
+        vscode.window.showInformationMessage(
+          `Specter: Imported ${routes.length} routes from OpenAPI spec`
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    } else {
+      try {
+        const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, serverId);
+        vscode.window.showInformationMessage(
+          `Specter: Imported ${routes.length} routes from OpenAPI spec`
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    }
+  }
+
+  private async importPostman(): Promise<void> {
+    const fileUri = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: {
+        'Postman Collection': ['json'],
+      },
+      title: 'Select Postman Collection file',
+    });
+
+    if (!fileUri || fileUri.length === 0) {
+      return;
+    }
+
+    const serverId = await this.selectServer();
+    if (!serverId) {
+      const name = await vscode.window.showInputBox({
+        prompt: 'Enter server name for imported routes',
+        placeHolder: 'Postman Import',
+      });
+      if (!name) return;
+
+      try {
+        const server = await this.manager.createServer(name);
+        const routes = await this.manager.importFromPostman(fileUri[0].fsPath, server.id);
+        vscode.window.showInformationMessage(
+          `Specter: Imported ${routes.length} routes from Postman collection`
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    } else {
+      try {
+        const routes = await this.manager.importFromPostman(fileUri[0].fsPath, serverId);
+        vscode.window.showInformationMessage(
+          `Specter: Imported ${routes.length} routes from Postman collection`
+        );
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    }
+  }
+
+  private async exportServer(item?: ServerTreeItem): Promise<void> {
+    const serverId = item?.serverId || (await this.selectServer());
+    if (!serverId) return;
+
+    const server = await this.manager.getServer(serverId);
+    if (!server) return;
+
+    const saveUri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(`${server.name.replace(/\s+/g, '-')}-config.json`),
+      filters: {
+        'JSON': ['json'],
+      },
+      title: 'Export Server Configuration',
+    });
+
+    if (!saveUri) return;
+
+    try {
+      await this.manager.exportServer(serverId, saveUri.fsPath);
+      vscode.window.showInformationMessage(`Specter: Exported server configuration`);
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async exportLogs(item?: ServerTreeItem): Promise<void> {
+    const serverId = item?.serverId || (await this.selectServer());
+    if (!serverId) return;
+
+    const server = await this.manager.getServer(serverId);
+    if (!server) return;
+
+    const format = await vscode.window.showQuickPick(
+      [
+        { label: 'HAR', description: 'HTTP Archive format', value: 'har' },
+        { label: 'cURL', description: 'cURL commands', value: 'curl' },
+      ],
+      { placeHolder: 'Select export format' }
+    );
+
+    if (!format) return;
+
+    const extension = format.value === 'har' ? 'har' : 'sh';
+    const saveUri = await vscode.window.showSaveDialog({
+      defaultUri: vscode.Uri.file(`${server.name.replace(/\s+/g, '-')}-logs.${extension}`),
+      filters: {
+        [format.label]: [extension],
+      },
+      title: 'Export Request Logs',
+    });
+
+    if (!saveUri) return;
+
+    try {
+      if (format.value === 'har') {
+        await this.manager.exportLogsToHar(serverId, saveUri.fsPath);
+      } else {
+        const logs = this.manager.getLogEntries(serverId);
+        const exportService = this.manager.getExportService();
+        const content = exportService.exportLogsToCurl(logs, server.port);
+        await exportService.exportToFile(saveUri.fsPath, content);
+      }
+      vscode.window.showInformationMessage(`Specter: Exported request logs`);
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async startRecording(item?: ServerTreeItem): Promise<void> {
+    const serverId = item?.serverId || (await this.selectServer());
+    if (!serverId) return;
+
+    const server = await this.manager.getServer(serverId);
+    if (!server) return;
+
+    // Get target URL
+    const targetUrl = await vscode.window.showInputBox({
+      prompt: 'Enter target URL to proxy and record',
+      placeHolder: 'https://api.example.com',
+      validateInput: (value) => {
+        try {
+          new URL(value);
+          return undefined;
+        } catch {
+          return 'Please enter a valid URL';
+        }
+      },
+    });
+
+    if (!targetUrl) return;
+
+    // Get path filter (optional)
+    const pathFilter = await vscode.window.showInputBox({
+      prompt: 'Enter path filter regex (optional)',
+      placeHolder: '/api/.*',
+    });
+
+    try {
+      const recordingManager = this.manager.getRecordingManager();
+      const session = recordingManager.createSession(serverId, targetUrl, {
+        pathFilter: pathFilter ? new RegExp(pathFilter) : undefined,
+      });
+      session.start();
+
+      vscode.window.showInformationMessage(
+        `Specter: Recording started. Requests to localhost:${server.port} will be proxied to ${targetUrl}`
+      );
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Failed to start recording: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  private async stopRecording(item?: ServerTreeItem): Promise<void> {
+    const serverId = item?.serverId || (await this.selectServer());
+    if (!serverId) return;
+
+    const recordingManager = this.manager.getRecordingManager();
+    const session = recordingManager.getSession(serverId);
+
+    if (!session) {
+      vscode.window.showWarningMessage('No active recording session for this server');
+      return;
+    }
+
+    session.stop();
+    const recordings = session.getRecordings();
+
+    if (recordings.length === 0) {
+      vscode.window.showInformationMessage('Recording stopped. No requests were captured.');
+      return;
+    }
+
+    const action = await vscode.window.showQuickPick(
+      [
+        { label: 'Generate Routes', description: 'Create mock routes from recordings', value: 'generate' },
+        { label: 'Save Recording', description: 'Save raw recordings to file', value: 'save' },
+        { label: 'Discard', description: 'Discard all recordings', value: 'discard' },
+      ],
+      { placeHolder: `${recordings.length} requests captured. What would you like to do?` }
+    );
+
+    if (!action || action.value === 'discard') {
+      recordingManager.deleteSession(serverId);
+      return;
+    }
+
+    if (action.value === 'generate') {
+      const routes = session.generateRoutes();
+      for (const route of routes) {
+        await this.manager.addRoute(serverId, route);
+      }
+      vscode.window.showInformationMessage(
+        `Specter: Generated ${routes.length} routes from recordings`
+      );
+    } else {
+      await recordingManager.saveSession(serverId);
+      vscode.window.showInformationMessage('Specter: Recordings saved');
+    }
+
+    recordingManager.deleteSession(serverId);
   }
 
   dispose(): void {

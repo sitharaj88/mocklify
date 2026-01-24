@@ -1,5 +1,8 @@
 import { ResponseConfig, DelayConfig, RouteConfig } from '../types/core.js';
 import { TemplateEngine } from './TemplateEngine.js';
+import { ProxyHandler, ProxyRequestOptions } from '../proxy/ProxyHandler.js';
+import { responseStateManager } from '../state/ResponseStateManager.js';
+import { DatabaseService, DatabaseQuery } from '../services/DatabaseService.js';
 
 export interface ResponseContext {
   params: Record<string, string>;
@@ -8,6 +11,7 @@ export interface ResponseContext {
   body?: unknown;
   path: string;
   method: string;
+  serverId?: string;
 }
 
 export interface GeneratedResponse {
@@ -18,9 +22,13 @@ export interface GeneratedResponse {
 
 export class ResponseGenerator {
   private templateEngine: TemplateEngine;
+  private proxyHandler: ProxyHandler;
+  private databaseService?: DatabaseService;
 
-  constructor() {
+  constructor(databaseService?: DatabaseService) {
     this.templateEngine = new TemplateEngine();
+    this.proxyHandler = new ProxyHandler();
+    this.databaseService = databaseService;
   }
 
   /**
@@ -29,12 +37,32 @@ export class ResponseGenerator {
   async generate(route: RouteConfig, context: ResponseContext): Promise<GeneratedResponse> {
     const { response, delay } = route;
 
+    // Check for response sequence
+    if (context.serverId && responseStateManager.hasSequence(context.serverId, route.id)) {
+      const sequenceResponse = responseStateManager.getNextSequenceResponse(context.serverId, route.id);
+      if (sequenceResponse) {
+        if (delay) await this.applyDelay(delay);
+        return this.generateByType(sequenceResponse, context);
+      }
+    }
+
+    // Record call
+    if (context.serverId) {
+      responseStateManager.recordCall(context.serverId, route.id);
+    }
+
     // Apply delay if configured
     if (delay) {
       await this.applyDelay(delay);
     }
 
-    // Generate the response based on type
+    return this.generateByType(response, context);
+  }
+
+  /**
+   * Generate response based on type
+   */
+  private async generateByType(response: ResponseConfig, context: ResponseContext): Promise<GeneratedResponse> {
     switch (response.type) {
       case 'static':
         return this.generateStaticResponse(response, context);
@@ -43,7 +71,10 @@ export class ResponseGenerator {
         return this.generateDynamicResponse(response, context);
 
       case 'proxy':
-        throw new Error('Proxy responses should be handled by ProxyHandler');
+        return this.generateProxyResponse(response, context);
+
+      case 'database' as string:
+        return this.generateDatabaseResponse(response, context);
 
       default:
         return {
@@ -52,6 +83,125 @@ export class ResponseGenerator {
           body: { error: 'Unknown response type' },
         };
     }
+  }
+
+  /**
+   * Generate a proxy response
+   */
+  private async generateProxyResponse(
+    response: ResponseConfig,
+    context: ResponseContext
+  ): Promise<GeneratedResponse> {
+    if (!response.proxy?.targetUrl) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: 'Proxy target URL not configured' },
+      };
+    }
+
+    const proxyOptions: ProxyRequestOptions = {
+      method: context.method,
+      path: context.path,
+      headers: context.headers,
+      query: context.query,
+      body: context.body,
+      targetUrl: response.proxy.targetUrl,
+      preserveHost: response.proxy.preserveHost,
+      timeout: response.proxy.timeout,
+    };
+
+    const proxyResponse = await this.proxyHandler.forward(proxyOptions);
+
+    return {
+      statusCode: proxyResponse.statusCode,
+      headers: proxyResponse.headers,
+      body: proxyResponse.body,
+    };
+  }
+
+  /**
+   * Generate a database response
+   */
+  private async generateDatabaseResponse(
+    response: ResponseConfig,
+    context: ResponseContext
+  ): Promise<GeneratedResponse> {
+    if (!this.databaseService) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: 'Database service not configured' },
+      };
+    }
+
+    // Database config should be in response body or a special field
+    const dbConfig = response.body?.content as Record<string, unknown> | undefined;
+    if (!dbConfig?.connectionId || !dbConfig?.operation) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: 'Database operation not configured' },
+      };
+    }
+
+    const query: DatabaseQuery = {
+      operation: dbConfig.operation as DatabaseQuery['operation'],
+      collection: dbConfig.collection as string | undefined,
+      table: dbConfig.table as string | undefined,
+      filter: this.applyContextToFilter(dbConfig.filter as Record<string, unknown> | undefined, context),
+      data: context.body as Record<string, unknown> | undefined,
+      query: dbConfig.query as string | undefined,
+      limit: dbConfig.limit as number | undefined,
+      skip: dbConfig.skip as number | undefined,
+    };
+
+    const result = await this.databaseService.executeQuery(dbConfig.connectionId as string, query);
+
+    if (!result.success) {
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: { error: result.error },
+      };
+    }
+
+    return {
+      statusCode: response.statusCode,
+      headers: { 'Content-Type': 'application/json', ...response.headers },
+      body: result.data,
+    };
+  }
+
+  /**
+   * Apply context variables to database filter
+   */
+  private applyContextToFilter(
+    filter: Record<string, unknown> | undefined,
+    context: ResponseContext
+  ): Record<string, unknown> | undefined {
+    if (!filter) return undefined;
+
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(filter)) {
+      if (typeof value === 'string') {
+        // Replace {{params.id}} style placeholders
+        result[key] = value.replace(/\{\{(\w+)\.(\w+)\}\}/g, (match, type, prop) => {
+          switch (type) {
+            case 'params':
+              return context.params[prop] ?? match;
+            case 'query':
+              const qVal = context.query[prop];
+              return (Array.isArray(qVal) ? qVal[0] : qVal) ?? match;
+            default:
+              return match;
+          }
+        });
+      } else {
+        result[key] = value;
+      }
+    }
+    return result;
   }
 
   /**

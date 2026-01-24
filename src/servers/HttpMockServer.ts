@@ -214,6 +214,7 @@ export class HttpMockServer implements IMockServer {
         body: requestInfo.body,
         path: requestInfo.path,
         method: requestInfo.method,
+        serverId: this.id,
       };
 
       try {

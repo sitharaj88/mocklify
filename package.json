@@ -88,9 +88,39 @@
       },
       {
         "command": "specter.importOpenApi",
-        "title": "Import OpenAPI Spec",
+        "title": "Import OpenAPI/Swagger",
         "category": "Specter",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "specter.importPostman",
+        "title": "Import Postman Collection",
+        "category": "Specter",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "specter.exportServer",
+        "title": "Export Server Config",
+        "category": "Specter",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "specter.exportLogs",
+        "title": "Export Request Logs",
+        "category": "Specter",
+        "icon": "$(export)"
+      },
+      {
+        "command": "specter.startRecording",
+        "title": "Start Recording",
+        "category": "Specter",
+        "icon": "$(record)"
+      },
+      {
+        "command": "specter.stopRecording",
+        "title": "Stop Recording",
+        "category": "Specter",
+        "icon": "$(debug-stop)"
       },
       {
         "command": "specter.openLogs",
@@ -177,9 +207,34 @@
           "group": "1_routes"
         },
         {
+          "command": "specter.importOpenApi",
+          "when": "view == specterServers && viewItem =~ /^server/",
+          "group": "1_routes"
+        },
+        {
+          "command": "specter.importPostman",
+          "when": "view == specterServers && viewItem =~ /^server/",
+          "group": "1_routes"
+        },
+        {
+          "command": "specter.exportServer",
+          "when": "view == specterServers && viewItem =~ /^server/",
+          "group": "3_export"
+        },
+        {
+          "command": "specter.exportLogs",
+          "when": "view == specterServers && viewItem =~ /^server/",
+          "group": "3_export"
+        },
+        {
+          "command": "specter.startRecording",
+          "when": "view == specterServers && viewItem == server-running",
+          "group": "4_recording"
+        },
+        {
           "command": "specter.deleteServer",
           "when": "view == specterServers && viewItem =~ /^server/",
-          "group": "2_manage"
+          "group": "9_manage"
         },
         {
           "command": "specter.editRoute",
@@ -255,6 +310,8 @@
     "fastify": "^4.24.0",
     "handlebars": "^4.7.8",
     "uuid": "^9.0.1",
+    "ws": "^8.14.0",
+    "yaml": "^2.3.0",
     "zod": "^3.22.0"
   }
 }

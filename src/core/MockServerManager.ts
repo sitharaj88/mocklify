@@ -8,25 +8,49 @@ import {
   ServerEvent,
   RequestLogEntry,
   IRequestLogger,
+  IMockServer,
 } from '../types/core.js';
 import { ConfigurationStore } from '../storage/ConfigurationStore.js';
 import { HttpMockServer } from '../servers/HttpMockServer.js';
+import { GraphQLMockServer } from '../servers/GraphQLMockServer.js';
+import { WebSocketMockServer } from '../servers/WebSocketMockServer.js';
 import { RequestLogger } from '../logging/RequestLogger.js';
+import { RecordingManager } from '../recording/RecordingManager.js';
+import { DatabaseService } from '../services/DatabaseService.js';
+import { OpenApiService } from '../services/OpenApiService.js';
+import { PostmanService } from '../services/PostmanService.js';
+import { ExportService } from '../services/ExportService.js';
 
 export class MockServerManager {
   private configStore: ConfigurationStore;
-  private servers: Map<string, HttpMockServer> = new Map();
+  private servers: Map<string, IMockServer> = new Map();
   private requestLogger: RequestLogger;
   private eventHandlers: Set<EventHandler> = new Set();
   private _onDidChangeServers = new vscode.EventEmitter<void>();
   readonly onDidChangeServers = this._onDidChangeServers.event;
 
+  // New services
+  private recordingManager: RecordingManager;
+  private databaseService: DatabaseService;
+  private openApiService: OpenApiService;
+  private postmanService: PostmanService;
+  private exportService: ExportService;
+  private workspaceRoot: string | undefined;
+
   constructor(workspaceRoot: string | undefined) {
+    this.workspaceRoot = workspaceRoot;
     this.configStore = new ConfigurationStore(workspaceRoot);
 
     const config = vscode.workspace.getConfiguration('specter');
     const maxLogEntries = config.get<number>('logging.maxEntries', 1000);
     this.requestLogger = new RequestLogger(maxLogEntries);
+
+    // Initialize services
+    this.recordingManager = new RecordingManager(workspaceRoot);
+    this.databaseService = new DatabaseService(workspaceRoot || '');
+    this.openApiService = new OpenApiService();
+    this.postmanService = new PostmanService();
+    this.exportService = new ExportService();
   }
 
   /**
@@ -34,6 +58,7 @@ export class MockServerManager {
    */
   async initialize(): Promise<void> {
     await this.configStore.initialize();
+    await this.recordingManager.initialize();
 
     // Load all server configurations
     const configs = await this.configStore.getServers();
@@ -336,7 +361,20 @@ export class MockServerManager {
    * Create a server instance from config
    */
   private createServerInstance(config: MockServerConfig): void {
-    const server = new HttpMockServer(config);
+    let server: IMockServer;
+
+    switch (config.protocol) {
+      case 'graphql':
+        server = new GraphQLMockServer(config);
+        break;
+      case 'websocket':
+        server = new WebSocketMockServer(config);
+        break;
+      case 'http':
+      default:
+        server = new HttpMockServer(config);
+        break;
+    }
 
     // Subscribe to server events
     server.onEvent((event) => {
@@ -352,10 +390,110 @@ export class MockServerManager {
       // Log requests
       if (event.type === 'request:received') {
         this.requestLogger.log(event.entry);
+
+        // Also record if recording is active
+        if (this.recordingManager.getActiveSession()) {
+          this.recordingManager.recordRequest({
+            method: event.entry.request.method,
+            path: event.entry.request.path,
+            headers: event.entry.request.headers as Record<string, string>,
+            query: event.entry.request.query as Record<string, string>,
+            body: event.entry.request.body,
+            response: event.entry.response,
+          });
+        }
       }
     });
 
     this.servers.set(config.id, server);
+  }
+
+  // Service Getters
+  getRecordingManager(): RecordingManager {
+    return this.recordingManager;
+  }
+
+  getDatabaseService(): DatabaseService {
+    return this.databaseService;
+  }
+
+  getOpenApiService(): OpenApiService {
+    return this.openApiService;
+  }
+
+  getPostmanService(): PostmanService {
+    return this.postmanService;
+  }
+
+  getExportService(): ExportService {
+    return this.exportService;
+  }
+
+  /**
+   * Import routes from OpenAPI spec
+   */
+  async importFromOpenApi(filePath: string, serverId?: string): Promise<RouteConfig[]> {
+    const result = await this.openApiService.importFromFile(filePath, {
+      generateFakeData: true,
+      includeExamples: true,
+    });
+
+    if (!result.success) {
+      throw new Error(result.errors.join(', '));
+    }
+
+    if (serverId) {
+      for (const route of result.routes) {
+        await this.addRoute(serverId, route);
+      }
+    }
+
+    return result.routes;
+  }
+
+  /**
+   * Import routes from Postman collection
+   */
+  async importFromPostman(filePath: string, serverId?: string): Promise<RouteConfig[]> {
+    const result = await this.postmanService.importFromFile(filePath, {
+      includeExamples: true,
+      convertVariables: true,
+    });
+
+    if (!result.success) {
+      throw new Error(result.errors.join(', '));
+    }
+
+    if (serverId) {
+      for (const route of result.routes) {
+        await this.addRoute(serverId, route);
+      }
+    }
+
+    return result.routes;
+  }
+
+  /**
+   * Export server configuration
+   */
+  async exportServer(serverId: string, filePath: string): Promise<void> {
+    const server = await this.getServer(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    const json = this.exportService.exportServerToJson(server, { pretty: true });
+    await this.exportService.exportToFile(filePath, json);
+  }
+
+  /**
+   * Export logs to HAR format
+   */
+  async exportLogsToHar(serverId: string, filePath: string): Promise<void> {
+    const server = await this.getServer(serverId);
+    const logs = this.getLogEntries(serverId);
+    const har = this.exportService.exportLogsToHar(logs, server?.port);
+    await this.exportService.exportToFile(filePath, har);
   }
 
   /**
@@ -363,6 +501,7 @@ export class MockServerManager {
    */
   async dispose(): Promise<void> {
     await this.stopAll();
+    await this.databaseService.disconnectAll();
     this._onDidChangeServers.dispose();
   }
 }

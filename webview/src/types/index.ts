@@ -64,6 +64,7 @@ export interface RouteConfig {
   response: ResponseConfig;
   delay?: DelayConfig;
   priority?: number;
+  tags?: string[];
 }
 
 export interface CorsSettings {
@@ -182,7 +183,18 @@ export type MessageToExtension =
   | { type: 'updateDatabase'; data: DatabaseConnection }
   | { type: 'deleteDatabase'; databaseId: string }
   | { type: 'testDatabase'; databaseId: string }
-  | { type: 'clearLogs'; serverId?: string };
+  | { type: 'clearLogs'; serverId?: string }
+  // Import/Export
+  | { type: 'importOpenApi'; serverId: string; data: { content: string } }
+  | { type: 'importPostman'; serverId: string; data: { content: string } }
+  | { type: 'exportServer'; serverId: string }
+  | { type: 'exportLogs'; serverId?: string; data?: { format: string } }
+  // Recording
+  | { type: 'startRecording'; serverId: string; data: { targetUrl: string; pathFilter?: string } }
+  | { type: 'stopRecording'; serverId: string; data: { action: string } }
+  | { type: 'getRecordingStatus'; serverId: string }
+  // Search
+  | { type: 'searchRoutes'; data: { query: string; serverId?: string } };
 
 export type MessageFromExtension =
   | { type: 'state'; data: AppState }
@@ -190,4 +202,10 @@ export type MessageFromExtension =
   | { type: 'serverStateChanged'; state: ServerRuntimeState }
   | { type: 'logEntry'; entry: RequestLogEntry }
   | { type: 'error'; message: string }
-  | { type: 'success'; message: string };
+  | { type: 'success'; message: string }
+  // Recording
+  | { type: 'recordingStatus'; serverId: string; isRecording: boolean; recordingCount?: number; targetUrl?: string }
+  // Export
+  | { type: 'exportResult'; format: string; content: string; filename: string }
+  // Search
+  | { type: 'searchResults'; query: string; results: Array<{ serverId: string; serverName: string; routes: RouteConfig[] }> };

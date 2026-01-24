@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Menu,
   X,
+  Import,
+  Keyboard,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Badge, StatusDot, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui';
@@ -24,6 +26,11 @@ interface NavItem {
   label: string;
   icon: typeof LayoutDashboard;
   badge?: number;
+}
+
+interface SidebarProps {
+  onImportClick?: () => void;
+  onShortcutsClick?: () => void;
 }
 
 // Custom hook to detect if we're on mobile
@@ -40,7 +47,7 @@ function useIsMobile() {
   return isMobile;
 }
 
-export function Sidebar() {
+export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
   const { activeView, setActiveView, servers, serverStates } = useStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -224,25 +231,74 @@ export function Sidebar() {
         </nav>
 
         {/* Collapse Toggle - Desktop only */}
-        <div className="hidden lg:block p-3 border-t border-surface-800">
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors"
-          >
-            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="text-sm"
-                >
-                  Collapse
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </button>
+        <div className="hidden lg:block border-t border-surface-800">
+          {/* Quick Actions */}
+          <div className="p-3 space-y-1">
+            {onImportClick && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onImportClick}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-surface-400 hover:bg-surface-800/50 hover:text-surface-200 transition-colors',
+                      collapsed && 'justify-center'
+                    )}
+                  >
+                    <Import size={18} />
+                    {!collapsed && <span className="text-sm">Import</span>}
+                  </button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">
+                    <p>Import OpenAPI/Postman</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            )}
+            {onShortcutsClick && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onShortcutsClick}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-surface-400 hover:bg-surface-800/50 hover:text-surface-200 transition-colors',
+                      collapsed && 'justify-center'
+                    )}
+                  >
+                    <Keyboard size={18} />
+                    {!collapsed && <span className="text-sm">Shortcuts</span>}
+                  </button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">
+                    <p>Keyboard Shortcuts</p>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            )}
+          </div>
+
+          {/* Collapse Button */}
+          <div className="p-3 border-t border-surface-800">
+            <button
+              onClick={() => setCollapsed(!collapsed)}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors"
+            >
+              {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+              <AnimatePresence>
+                {!collapsed && (
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="text-sm"
+                  >
+                    Collapse
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
         </div>
       </motion.aside>
     </TooltipProvider>

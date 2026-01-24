@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from './store';
 import { useThemeStore } from './hooks/useTheme';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { ServerList } from './components/ServerList';
@@ -12,6 +13,9 @@ import { Settings } from './components/Settings';
 import { ServerModal } from './components/ServerModal';
 import { RouteModal } from './components/RouteModal';
 import { DatabaseModal } from './components/DatabaseModal';
+import { SearchBar } from './components/SearchBar';
+import { ImportModal } from './components/ImportModal';
+import { KeyboardShortcutsHelp } from './components/KeyboardShortcutsHelp';
 import type { MessageFromExtension } from './types';
 
 const pageVariants = {
@@ -39,9 +43,15 @@ function App() {
     addLog,
     updateServerState,
     setIsLoading,
+    setRecordingState,
   } = useStore();
 
   const { theme } = useThemeStore();
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
+  // Enable keyboard shortcuts
+  useKeyboardShortcuts();
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
@@ -98,6 +108,31 @@ function App() {
         case 'success':
           console.log('Success:', message.message);
           break;
+
+        case 'recordingStatus':
+          if (message.serverId) {
+            setRecordingState(message.serverId, {
+              isRecording: message.isRecording,
+              recordingCount: message.recordingCount || 0,
+              targetUrl: message.targetUrl,
+            });
+          }
+          break;
+
+        case 'exportResult':
+          // Handle file download
+          if (message.content && message.filename) {
+            const blob = new Blob([message.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = message.filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }
+          break;
       }
     };
 
@@ -120,8 +155,14 @@ function App() {
 
   return (
     <div className="app-container">
-      <Sidebar />
+      <Sidebar 
+        onImportClick={() => setShowImportModal(true)}
+        onShortcutsClick={() => setShowShortcutsHelp(true)}
+      />
       <main className="main-content mesh-bg pt-14 lg:pt-0">
+        {/* Search Bar for routes and logs views */}
+        <SearchBar />
+        
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}
@@ -140,6 +181,8 @@ function App() {
       {showServerModal && <ServerModal />}
       {showRouteModal && <RouteModal />}
       {showDatabaseModal && <DatabaseModal />}
+      <ImportModal open={showImportModal} onOpenChange={setShowImportModal} />
+      <KeyboardShortcutsHelp open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp} />
     </div>
   );
 }

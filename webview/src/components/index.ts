@@ -8,3 +8,7 @@ export { Settings } from './Settings';
 export { ServerModal } from './ServerModal';
 export { RouteModal } from './RouteModal';
 export { DatabaseModal } from './DatabaseModal';
+export { SearchBar } from './SearchBar';
+export { ImportModal } from './ImportModal';
+export { RecordingPanel } from './RecordingPanel';
+export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';

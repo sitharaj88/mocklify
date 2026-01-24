@@ -60,14 +60,35 @@ export const ProxyConfigSchema = z.object({
 });
 export type ProxyConfig = z.infer<typeof ProxyConfigSchema>;
 
+// Database Response Configuration
+export const DatabaseResponseConfigSchema = z.object({
+  connectionId: z.string(),
+  operation: z.enum(['find', 'findOne', 'insert', 'update', 'delete', 'query']),
+  collection: z.string().optional(),
+  table: z.string().optional(),
+  query: z.string().optional(),
+  filter: z.record(z.unknown()).optional(),
+});
+export type DatabaseResponseConfig = z.infer<typeof DatabaseResponseConfigSchema>;
+
+// Response Sequence Configuration
+export const ResponseSequenceConfigSchema = z.object({
+  responses: z.array(z.lazy(() => ResponseConfigSchema)),
+  resetAfter: z.number().optional(), // Reset after N calls
+  resetOnTime: z.number().optional(), // Reset after N milliseconds
+});
+export type ResponseSequenceConfig = z.infer<typeof ResponseSequenceConfigSchema>;
+
 // Response Configuration
 export const ResponseConfigSchema = z.object({
-  type: z.enum(['static', 'dynamic', 'proxy']),
+  type: z.enum(['static', 'dynamic', 'proxy', 'database', 'sequence']),
   statusCode: z.number().min(100).max(599),
   headers: z.record(z.string()).optional(),
   body: ResponseBodySchema.optional(),
   template: TemplateConfigSchema.optional(),
   proxy: ProxyConfigSchema.optional(),
+  database: DatabaseResponseConfigSchema.optional(),
+  sequence: ResponseSequenceConfigSchema.optional(),
 });
 export type ResponseConfig = z.infer<typeof ResponseConfigSchema>;
 
@@ -82,8 +103,16 @@ export const RouteConfigSchema = z.object({
   response: ResponseConfigSchema,
   delay: DelayConfigSchema.optional(),
   priority: z.number().optional(),
+  tags: z.array(z.string()).optional(),
 });
 export type RouteConfig = z.infer<typeof RouteConfigSchema>;
+
+// Environment Configuration
+export const EnvironmentConfigSchema = z.object({
+  name: z.string(),
+  variables: z.record(z.string()),
+});
+export type EnvironmentConfig = z.infer<typeof EnvironmentConfigSchema>;
 
 // Server Settings
 export const ServerSettingsSchema = z.object({
