@@ -1,0 +1,217 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "Sample API Server",
+      "port": 3000,
+      "protocol": "http",
+      "enabled": true,
+      "routes": [
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440001",
+          "name": "Get All Users",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/users",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "users": [
+                  { "id": 1, "name": "John Doe", "email": "john@example.com" },
+                  { "id": 2, "name": "Jane Smith", "email": "jane@example.com" },
+                  { "id": 3, "name": "Bob Wilson", "email": "bob@example.com" }
+                ],
+                "total": 3
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440002",
+          "name": "Get User by ID",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/users/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "{{params.id}}",
+                "name": "John Doe",
+                "email": "john@example.com",
+                "createdAt": "2024-01-15T10:30:00Z"
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440003",
+          "name": "Create User",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/users",
+          "response": {
+            "type": "static",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": 4,
+                "message": "User created successfully"
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440004",
+          "name": "Update User",
+          "enabled": true,
+          "method": "PUT",
+          "path": "/api/users/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "{{params.id}}",
+                "message": "User updated successfully"
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440005",
+          "name": "Delete User",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/users/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {}
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440006",
+          "name": "Get Products",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "products": [
+                  { "id": 1, "name": "Laptop", "price": 999.99, "inStock": true },
+                  { "id": 2, "name": "Phone", "price": 699.99, "inStock": true },
+                  { "id": 3, "name": "Tablet", "price": 499.99, "inStock": false }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440007",
+          "name": "Health Check",
+          "enabled": true,
+          "method": "GET",
+          "path": "/health",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "status": "healthy",
+                "timestamp": "2024-01-15T10:30:00Z"
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440008",
+          "name": "Slow Endpoint",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/slow",
+          "delay": {
+            "type": "fixed",
+            "value": 2000
+          },
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "message": "This response was delayed by 2 seconds"
+              }
+            }
+          }
+        },
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440009",
+          "name": "Error Example",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/error",
+          "response": {
+            "type": "static",
+            "statusCode": 500,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Internal Server Error",
+                "message": "Something went wrong"
+              }
+            }
+          }
+        }
+      ],
+      "settings": {
+        "cors": {
+          "enabled": true
+        },
+        "logging": {
+          "enabled": true,
+          "includeBody": true
+        }
+      },
+      "createdAt": "2024-01-15T10:00:00Z",
+      "updatedAt": "2024-01-15T10:00:00Z"
+    }
+  ]
+}

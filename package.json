@@ -1,0 +1,258 @@
+{
+  "name": "vscode-mock-server",
+  "displayName": "Mock Server",
+  "description": "Create, manage, and run mock servers directly from VS Code",
+  "version": "0.1.0",
+  "publisher": "mockserver",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "keywords": [
+    "mock",
+    "server",
+    "api",
+    "testing",
+    "rest",
+    "http"
+  ],
+  "activationEvents": [
+    "workspaceContains:.mockserver"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mockServer.createServer",
+        "title": "Create Mock Server",
+        "category": "Mock Server",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mockServer.startServer",
+        "title": "Start Server",
+        "category": "Mock Server",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mockServer.stopServer",
+        "title": "Stop Server",
+        "category": "Mock Server",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "mockServer.startAll",
+        "title": "Start All Servers",
+        "category": "Mock Server",
+        "icon": "$(run-all)"
+      },
+      {
+        "command": "mockServer.stopAll",
+        "title": "Stop All Servers",
+        "category": "Mock Server",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "mockServer.deleteServer",
+        "title": "Delete Server",
+        "category": "Mock Server",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mockServer.addRoute",
+        "title": "Add Route",
+        "category": "Mock Server",
+        "icon": "$(add)"
+      },
+      {
+        "command": "mockServer.editRoute",
+        "title": "Edit Route",
+        "category": "Mock Server",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "mockServer.deleteRoute",
+        "title": "Delete Route",
+        "category": "Mock Server",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "mockServer.toggleRoute",
+        "title": "Toggle Route",
+        "category": "Mock Server"
+      },
+      {
+        "command": "mockServer.importOpenApi",
+        "title": "Import OpenAPI Spec",
+        "category": "Mock Server",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "mockServer.openLogs",
+        "title": "Open Request Logs",
+        "category": "Mock Server",
+        "icon": "$(output)"
+      },
+      {
+        "command": "mockServer.refresh",
+        "title": "Refresh",
+        "category": "Mock Server",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mockServer.openDashboard",
+        "title": "Open Dashboard",
+        "category": "Mock Server",
+        "icon": "$(dashboard)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mockServerExplorer",
+          "title": "Mock Server",
+          "icon": "resources/mock-server.svg"
+        }
+      ]
+    },
+    "views": {
+      "mockServerExplorer": [
+        {
+          "id": "mockServerServers",
+          "name": "Servers"
+        },
+        {
+          "id": "mockServerLogs",
+          "name": "Request Logs"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "mockServer.openDashboard",
+          "when": "view == mockServerServers",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mockServer.createServer",
+          "when": "view == mockServerServers",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mockServer.startAll",
+          "when": "view == mockServerServers",
+          "group": "navigation@3"
+        },
+        {
+          "command": "mockServer.stopAll",
+          "when": "view == mockServerServers",
+          "group": "navigation@4"
+        },
+        {
+          "command": "mockServer.refresh",
+          "when": "view == mockServerServers",
+          "group": "navigation@5"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mockServer.startServer",
+          "when": "view == mockServerServers && viewItem == server-stopped",
+          "group": "inline"
+        },
+        {
+          "command": "mockServer.stopServer",
+          "when": "view == mockServerServers && viewItem == server-running",
+          "group": "inline"
+        },
+        {
+          "command": "mockServer.addRoute",
+          "when": "view == mockServerServers && viewItem =~ /^server/",
+          "group": "1_routes"
+        },
+        {
+          "command": "mockServer.deleteServer",
+          "when": "view == mockServerServers && viewItem =~ /^server/",
+          "group": "2_manage"
+        },
+        {
+          "command": "mockServer.editRoute",
+          "when": "view == mockServerServers && viewItem == route",
+          "group": "inline"
+        },
+        {
+          "command": "mockServer.toggleRoute",
+          "when": "view == mockServerServers && viewItem == route",
+          "group": "1_toggle"
+        },
+        {
+          "command": "mockServer.deleteRoute",
+          "when": "view == mockServerServers && viewItem == route",
+          "group": "2_manage"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Mock Server",
+      "properties": {
+        "mockServer.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start servers when VS Code opens"
+        },
+        "mockServer.defaultPort": {
+          "type": "number",
+          "default": 3000,
+          "description": "Default port for new mock servers"
+        },
+        "mockServer.configPath": {
+          "type": "string",
+          "default": ".mockserver",
+          "description": "Path to configuration directory relative to workspace"
+        },
+        "mockServer.logging.maxEntries": {
+          "type": "number",
+          "default": 1000,
+          "description": "Maximum number of log entries to keep"
+        },
+        "mockServer.logging.includeBody": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include request/response body in logs"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/uuid": "^9.0.7",
+    "@types/vscode": "^1.85.0",
+    "@types/ws": "^8.5.10",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "esbuild": "^0.19.8",
+    "eslint": "^8.55.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^8.3.0",
+    "fastify": "^4.24.0",
+    "handlebars": "^4.7.8",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.0"
+  }
+}
