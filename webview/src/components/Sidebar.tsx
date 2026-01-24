@@ -26,10 +26,25 @@ interface NavItem {
   badge?: number;
 }
 
+// Custom hook to detect if we're on mobile
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  return isMobile;
+}
+
 export function Sidebar() {
   const { activeView, setActiveView, servers, serverStates } = useStore();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   // Close mobile menu when view changes
   useEffect(() => {
@@ -96,18 +111,21 @@ export function Sidebar() {
       <motion.aside
         initial={false}
         animate={{ 
-          width: collapsed ? 72 : 240,
-          x: mobileOpen ? 0 : (typeof window !== 'undefined' && window.innerWidth < 1024 ? -240 : 0)
+          width: collapsed && !isMobile ? 72 : 240,
         }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
         className={cn(
           "h-screen flex flex-col bg-surface-900 border-r border-surface-800",
-          "fixed lg:relative z-50 lg:z-auto",
-          "lg:translate-x-0"
+          // Mobile: fixed positioning with slide animation
+          "max-lg:fixed max-lg:z-50 max-lg:top-14 max-lg:left-0 max-lg:h-[calc(100vh-3.5rem)]",
+          "max-lg:transition-transform max-lg:duration-200",
+          mobileOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
+          // Desktop: relative positioning, always visible
+          "lg:relative lg:z-auto lg:translate-x-0 lg:top-0 lg:h-screen"
         )}
       >
-        {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-surface-800">
+        {/* Logo - Hidden on mobile since we have the mobile header */}
+        <div className="h-16 hidden lg:flex items-center px-4 border-b border-surface-800">
           <div className="relative flex items-center gap-3">
             <div className="relative w-10 h-10 flex-shrink-0">
               <div className="absolute inset-0 bg-brand-500/30 blur-lg rounded-full" />
@@ -137,6 +155,7 @@ export function Sidebar() {
             {navItems.map((item) => {
               const isActive = activeView === item.id;
               const Icon = item.icon;
+              const showLabels = isMobile || !collapsed;
 
               const button = (
                 <motion.button
@@ -161,7 +180,7 @@ export function Sidebar() {
                   <div className="relative flex items-center gap-3">
                     <Icon size={18} />
                     <AnimatePresence>
-                      {!collapsed && (
+                      {showLabels && (
                         <motion.span
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: 'auto' }}
@@ -173,20 +192,20 @@ export function Sidebar() {
                       )}
                     </AnimatePresence>
                   </div>
-                  {item.badge && !collapsed && (
+                  {item.badge && showLabels && (
                     <Badge variant="default" className="ml-auto">
                       {item.badge}
                     </Badge>
                   )}
                   {item.id === 'servers' && runningCount > 0 && (
-                    <div className={cn('ml-auto', collapsed && 'absolute -top-1 -right-1')}>
+                    <div className={cn('ml-auto', !showLabels && 'absolute -top-1 -right-1')}>
                       <StatusDot status="running" size="sm" />
                     </div>
                   )}
                 </motion.button>
               );
 
-              if (collapsed) {
+              if (collapsed && !isMobile) {
                 return (
                   <li key={item.id}>
                     <Tooltip>
