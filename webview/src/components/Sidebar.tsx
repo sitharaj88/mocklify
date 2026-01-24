@@ -66,7 +66,7 @@ export function Sidebar() {
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <h1 className="font-bold text-surface-50 whitespace-nowrap">Mock Server</h1>
+                  <h1 className="font-bold text-surface-50 whitespace-nowrap">Specter</h1>
                   <p className="text-xs text-surface-500">v0.1.0</p>
                 </motion.div>
               )}

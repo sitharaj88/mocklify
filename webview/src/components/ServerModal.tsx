@@ -113,7 +113,7 @@ export function ServerModal() {
                 {isEditing ? 'Edit Server' : 'Create New Server'}
               </DialogTitle>
               <DialogDescription>
-                {isEditing ? 'Update server configuration' : 'Configure your mock server settings'}
+                {isEditing ? 'Update server configuration' : 'Configure your server settings'}
               </DialogDescription>
             </div>
           </div>
@@ -126,7 +126,7 @@ export function ServerModal() {
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="My Mock Server"
+                placeholder="My API Server"
                 autoFocus
               />
             </FormGroup>

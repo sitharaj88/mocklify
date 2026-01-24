@@ -1,0 +1,45 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "3406e58c-41b0-4f60-b1d3-c3dc16dc78e5",
+      "name": "sitharaj",
+      "port": 3000,
+      "protocol": "http",
+      "enabled": true,
+      "routes": [
+        {
+          "id": "c3768679-159d-45ae-8581-53f516d2f10d",
+          "name": "/",
+          "enabled": true,
+          "method": "GET",
+          "path": "/",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "name": "Sitharaj Seenivasan"
+              }
+            }
+          }
+        }
+      ],
+      "settings": {
+        "cors": {
+          "enabled": true
+        },
+        "logging": {
+          "enabled": true,
+          "includeBody": true
+        }
+      },
+      "createdAt": "2026-01-24T15:39:24.540Z",
+      "updatedAt": "2026-01-24T15:39:43.964Z"
+    }
+  ]
+}

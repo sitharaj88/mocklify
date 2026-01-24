@@ -53,7 +53,7 @@ export function LogsViewer() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'mock-server-logs.json';
+    a.download = 'specter-logs.json';
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -137,7 +137,7 @@ export function LogsViewer() {
                 <EmptyState
                   icon={ScrollText}
                   title="No requests logged"
-                  description="Requests to your mock servers will appear here"
+                  description="Requests to your servers will appear here"
                 />
               </div>
             ) : (

@@ -15,8 +15,8 @@ export class ConfigurationStore implements IConfigurationStore {
       throw new Error('No workspace folder open');
     }
 
-    const config = vscode.workspace.getConfiguration('mockServer');
-    const configPath = config.get<string>('configPath', '.mockserver');
+    const config = vscode.workspace.getConfiguration('specter');
+    const configPath = config.get<string>('configPath', '.specter');
 
     this.configDir = path.join(this.workspaceRoot, configPath);
     this.serversFilePath = path.join(this.configDir, 'servers.json');

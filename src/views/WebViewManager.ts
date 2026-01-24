@@ -21,7 +21,7 @@ export class WebViewManager {
     private manager: MockServerManager
   ) {
     // Load databases from storage
-    this.databases = context.globalState.get('mockserver.databases', []);
+    this.databases = context.globalState.get('specter.databases', []);
   }
 
   async show(): Promise<void> {
@@ -31,8 +31,8 @@ export class WebViewManager {
     }
 
     this.panel = vscode.window.createWebviewPanel(
-      'mockServerDashboard',
-      'Mock Server Dashboard',
+      'specterDashboard',
+      'Specter Dashboard',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -98,13 +98,13 @@ export class WebViewManager {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; font-src ${webview.cspSource} data:; img-src ${webview.cspSource} https: data:; connect-src ${webview.cspSource};">
   <link rel="stylesheet" href="${styleUri}">
-  <title>Mock Server Dashboard</title>
+  <title>Specter Dashboard</title>
 </head>
 <body>
   <div id="root">
     <div style="display: flex; align-items: center; justify-content: center; height: 100vh; color: #ccc; font-family: sans-serif;">
       <div style="text-align: center;">
-        <div style="font-size: 24px; margin-bottom: 10px;">Loading Mock Server Dashboard...</div>
+        <div style="font-size: 24px; margin-bottom: 10px;">Loading Specter Dashboard...</div>
         <div style="font-size: 12px; color: #888;">If this message persists, check Developer Tools (Help > Toggle Developer Tools) for errors.</div>
       </div>
     </div>
@@ -280,7 +280,7 @@ export class WebViewManager {
     };
 
     this.databases.push(database);
-    await this.context.globalState.update('mockserver.databases', this.databases);
+    await this.context.globalState.update('specter.databases', this.databases);
     await this.sendState();
     this.sendSuccess('Database connection added');
   }
@@ -289,7 +289,7 @@ export class WebViewManager {
     const index = this.databases.findIndex((d) => d.id === data.id);
     if (index !== -1) {
       this.databases[index] = data;
-      await this.context.globalState.update('mockserver.databases', this.databases);
+      await this.context.globalState.update('specter.databases', this.databases);
       await this.sendState();
       this.sendSuccess('Database connection updated');
     }
@@ -297,7 +297,7 @@ export class WebViewManager {
 
   private async deleteDatabase(databaseId: string): Promise<void> {
     this.databases = this.databases.filter((d) => d.id !== databaseId);
-    await this.context.globalState.update('mockserver.databases', this.databases);
+    await this.context.globalState.update('specter.databases', this.databases);
     await this.sendState();
     this.sendSuccess('Database connection deleted');
   }

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Ghost body outline -->
+  <path 
+    d="M12 2C7.58 2 4 5.58 4 10v9c0 .83.67 1.5 1.5 1.5.4 0 .78-.16 1.06-.44L8 18.62l1.44 1.44c.58.58 1.54.58 2.12 0L12 19.62l.44.44c.58.58 1.54.58 2.12 0L16 18.62l1.44 1.44c.28.28.66.44 1.06.44.83 0 1.5-.67 1.5-1.5V10c0-4.42-3.58-8-8-8z"
+    fill="#06B6D4"
+  />
+  
+  <!-- Left eye -->
+  <ellipse cx="9" cy="11" rx="1.5" ry="2" fill="#0F172A"/>
+  
+  <!-- Right eye -->
+  <ellipse cx="15" cy="11" rx="1.5" ry="2" fill="#0F172A"/>
+  
+  <!-- Smile -->
+  <path 
+    d="M9.5 14.5c0 0 1.25 2 2.5 2s2.5-2 2.5-2" 
+    stroke="#0F172A" 
+    stroke-width="1.2" 
+    stroke-linecap="round"
+    fill="none"
+  />
+</svg>

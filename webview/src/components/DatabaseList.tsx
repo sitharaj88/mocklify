@@ -150,7 +150,7 @@ export function DatabaseList() {
                 <div>
                   <p className="font-medium text-surface-100">Database Integration</p>
                   <p className="text-sm text-surface-400 mt-1">
-                    Connect your mock server to databases for dynamic responses. Use JSON files for
+                    Connect Specter to databases for dynamic responses. Use JSON files for
                     simple scenarios or connect to real databases for complex testing.
                   </p>
                 </div>

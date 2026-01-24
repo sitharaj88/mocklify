@@ -103,7 +103,7 @@ export function ServerList() {
           <EmptyState
             icon={Server}
             title="No servers yet"
-            description="Create your first mock server to start intercepting requests"
+            description="Create your first server to start intercepting requests"
             action={{
               label: 'Create Server',
               onClick: handleCreateServer,

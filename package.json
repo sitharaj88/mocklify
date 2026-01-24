@@ -1,9 +1,9 @@
 {
-  "name": "vscode-mock-server",
-  "displayName": "Mock Server",
-  "description": "Create, manage, and run mock servers directly from VS Code",
+  "name": "specter",
+  "displayName": "Specter",
+  "description": "Specter - Powerful API mocking for VS Code. Create, manage, and run mock servers with ease.",
   "version": "0.1.0",
-  "publisher": "mockserver",
+  "publisher": "sitharaj",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -12,120 +12,122 @@
     "Other"
   ],
   "keywords": [
+    "specter",
     "mock",
     "server",
     "api",
     "testing",
     "rest",
-    "http"
+    "http",
+    "mocking"
   ],
   "activationEvents": [
-    "workspaceContains:.mockserver"
+    "workspaceContains:.specter"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "mockServer.createServer",
-        "title": "Create Mock Server",
-        "category": "Mock Server",
+        "command": "specter.createServer",
+        "title": "Create Server",
+        "category": "Specter",
         "icon": "$(add)"
       },
       {
-        "command": "mockServer.startServer",
+        "command": "specter.startServer",
         "title": "Start Server",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(play)"
       },
       {
-        "command": "mockServer.stopServer",
+        "command": "specter.stopServer",
         "title": "Stop Server",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "mockServer.startAll",
+        "command": "specter.startAll",
         "title": "Start All Servers",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(run-all)"
       },
       {
-        "command": "mockServer.stopAll",
+        "command": "specter.stopAll",
         "title": "Stop All Servers",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "mockServer.deleteServer",
+        "command": "specter.deleteServer",
         "title": "Delete Server",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(trash)"
       },
       {
-        "command": "mockServer.addRoute",
+        "command": "specter.addRoute",
         "title": "Add Route",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(add)"
       },
       {
-        "command": "mockServer.editRoute",
+        "command": "specter.editRoute",
         "title": "Edit Route",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(edit)"
       },
       {
-        "command": "mockServer.deleteRoute",
+        "command": "specter.deleteRoute",
         "title": "Delete Route",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(trash)"
       },
       {
-        "command": "mockServer.toggleRoute",
+        "command": "specter.toggleRoute",
         "title": "Toggle Route",
-        "category": "Mock Server"
+        "category": "Specter"
       },
       {
-        "command": "mockServer.importOpenApi",
+        "command": "specter.importOpenApi",
         "title": "Import OpenAPI Spec",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "mockServer.openLogs",
+        "command": "specter.openLogs",
         "title": "Open Request Logs",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(output)"
       },
       {
-        "command": "mockServer.refresh",
+        "command": "specter.refresh",
         "title": "Refresh",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(refresh)"
       },
       {
-        "command": "mockServer.openDashboard",
+        "command": "specter.openDashboard",
         "title": "Open Dashboard",
-        "category": "Mock Server",
+        "category": "Specter",
         "icon": "$(dashboard)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mockServerExplorer",
-          "title": "Mock Server",
-          "icon": "resources/mock-server.svg"
+          "id": "specterExplorer",
+          "title": "Specter",
+          "icon": "resources/specter.svg"
         }
       ]
     },
     "views": {
-      "mockServerExplorer": [
+      "specterExplorer": [
         {
-          "id": "mockServerServers",
+          "id": "specterServers",
           "name": "Servers"
         },
         {
-          "id": "mockServerLogs",
+          "id": "specterLogs",
           "name": "Request Logs"
         }
       ]
@@ -133,93 +135,93 @@
     "menus": {
       "view/title": [
         {
-          "command": "mockServer.openDashboard",
-          "when": "view == mockServerServers",
+          "command": "specter.openDashboard",
+          "when": "view == specterServers",
           "group": "navigation@1"
         },
         {
-          "command": "mockServer.createServer",
-          "when": "view == mockServerServers",
+          "command": "specter.createServer",
+          "when": "view == specterServers",
           "group": "navigation@2"
         },
         {
-          "command": "mockServer.startAll",
-          "when": "view == mockServerServers",
+          "command": "specter.startAll",
+          "when": "view == specterServers",
           "group": "navigation@3"
         },
         {
-          "command": "mockServer.stopAll",
-          "when": "view == mockServerServers",
+          "command": "specter.stopAll",
+          "when": "view == specterServers",
           "group": "navigation@4"
         },
         {
-          "command": "mockServer.refresh",
-          "when": "view == mockServerServers",
+          "command": "specter.refresh",
+          "when": "view == specterServers",
           "group": "navigation@5"
         }
       ],
       "view/item/context": [
         {
-          "command": "mockServer.startServer",
-          "when": "view == mockServerServers && viewItem == server-stopped",
+          "command": "specter.startServer",
+          "when": "view == specterServers && viewItem == server-stopped",
           "group": "inline"
         },
         {
-          "command": "mockServer.stopServer",
-          "when": "view == mockServerServers && viewItem == server-running",
+          "command": "specter.stopServer",
+          "when": "view == specterServers && viewItem == server-running",
           "group": "inline"
         },
         {
-          "command": "mockServer.addRoute",
-          "when": "view == mockServerServers && viewItem =~ /^server/",
+          "command": "specter.addRoute",
+          "when": "view == specterServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
         {
-          "command": "mockServer.deleteServer",
-          "when": "view == mockServerServers && viewItem =~ /^server/",
+          "command": "specter.deleteServer",
+          "when": "view == specterServers && viewItem =~ /^server/",
           "group": "2_manage"
         },
         {
-          "command": "mockServer.editRoute",
-          "when": "view == mockServerServers && viewItem == route",
+          "command": "specter.editRoute",
+          "when": "view == specterServers && viewItem == route",
           "group": "inline"
         },
         {
-          "command": "mockServer.toggleRoute",
-          "when": "view == mockServerServers && viewItem == route",
+          "command": "specter.toggleRoute",
+          "when": "view == specterServers && viewItem == route",
           "group": "1_toggle"
         },
         {
-          "command": "mockServer.deleteRoute",
-          "when": "view == mockServerServers && viewItem == route",
+          "command": "specter.deleteRoute",
+          "when": "view == specterServers && viewItem == route",
           "group": "2_manage"
         }
       ]
     },
     "configuration": {
-      "title": "Mock Server",
+      "title": "Specter",
       "properties": {
-        "mockServer.autoStart": {
+        "specter.autoStart": {
           "type": "boolean",
           "default": false,
           "description": "Automatically start servers when VS Code opens"
         },
-        "mockServer.defaultPort": {
+        "specter.defaultPort": {
           "type": "number",
           "default": 3000,
-          "description": "Default port for new mock servers"
+          "description": "Default port for new Specter servers"
         },
-        "mockServer.configPath": {
+        "specter.configPath": {
           "type": "string",
-          "default": ".mockserver",
+          "default": ".specter",
           "description": "Path to configuration directory relative to workspace"
         },
-        "mockServer.logging.maxEntries": {
+        "specter.logging.maxEntries": {
           "type": "number",
           "default": 1000,
           "description": "Maximum number of log entries to keep"
         },
-        "mockServer.logging.includeBody": {
+        "specter.logging.includeBody": {
           "type": "boolean",
           "default": true,
           "description": "Include request/response body in logs"

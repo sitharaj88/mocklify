@@ -17,32 +17,32 @@ export class CommandRegistry {
   ) {}
 
   registerAll(): void {
-    this.register('mockServer.createServer', () => this.createServer());
-    this.register('mockServer.startServer', (item?: ServerTreeItem) =>
+    this.register('specter.createServer', () => this.createServer());
+    this.register('specter.startServer', (item?: ServerTreeItem) =>
       this.startServer(item)
     );
-    this.register('mockServer.stopServer', (item?: ServerTreeItem) =>
+    this.register('specter.stopServer', (item?: ServerTreeItem) =>
       this.stopServer(item)
     );
-    this.register('mockServer.deleteServer', (item?: ServerTreeItem) =>
+    this.register('specter.deleteServer', (item?: ServerTreeItem) =>
       this.deleteServer(item)
     );
-    this.register('mockServer.startAll', () => this.startAll());
-    this.register('mockServer.stopAll', () => this.stopAll());
-    this.register('mockServer.addRoute', (item?: ServerTreeItem) =>
+    this.register('specter.startAll', () => this.startAll());
+    this.register('specter.stopAll', () => this.stopAll());
+    this.register('specter.addRoute', (item?: ServerTreeItem) =>
       this.addRoute(item)
     );
-    this.register('mockServer.editRoute', (item?: RouteTreeItem) =>
+    this.register('specter.editRoute', (item?: RouteTreeItem) =>
       this.editRoute(item)
     );
-    this.register('mockServer.deleteRoute', (item?: RouteTreeItem) =>
+    this.register('specter.deleteRoute', (item?: RouteTreeItem) =>
       this.deleteRoute(item)
     );
-    this.register('mockServer.toggleRoute', (item?: RouteTreeItem) =>
+    this.register('specter.toggleRoute', (item?: RouteTreeItem) =>
       this.toggleRoute(item)
     );
-    this.register('mockServer.refresh', () => this.refresh());
-    this.register('mockServer.showQuickPick', () => this.showQuickPick());
+    this.register('specter.refresh', () => this.refresh());
+    this.register('specter.showQuickPick', () => this.showQuickPick());
   }
 
   private register(command: string, callback: (...args: unknown[]) => unknown): void {
@@ -54,7 +54,7 @@ export class CommandRegistry {
   private async createServer(): Promise<void> {
     const name = await vscode.window.showInputBox({
       prompt: 'Enter server name',
-      placeHolder: 'My Mock Server',
+      placeHolder: 'My API Server',
       validateInput: (value) => {
         if (!value || value.trim().length === 0) {
           return 'Server name is required';
@@ -88,7 +88,7 @@ export class CommandRegistry {
 
     try {
       const server = await this.manager.createServer(name.trim(), port);
-      vscode.window.showInformationMessage(`Created mock server: ${server.name}`);
+      vscode.window.showInformationMessage(`Specter: Created server "${server.name}"`);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to create server: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -362,8 +362,8 @@ export class CommandRegistry {
 
     if (servers.length === 0) {
       const action = await vscode.window.showQuickPick(
-        [{ label: '$(add) Create Mock Server', action: 'create' }],
-        { placeHolder: 'No mock servers configured' }
+        [{ label: '$(add) Create Server', action: 'create' }],
+        { placeHolder: 'No Specter servers configured' }
       );
 
       if (action?.action === 'create') {

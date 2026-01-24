@@ -51,7 +51,7 @@ export function Settings() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-surface-50">Settings</h1>
-            <p className="text-sm text-surface-400">Configure your mock server</p>
+            <p className="text-sm text-surface-400">Configure Specter</p>
           </div>
         </div>
       </header>
@@ -100,8 +100,8 @@ export function Settings() {
                     <FormGroup>
                       <Label>Configuration Path</Label>
                       <Input
-                        defaultValue=".mockserver"
-                        placeholder=".mockserver"
+                        defaultValue=".specter"
+                        placeholder=".specter"
                       />
                       <FormHint>Directory where server configurations are stored</FormHint>
                     </FormGroup>
@@ -227,8 +227,8 @@ export function Settings() {
                     <FormGroup>
                       <Label>JSON Database Directory</Label>
                       <Input
-                        defaultValue=".mockserver/data"
-                        placeholder=".mockserver/data"
+                        defaultValue=".specter/data"
+                        placeholder=".specter/data"
                       />
                     </FormGroup>
 
@@ -254,7 +254,7 @@ export function Settings() {
               {activeTab === 'about' && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>About Mock Server</CardTitle>
+                    <CardTitle>About Specter</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center py-8">
@@ -266,17 +266,17 @@ export function Settings() {
                         </div>
                       </div>
 
-                      <h2 className="text-2xl font-bold text-surface-50 mb-2">VS Code Mock Server</h2>
+                      <h2 className="text-2xl font-bold text-surface-50 mb-2">Specter</h2>
                       <p className="text-surface-400 mb-2">Version 0.1.0</p>
                       <p className="text-surface-400 max-w-md mx-auto mb-6">
-                        A powerful mock server extension for VS Code that enables developers to
-                        create, manage, and run mock servers directly from their IDE.
+                        A powerful API mocking extension for VS Code that enables developers to
+                        create, manage, and run mock API servers directly from their IDE.
                       </p>
 
                       <div className="flex justify-center gap-3">
                         <Button variant="secondary" asChild>
                           <a
-                            href="https://github.com/mockserver/vscode-mock-server"
+                            href="https://github.com/sitharaj/specter"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -286,7 +286,7 @@ export function Settings() {
                         </Button>
                         <Button variant="secondary" asChild>
                           <a
-                            href="https://github.com/mockserver/vscode-mock-server/issues"
+                            href="https://github.com/sitharaj/specter/issues"
                             target="_blank"
                             rel="noopener noreferrer"
                           >

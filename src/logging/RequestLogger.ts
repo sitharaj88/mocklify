@@ -84,7 +84,7 @@ export class RequestLogger implements IRequestLogger {
       log: {
         version: '1.2',
         creator: {
-          name: 'VS Code Mock Server',
+          name: 'Specter for VS Code',
           version: '1.0.0',
         },
         entries: entries.map((entry) => ({

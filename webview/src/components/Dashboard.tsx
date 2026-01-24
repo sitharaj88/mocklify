@@ -123,7 +123,7 @@ export function Dashboard() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-surface-50">Dashboard</h1>
-            <p className="text-sm text-surface-400">Overview of your mock servers</p>
+            <p className="text-sm text-surface-400">Overview of your servers</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -203,7 +203,7 @@ export function Dashboard() {
                   <EmptyState
                     icon={Server}
                     title="No servers configured"
-                    description="Create your first mock server to get started"
+                    description="Create your first server to get started"
                     action={{
                       label: 'Create Server',
                       onClick: handleCreateServer,
