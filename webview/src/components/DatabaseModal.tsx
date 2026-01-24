@@ -1,12 +1,40 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from '../store';
-import { X } from 'lucide-react';
+import { Database, FileJson, HardDrive, Leaf, CircleDashed } from 'lucide-react';
 import type { DatabaseConnection } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Input,
+  Switch,
+  FormGroup,
+  Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui';
+import { cn } from '../lib/utils';
 
 type DbType = 'json' | 'sqlite' | 'mongodb' | 'mysql' | 'postgresql';
 
+const dbTypes = [
+  { value: 'json', label: 'JSON File', icon: FileJson, color: 'text-amber-400' },
+  { value: 'sqlite', label: 'SQLite', icon: HardDrive, color: 'text-blue-400' },
+  { value: 'mongodb', label: 'MongoDB', icon: Leaf, color: 'text-green-400' },
+  { value: 'mysql', label: 'MySQL', icon: Database, color: 'text-orange-400' },
+  { value: 'postgresql', label: 'PostgreSQL', icon: CircleDashed, color: 'text-sky-400' },
+];
+
 export function DatabaseModal() {
-  const { editingDatabase, setShowDatabaseModal, setEditingDatabase } = useStore();
+  const { editingDatabase, showDatabaseModal, setShowDatabaseModal, setEditingDatabase } = useStore();
 
   const [name, setName] = useState('');
   const [dbType, setDbType] = useState<DbType>('json');
@@ -142,201 +170,212 @@ export function DatabaseModal() {
     handleClose();
   };
 
+  const selectedDb = dbTypes.find((d) => d.value === dbType);
+
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">
-            {isEditing ? 'Edit Database Connection' : 'Add Database Connection'}
-          </h2>
-          <button className="btn btn-ghost btn-icon" onClick={handleClose}>
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog open={showDatabaseModal} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="default">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-brand-500/15">
+              <Database className="w-5 h-5 text-brand-400" />
+            </div>
+            <div>
+              <DialogTitle>
+                {isEditing ? 'Edit Database' : 'Add Database Connection'}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing ? 'Update connection settings' : 'Configure a database for mock data'}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label className="form-label">Connection Name *</label>
-              <input
-                type="text"
-                className="form-input"
+          <div className="space-y-5 py-4">
+            <FormGroup>
+              <Label required>Connection Name</Label>
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="My Database"
                 autoFocus
               />
-            </div>
+            </FormGroup>
 
-            <div className="form-group">
-              <label className="form-label">Database Type *</label>
-              <select
-                className="form-select"
+            <FormGroup>
+              <Label required>Database Type</Label>
+              <Select
                 value={dbType}
-                onChange={(e) => {
-                  setDbType(e.target.value as DbType);
-                  if (e.target.value === 'mysql') setSqlPort(3306);
-                  if (e.target.value === 'postgresql') setSqlPort(5432);
+                onValueChange={(v) => {
+                  setDbType(v as DbType);
+                  if (v === 'mysql') setSqlPort(3306);
+                  if (v === 'postgresql') setSqlPort(5432);
                 }}
               >
-                <option value="json">JSON File Database</option>
-                <option value="sqlite">SQLite</option>
-                <option value="mongodb">MongoDB</option>
-                <option value="mysql">MySQL</option>
-                <option value="postgresql">PostgreSQL</option>
-              </select>
-            </div>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {dbTypes.map((db) => (
+                    <SelectItem key={db.value} value={db.value}>
+                      <div className="flex items-center gap-2">
+                        <db.icon size={14} className={db.color} />
+                        {db.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormGroup>
 
-            {/* JSON Configuration */}
-            {dbType === 'json' && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">File Path</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={jsonFilePath}
-                    onChange={(e) => setJsonFilePath(e.target.value)}
-                    placeholder="./data/db.json"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={dbType}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="rounded-xl bg-surface-800/50 border border-surface-700/50 p-4 space-y-4"
+              >
+                <div className="flex items-center gap-2">
+                  {selectedDb && <selectedDb.icon size={16} className={selectedDb.color} />}
+                  <h4 className="text-sm font-medium text-surface-200">
+                    {selectedDb?.label} Configuration
+                  </h4>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Collections (comma-separated)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={jsonCollections}
-                    onChange={(e) => setJsonCollections(e.target.value)}
-                    placeholder="users, products, orders"
-                  />
-                </div>
-              </>
-            )}
 
-            {/* SQLite Configuration */}
-            {dbType === 'sqlite' && (
-              <div className="form-group">
-                <label className="form-label">Database File Path</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={sqliteFilePath}
-                  onChange={(e) => setSqliteFilePath(e.target.value)}
-                  placeholder="./data/database.sqlite"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                />
+                {/* JSON Configuration */}
+                {dbType === 'json' && (
+                  <>
+                    <FormGroup>
+                      <Label>File Path</Label>
+                      <Input
+                        value={jsonFilePath}
+                        onChange={(e) => setJsonFilePath(e.target.value)}
+                        placeholder="./data/db.json"
+                        className="font-mono text-sm"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label>Collections (comma-separated)</Label>
+                      <Input
+                        value={jsonCollections}
+                        onChange={(e) => setJsonCollections(e.target.value)}
+                        placeholder="users, products, orders"
+                      />
+                    </FormGroup>
+                  </>
+                )}
+
+                {/* SQLite Configuration */}
+                {dbType === 'sqlite' && (
+                  <FormGroup>
+                    <Label>Database File Path</Label>
+                    <Input
+                      value={sqliteFilePath}
+                      onChange={(e) => setSqliteFilePath(e.target.value)}
+                      placeholder="./data/database.sqlite"
+                      className="font-mono text-sm"
+                    />
+                  </FormGroup>
+                )}
+
+                {/* MongoDB Configuration */}
+                {dbType === 'mongodb' && (
+                  <>
+                    <FormGroup>
+                      <Label>Connection String</Label>
+                      <Input
+                        value={mongoConnectionString}
+                        onChange={(e) => setMongoConnectionString(e.target.value)}
+                        placeholder="mongodb://localhost:27017"
+                        className="font-mono text-sm"
+                      />
+                    </FormGroup>
+                    <FormGroup>
+                      <Label>Database Name</Label>
+                      <Input
+                        value={mongoDatabase}
+                        onChange={(e) => setMongoDatabase(e.target.value)}
+                        placeholder="mockdb"
+                      />
+                    </FormGroup>
+                  </>
+                )}
+
+                {/* MySQL/PostgreSQL Configuration */}
+                {(dbType === 'mysql' || dbType === 'postgresql') && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormGroup>
+                        <Label>Host</Label>
+                        <Input
+                          value={sqlHost}
+                          onChange={(e) => setSqlHost(e.target.value)}
+                          placeholder="localhost"
+                        />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>Port</Label>
+                        <Input
+                          type="number"
+                          value={sqlPort}
+                          onChange={(e) => setSqlPort(parseInt(e.target.value) || 0)}
+                        />
+                      </FormGroup>
+                    </div>
+                    <FormGroup>
+                      <Label>Database Name</Label>
+                      <Input
+                        value={sqlDatabase}
+                        onChange={(e) => setSqlDatabase(e.target.value)}
+                        placeholder="mockdb"
+                      />
+                    </FormGroup>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormGroup>
+                        <Label>Username</Label>
+                        <Input
+                          value={sqlUsername}
+                          onChange={(e) => setSqlUsername(e.target.value)}
+                          placeholder="root"
+                        />
+                      </FormGroup>
+                      <FormGroup>
+                        <Label>Password</Label>
+                        <Input
+                          type="password"
+                          value={sqlPassword}
+                          onChange={(e) => setSqlPassword(e.target.value)}
+                          placeholder="••••••••"
+                        />
+                      </FormGroup>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="flex items-center justify-between pt-2">
+              <div>
+                <p className="text-sm font-medium text-surface-200">Enable Connection</p>
+                <p className="text-xs text-surface-500">Activate this database connection</p>
               </div>
-            )}
-
-            {/* MongoDB Configuration */}
-            {dbType === 'mongodb' && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Connection String</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={mongoConnectionString}
-                    onChange={(e) => setMongoConnectionString(e.target.value)}
-                    placeholder="mongodb://localhost:27017"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Database Name</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={mongoDatabase}
-                    onChange={(e) => setMongoDatabase(e.target.value)}
-                    placeholder="mockdb"
-                  />
-                </div>
-              </>
-            )}
-
-            {/* MySQL/PostgreSQL Configuration */}
-            {(dbType === 'mysql' || dbType === 'postgresql') && (
-              <>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Host</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={sqlHost}
-                      onChange={(e) => setSqlHost(e.target.value)}
-                      placeholder="localhost"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Port</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      value={sqlPort}
-                      onChange={(e) => setSqlPort(parseInt(e.target.value) || 0)}
-                    />
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Database Name</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={sqlDatabase}
-                    onChange={(e) => setSqlDatabase(e.target.value)}
-                    placeholder="mockdb"
-                  />
-                </div>
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Username</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      value={sqlUsername}
-                      onChange={(e) => setSqlUsername(e.target.value)}
-                      placeholder="root"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Password</label>
-                    <input
-                      type="password"
-                      className="form-input"
-                      value={sqlPassword}
-                      onChange={(e) => setSqlPassword(e.target.value)}
-                      placeholder="••••••••"
-                    />
-                  </div>
-                </div>
-              </>
-            )}
-
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(e) => setEnabled(e.target.checked)}
-                />
-                <span>Enable this connection</span>
-              </label>
+              <Switch checked={enabled} onCheckedChange={setEnabled} />
             </div>
           </div>
 
-          <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={handleClose}>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={handleClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary">
+            </Button>
+            <Button type="submit">
               {isEditing ? 'Save Changes' : 'Add Connection'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

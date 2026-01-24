@@ -33,316 +33,142 @@ export function Sidebar() {
   ).length;
 
   const navItems: NavItem[] = [
-    { id: 'dashboard', label: import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-baimport { motion, AnimatePresence 'import { useStore } from '../store';
-import {
-  LayoutDabimport {
-  LayoutDabases', icon: Data  Layou
-   Serid: 'logs', la  Route,qu  Databs'  ScrollTero  Settings,
-    Zap,'setti  Che l  ChevronRighgs} from 'lucidengimport { cn } from '.vIimport { Badge, StatusDot, Toolti N
-type NavItemId = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
+    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'servers', label: 'Servers', icon: Server, badge: runningCount || undefined },
+    { id: 'routes', label: 'Routes', icon: Route },
+    { id: 'databases', label: 'Databases', icon: Database },
+    { id: 'logs', label: 'Logs', icon: ScrollText },
+    { id: 'settings', label: 'Settings', icon: Settings },
+  ];
 
-interfiv
+  return (
+    <TooltipProvider delayDuration={0}>
+      <motion.aside
+        initial={false}
+        animate={{ width: collapsed ? 72 : 240 }}
+        transition={{ duration: 0.2, ease: 'easeInOut' }}
+        className="h-screen flex flex-col bg-surface-900 border-r border-surface-800"
+      >
+        {/* Logo */}
+        <div className="h-16 flex items-center px-4 border-b border-surface-800">
+          <div className="relative flex items-center gap-3">
+            <div className="relative w-10 h-10 flex-shrink-0">
+              <div className="absolute inset-0 bg-brand-500/30 blur-lg rounded-full" />
+              <div className="relative w-full h-full rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
+                <Zap size={20} className="text-white" />
+              </div>
+            </div>
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <h1 className="font-bold text-surface-50 whitespace-nowrap">Mock Server</h1>
+                  <p className="text-xs text-surface-500">v0.1.0</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
 
-interface NavItem {
-  id: NavItemId;
-  label: string;
-  icon: typeof LayoutDashboard;
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+          <ul className="space-y-1">
+            {navItems.map((item) => {
+              const isActive = activeView === item.id;
+              const Icon = item.icon;
 
-    id: NavItemId;
- s-  label: string-3  icon: typeof -l  badge?: number;
-}
+              const button = (
+                <motion.button
+                  key={item.id}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setActiveView(item.id)}
+                  className={cn(
+                    'w-full relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    isActive
+                      ? 'text-brand-400'
+                      : 'text-surface-400 hover:bg-surface-800/50 hover:text-surface-200'
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeNav"
+                      className="absolute inset-0 bg-brand-500/10 rounded-lg border border-brand-500/20"
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    />
+                  )}
+                  <div className="relative flex items-center gap-3">
+                    <Icon size={18} />
+                    <AnimatePresence>
+                      {!collapsed && (
+                        <motion.span
+                          initial={{ opacity: 0, width: 0 }}
+                          animate={{ opacity: 1, width: 'auto' }}
+                          exit={{ opacity: 0, width: 0 }}
+                          className="whitespace-nowrap overflow-hidden"
+                        >
+                          {item.label}
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {item.badge && !collapsed && (
+                    <Badge variant="default" className="ml-auto">
+                      {item.badge}
+                    </Badge>
+                  )}
+                  {item.id === 'servers' && runningCount > 0 && (
+                    <div className={cn('ml-auto', collapsed && 'absolute -top-1 -right-1')}>
+                      <StatusDot status="running" size="sm" />
+                    </div>
+                  )}
+                </motion.button>
+              );
 
-export ful }
+              if (collapsed) {
+                return (
+                  <li key={item.id}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>{button}</TooltipTrigger>
+                      <TooltipContent side="right">
+                        <p>{item.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </li>
+                );
+              }
 
-export functiup re  const { activeView, setAe
-  const [collapsed, setCollapsed] = useState(false);
+              return <li key={item.id}>{button}</li>;
+            })}
+          </ul>
+        </nav>
 
-  const runningCoune-
-  const runningCount = Object.values(serverStates)
-      (s) => s.status === 'running'
-  ).length;
-
-  const na    ).length;
-
-  const navItems: N  
-  const nn.d    { id: 'dashboard', label: eIimport { motion, AnimatePresence } from 'framer-motion';
-baimpslbaimport { motion, AnimatePresence 'import { useStore }  import {
-  LayoutDabimport {
-  LayoutDabases', icon: Data  Layou
-   Ser    Layou    LayoutDabases', .i   Serid: 'logs', la  Route,qu  Da      Zap,'setti  Che l  ChevronRighgs} from 'lucidengimport { 
- type NavItemId = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
-
-interfiv
-
-interfacete
-interfiv
-
-interface NavItem {
-  id: NavItemId;
-  label: string;
-ion.span
-              initial={{ o  id: NavItemId;
- 0   label: string    icon: typeof it
-    id: NavItemId;
- s-  label    s-  label: strinty}
-
-export ful }
-
-export functiup re  const { activeVi text
-export funace  const [collapsed, setCollapsed] = useState  
-  const runningCoune-
-  const runningCount = Objec     const runningCountat      (s) => s.status === 'running'
-  ).length;
-
-un  ).length;
-
-  const na    ).lengt  
-  const ne v
-  cnt="brand" size="sm"   const nn.d    { id
- baimpslbaimport { motion, AnimatePresence 'import { useStore }  import {
-  LayoutDabimport {
-  Layo)   LayoutDabimport {
-  LayoutDabases', icon: Data  Layou
-   Ser    LayouTr  LayoutDabases', te   Ser    Layou    LayoutDabases',ol type NavItemId = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
-
-interfiv
-
-interfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-interfiv
-
-interface NavItem {
-  id: NavItemId;
-  label: string;
-i   
-interf   interfiv
-
-  
-interf  )  id: NavItemId;
- ti  label: string  ion.span
-                } 0   label: string    icon: typeof it
-         id: NavItemId;
- s-  label    s- e
- s-  label    s- fa
-export ful }
-
-export functiup roll
-export fun: 2export funace  const [collapsed, setCollg'  const runningCoune-
-  const runningCount = Objec     con b  const runningCount-r  ).length;
-
-un  ).length;
-
-  const na    ).lengt  
-  const ne v
-  cnt="brand" size="sm  
-un  ).lenlas
-  const na ord  const ne v
-  cnt="br0/  cnt="bran   baimpslbaimport { motion, AnimatePresence 
-   LayoutDabimport {
-  Layo)   LayoutDabimport {
-  LayoutDabases', icon: la  Layo)   Lalute ins  LayoutDabases', icon: Daxl   Ser    LayouTr  LayoutDabases',iv
-interfiv
-
-interfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-interfiv
-
-inted-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
-           
-interfap interfiv
-
-className="tinterfiv
-
-i/>
-interf   interfiv
-
->
-
-interf     id: NavItemId;
-     label: stringcei   
-interf   i  int  
-  
-interf  )  id &i ( ti  label: string  ion..d                } 0   labell=         id: NavItemId;
- s-  label    s- e
- s-  label o s-  label    s- e
- s-   s-  label    s- ={export ful }
-
-expo10
-export fun   export fun: 2exportfl  const runningCount = Objec     con b  const runningCount-r  ).length;
-
-un t
-un  ).length;
-
-  const na    ).lengt  
-  const ne v
-  cnt="brand" sizssN
-  const na  te  const ne v
-  cnt="br</  cnt="bran           </motion.div>
-    const na  )  cnt="br0/  cnt="bran   es   LayoutDabimport {
-  Layo)   LayoutDabimport {
-  LayoutDabases',    Layo)   LayoutDabe=  LayoutDabases', icon: laflinterfiv
-
-interfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-interfiv
-
-inted-600 flex items-center just  
-interfn.dinterfiv
-
-  
-interfiniinter{{ opacity: 0 }}
- interfiv
-
-  
-inted-ate           
-in }}
-                exit={{ opacity: 0 }}
-                clainterfap ixt
-className="tintld 
-i/>
-interf   interperinse
->
-
-interf     ipx-3 p     label: stringcei     interf   i  int  
-  
-in    
-interf  )  idioi.d s-  label    s- e
- s-  label o s-  label    s- e
- s-   s-  label    s- ={export ful }
-
-expo10
- < s-  label o s-  ke s-   s-  label    s- ={expor  
-expo10
-export fun   export fun: 2e/* exporr 
-un t
-un  ).length;
-
-  const na    ).lengt  
-  const ne v
-  cnt="brand" sizssN
-  const na  te  const ne /}
-     
-  const na ass  const ne v
-  cnt="br'f  c items-cen  const na  te  con r  cnt="br</  cnt="bran   50    const na  )  cnt="br0/  cnt="bran   es   x-  Layo)   LayoutDabimport {
-  LayoutDabases',    Layo)   Layo>   LayoutDabases',    Layo) /
-interfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-interfiv
-
-inted-6   interfiv
-
-  
-interfn.sinterfiv
-
-i  
-interf  iinterfiv
-
-op
-inted-0 }interfn.dinterfiv
-
-  
-interfiniinac
-  
-interfiniint   i   interfiv
-
-  
-inted-ate        
-  
-inte      in }}
-              t    su                clainterfap ixt
-clas  className="tintld 
-i/>
-interf {ri/>
-interf   inte ?ins'>
-
-interf     ipx-3        
-in    
-interf  )  idioi.d s-  label    s- e
- s-  label o reieninter   s-  label o s-  label    s- e
- s- se s-   s-  label    s- ={expor
- 
-expo10
- < s-  label o s-  ke s-   sed < s-laexpo10
-export fun   export fun: 2e/* exporr 
-un t
-ufuexporexun t
-un  ).length;
-
-  const na    ).x-3 py-
-  const na ',
-  const       'text-surf  cnt="braner  const na  te  conov     
-  const na ass  cons          cnt="br'fion-all duration  LayoutDabases',    Layo)   Layo>   LayoutDabases',    Layo) /
-interfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-interfiv
-
-inted-6   intedeinterfacete
-interfiv
-
-interface   
-interfiv
-
-interfacete
-intern.interfiv
-
-  
-inter    interfiv
-
-i o
-inter: 0 interfiv
-
-  
-inted-  a
-  
-interfn.acity: 1 }}
-i  
-interf  iin   init
-op
-inted-0 }int}
- i  
-  
-interfiniinac
-  
-intetexi-x  
-interfini  i  
-  
-inted-ate        
-  
-iapsi
-   
-inte      in /miti                clas  className="tintld 
-i/>
-interf {ri/>
-interf   </i/>
-interf {ri/>
-interf      interf n.asid
-interf     ipx-3  vider>
+        {/* Collapse Toggle */}
+        <div className="p-3 border-t border-surface-800">
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors"
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="text-sm"
+                >
+                  Collapse
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        </div>
+      </motion.aside>
+    </TooltipProvider>
   );
 }

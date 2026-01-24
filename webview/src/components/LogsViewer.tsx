@@ -1,11 +1,32 @@
 import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
   Trash2,
   Download,
   ScrollText,
+  X,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import type { RequestLogEntry } from '../types';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Badge,
+  getMethodVariant,
+  getStatusVariant,
+  EmptyState,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui';
+import { cn } from '../lib/utils';
 
 export function LogsViewer() {
   const { logs, servers } = useStore();
@@ -37,13 +58,6 @@ export function LogsViewer() {
     URL.revokeObjectURL(url);
   };
 
-  const getStatusColor = (status: number) => {
-    if (status < 300) return 'badge-success';
-    if (status < 400) return 'badge-info';
-    if (status < 500) return 'badge-warning';
-    return 'badge-error';
-  };
-
   const formatBody = (body: unknown): string => {
     if (body === undefined || body === null) return 'No body';
     if (typeof body === 'string') return body;
@@ -57,217 +71,213 @@ export function LogsViewer() {
   return (
     <>
       <header className="content-header">
-        <h1>Request Logs</h1>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary" onClick={handleExportLogs}>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-emerald-500/10">
+            <ScrollText className="w-5 h-5 text-emerald-400" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-surface-50">Request Logs</h1>
+            <p className="text-sm text-surface-400">{logs.length} total requests</p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={handleExportLogs}>
             <Download size={16} />
             Export
-          </button>
-          <button className="btn btn-secondary" onClick={handleClearLogs}>
+          </Button>
+          <Button variant="secondary" onClick={handleClearLogs}>
             <Trash2 size={16} />
             Clear
-          </button>
+          </Button>
         </div>
       </header>
 
-      <div className="content-body" style={{ display: 'flex', gap: '16px', height: 'calc(100% - 100px)' }}>
+      <div className="content-body flex gap-4 h-full">
         {/* Logs List */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+        <div className="flex-1 flex flex-col min-w-0">
           {/* Filters */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <select
-              className="form-select"
-              style={{ width: '200px' }}
-              value={selectedServerId || ''}
-              onChange={(e) => setSelectedServerId(e.target.value || null)}
+          <div className="flex gap-3 mb-4 items-center">
+            <Select
+              value={selectedServerId || 'all'}
+              onValueChange={(value) => setSelectedServerId(value === 'all' ? null : value)}
             >
-              <option value="">All Servers</option>
-              {servers.map((server) => (
-                <option key={server.id} value={server.id}>
-                  {server.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="All Servers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Servers</SelectItem>
+                {servers.map((server) => (
+                  <SelectItem key={server.id} value={server.id}>
+                    {server.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
-            <select
-              className="form-select"
-              style={{ width: '150px' }}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="all">All Status</option>
-              <option value="success">Success (2xx, 3xx)</option>
-              <option value="error">Errors (4xx, 5xx)</option>
-            </select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="success">Success (2xx, 3xx)</SelectItem>
+                <SelectItem value="error">Errors (4xx, 5xx)</SelectItem>
+              </SelectContent>
+            </Select>
 
-            <span style={{ marginLeft: 'auto', color: 'var(--text-secondary)', fontSize: '13px' }}>
+            <span className="ml-auto text-sm text-surface-400">
               {filteredLogs.length} request{filteredLogs.length !== 1 ? 's' : ''}
             </span>
           </div>
 
-          {/* Logs Table */}
-          <div className="card" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          {/* Logs */}
+          <Card className="flex-1 overflow-hidden flex flex-col">
             {filteredLogs.length === 0 ? (
-              <div className="empty-state" style={{ flex: 1 }}>
-                <ScrollText size={64} />
-                <h3>No requests logged</h3>
-                <p>Requests to your mock servers will appear here</p>
+              <div className="flex-1">
+                <EmptyState
+                  icon={ScrollText}
+                  title="No requests logged"
+                  description="Requests to your mock servers will appear here"
+                />
               </div>
             ) : (
-              <div style={{ flex: 1, overflow: 'auto' }}>
+              <div className="flex-1 overflow-auto">
                 {filteredLogs.map((log) => (
-                  <div
+                  <motion.div
                     key={log.id}
-                    className="log-entry"
-                    style={{
-                      cursor: 'pointer',
-                      background: selectedLog?.id === log.id ? 'var(--bg-active)' : undefined,
-                    }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 border-b border-surface-700/50 cursor-pointer transition-colors',
+                      selectedLog?.id === log.id
+                        ? 'bg-brand-500/10'
+                        : 'hover:bg-surface-700/30'
+                    )}
                     onClick={() => setSelectedLog(log)}
                   >
-                    <span className="log-time">
+                    <span className="text-xs text-surface-500 w-20 flex-shrink-0">
                       {new Date(log.timestamp).toLocaleTimeString()}
                     </span>
-                    <span className={`method-badge method-${log.request.method.toLowerCase()}`}>
+                    <Badge variant={getMethodVariant(log.request.method)}>
                       {log.request.method}
-                    </span>
-                    <span className="log-path" title={log.request.url}>
+                    </Badge>
+                    <span className="flex-1 text-sm text-surface-200 truncate font-mono" title={log.request.url}>
                       {log.request.path}
                     </span>
-                    <span className={`badge ${getStatusColor(log.response.statusCode)}`}>
+                    <Badge variant={getStatusVariant(log.response.statusCode)}>
                       {log.response.statusCode}
+                    </Badge>
+                    <span className="text-xs text-surface-400 w-14 text-right">
+                      {log.response.duration}ms
                     </span>
-                    <span className="log-duration">{log.response.duration}ms</span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         </div>
 
         {/* Log Details Panel */}
-        {selectedLog && (
-          <div className="card" style={{ width: '400px', overflow: 'auto' }}>
-            <div className="card-header">
-              <span className="card-title">Request Details</span>
-              <button
-                className="btn btn-ghost btn-icon btn-sm"
-                onClick={() => setSelectedLog(null)}
-              >
-                &times;
-              </button>
-            </div>
-            <div className="card-body">
-              {/* Request */}
-              <div style={{ marginBottom: '16px' }}>
-                <h4 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-muted)' }}>
-                  REQUEST
-                </h4>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className={`method-badge method-${selectedLog.request.method.toLowerCase()}`}>
-                    {selectedLog.request.method}
-                  </span>
-                  <code style={{ fontSize: '12px' }}>{selectedLog.request.path}</code>
-                </div>
-
-                {/* Headers */}
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                    Headers
-                  </div>
-                  <div
-                    style={{
-                      background: 'var(--bg-tertiary)',
-                      padding: '8px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '11px',
-                      fontFamily: 'var(--font-mono)',
-                      maxHeight: '100px',
-                      overflow: 'auto',
-                    }}
+        <AnimatePresence>
+          {selectedLog && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="w-[400px] flex-shrink-0"
+            >
+              <Card className="h-full overflow-hidden flex flex-col">
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <CardTitle className="text-base">Request Details</CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setSelectedLog(null)}
                   >
-                    {Object.entries(selectedLog.request.headers)
-                      .filter(([_, v]) => v)
-                      .slice(0, 10)
-                      .map(([key, value]) => (
-                        <div key={key}>
-                          <span style={{ color: 'var(--info)' }}>{key}</span>: {String(value)}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Body */}
-                {selectedLog.request.body && (
+                    <X size={16} />
+                  </Button>
+                </CardHeader>
+                <CardContent className="flex-1 overflow-auto space-y-6">
+                  {/* Request */}
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Body
+                    <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">
+                      Request
+                    </h4>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant={getMethodVariant(selectedLog.request.method)}>
+                        {selectedLog.request.method}
+                      </Badge>
+                      <code className="text-xs text-surface-300 truncate">{selectedLog.request.path}</code>
                     </div>
-                    <pre
-                      style={{
-                        background: 'var(--bg-tertiary)',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '11px',
-                        fontFamily: 'var(--font-mono)',
-                        maxHeight: '150px',
-                        overflow: 'auto',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {String(formatBody(selectedLog.request.body))}
-                    </pre>
+
+                    {/* Headers */}
+                    <div className="mb-3">
+                      <p className="text-xs font-medium text-surface-500 mb-2">Headers</p>
+                      <div className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 text-xs font-mono max-h-24 overflow-auto space-y-1">
+                        {Object.entries(selectedLog.request.headers)
+                          .filter(([_, v]) => v)
+                          .slice(0, 10)
+                          .map(([key, value]) => (
+                            <div key={key}>
+                              <span className="text-brand-400">{key}</span>
+                              <span className="text-surface-500">: </span>
+                              <span className="text-surface-300">{String(value)}</span>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    {selectedLog.request.body && (
+                      <div>
+                        <p className="text-xs font-medium text-surface-500 mb-2">Body</p>
+                        <pre className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 text-xs font-mono max-h-32 overflow-auto whitespace-pre-wrap break-all text-surface-300">
+                          {formatBody(selectedLog.request.body)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Response */}
-              <div>
-                <h4 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-muted)' }}>
-                  RESPONSE
-                </h4>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '8px' }}>
-                  <span className={`badge ${getStatusColor(selectedLog.response.statusCode)}`}>
-                    {selectedLog.response.statusCode}
-                  </span>
-                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    {selectedLog.response.duration}ms
-                  </span>
-                  {selectedLog.matched ? (
-                    <span className="badge badge-success">Matched</span>
-                  ) : (
-                    <span className="badge badge-warning">Not Matched</span>
-                  )}
-                </div>
-
-                {/* Response Body */}
-                {selectedLog.response.body && (
+                  {/* Response */}
                   <div>
-                    <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      Body
+                    <h4 className="text-xs font-semibold text-surface-500 uppercase tracking-wider mb-3">
+                      Response
+                    </h4>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Badge variant={getStatusVariant(selectedLog.response.statusCode)}>
+                        {selectedLog.response.statusCode}
+                      </Badge>
+                      <span className="text-xs text-surface-400">
+                        {selectedLog.response.duration}ms
+                      </span>
+                      {selectedLog.matched ? (
+                        <Badge variant="success" className="ml-auto">
+                          <CheckCircle size={12} className="mr-1" />
+                          Matched
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning" className="ml-auto">
+                          <AlertCircle size={12} className="mr-1" />
+                          Not Matched
+                        </Badge>
+                      )}
                     </div>
-                    <pre
-                      style={{
-                        background: 'var(--bg-tertiary)',
-                        padding: '8px',
-                        borderRadius: 'var(--radius-sm)',
-                        fontSize: '11px',
-                        fontFamily: 'var(--font-mono)',
-                        maxHeight: '200px',
-                        overflow: 'auto',
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-all',
-                      }}
-                    >
-                      {String(formatBody(selectedLog.response.body))}
-                    </pre>
+
+                    {/* Response Body */}
+                    {selectedLog.response.body && (
+                      <div>
+                        <p className="text-xs font-medium text-surface-500 mb-2">Body</p>
+                        <pre className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 text-xs font-mono max-h-48 overflow-auto whitespace-pre-wrap break-all text-surface-300">
+                          {formatBody(selectedLog.response.body)}
+                        </pre>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </>
   );

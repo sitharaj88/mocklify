@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Settings as SettingsIcon,
   Server,
@@ -6,7 +7,37 @@ import {
   ScrollText,
   Info,
   ExternalLink,
+  Github,
+  Bug,
+  Zap,
+  Check,
 } from 'lucide-react';
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  Input,
+  Switch,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  FormGroup,
+  Label,
+  FormHint,
+} from './ui';
+import { cn } from '../lib/utils';
+
+const settingsTabs = [
+  { id: 'general', label: 'General', icon: SettingsIcon },
+  { id: 'server', label: 'Server Defaults', icon: Server },
+  { id: 'logging', label: 'Logging', icon: ScrollText },
+  { id: 'database', label: 'Database', icon: Database },
+  { id: 'about', label: 'About', icon: Info },
+];
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('general');
@@ -14,266 +45,281 @@ export function Settings() {
   return (
     <>
       <header className="content-header">
-        <h1>Settings</h1>
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-surface-700">
+            <SettingsIcon className="w-5 h-5 text-surface-300" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-surface-50">Settings</h1>
+            <p className="text-sm text-surface-400">Configure your mock server</p>
+          </div>
+        </div>
       </header>
 
       <div className="content-body">
-        <div style={{ display: 'flex', gap: '24px' }}>
+        <div className="flex gap-6">
           {/* Settings Navigation */}
-          <div style={{ width: '200px' }}>
-            <div className="card" style={{ padding: 0 }}>
-              {[
-                { id: 'general', label: 'General', icon: SettingsIcon },
-                { id: 'server', label: 'Server Defaults', icon: Server },
-                { id: 'logging', label: 'Logging', icon: ScrollText },
-                { id: 'database', label: 'Database', icon: Database },
-                { id: 'about', label: 'About', icon: Info },
-              ].map((item) => (
-                <div
-                  key={item.id}
-                  className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-                  onClick={() => setActiveTab(item.id)}
-                  style={{ borderRadius: 0 }}
-                >
-                  <item.icon size={16} />
-                  <span>{item.label}</span>
-                </div>
-              ))}
-            </div>
+          <div className="w-56 flex-shrink-0">
+            <Card className="overflow-hidden">
+              <div className="p-2">
+                {settingsTabs.map((item) => (
+                  <motion.button
+                    key={item.id}
+                    whileHover={{ x: 4 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={cn(
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
+                      activeTab === item.id
+                        ? 'bg-brand-500/15 text-brand-400'
+                        : 'text-surface-400 hover:bg-surface-700/50 hover:text-surface-200'
+                    )}
+                    onClick={() => setActiveTab(item.id)}
+                  >
+                    <item.icon size={16} />
+                    <span>{item.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </Card>
           </div>
 
           {/* Settings Content */}
-          <div style={{ flex: 1 }}>
-            {activeTab === 'general' && (
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">General Settings</span>
-                </div>
-                <div className="card-body">
-                  <div className="form-group">
-                    <label className="form-label">Configuration Path</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      defaultValue=".mockserver"
-                      placeholder=".mockserver"
-                    />
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Directory where server configurations are stored
-                    </p>
-                  </div>
+          <div className="flex-1">
+            <motion.div
+              key={activeTab}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {activeTab === 'general' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>General Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <FormGroup>
+                      <Label>Configuration Path</Label>
+                      <Input
+                        defaultValue=".mockserver"
+                        placeholder=".mockserver"
+                      />
+                      <FormHint>Directory where server configurations are stored</FormHint>
+                    </FormGroup>
 
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" />
-                      <span>Auto-start servers when VS Code opens</span>
-                    </label>
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" defaultChecked />
-                      <span>Show status bar indicator</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'server' && (
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">Server Defaults</span>
-                </div>
-                <div className="card-body">
-                  <div className="form-group">
-                    <label className="form-label">Default Port</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      defaultValue={3000}
-                      min={1}
-                      max={65535}
-                      style={{ width: '150px' }}
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Default Protocol</label>
-                    <select className="form-select" style={{ width: '200px' }}>
-                      <option value="http">HTTP</option>
-                      <option value="graphql">GraphQL</option>
-                      <option value="websocket">WebSocket</option>
-                    </select>
-                  </div>
-
-                  <h4 style={{ marginTop: '24px', marginBottom: '16px', fontSize: '14px' }}>
-                    CORS Settings
-                  </h4>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" defaultChecked />
-                      <span>Enable CORS by default</span>
-                    </label>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Allowed Origins</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      defaultValue="*"
-                      placeholder="* or comma-separated origins"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'logging' && (
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">Logging Settings</span>
-                </div>
-                <div className="card-body">
-                  <div className="form-group">
-                    <label className="form-label">Maximum Log Entries</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      defaultValue={1000}
-                      min={100}
-                      max={10000}
-                      style={{ width: '150px' }}
-                    />
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Older entries will be automatically removed
-                    </p>
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" defaultChecked />
-                      <span>Include request/response body in logs</span>
-                    </label>
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" />
-                      <span>Log to VS Code output channel</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'database' && (
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">Database Settings</span>
-                </div>
-                <div className="card-body">
-                  <div className="form-group">
-                    <label className="form-label">JSON Database Directory</label>
-                    <input
-                      type="text"
-                      className="form-input"
-                      defaultValue=".mockserver/data"
-                      placeholder=".mockserver/data"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" defaultChecked />
-                      <span>Auto-create JSON collections if they don't exist</span>
-                    </label>
-                  </div>
-
-                  <div className="form-group">
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                      <input type="checkbox" />
-                      <span>Persist database changes between sessions</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'about' && (
-              <div className="card">
-                <div className="card-header">
-                  <span className="card-title">About Mock Server</span>
-                </div>
-                <div className="card-body">
-                  <div style={{ textAlign: 'center', padding: '24px' }}>
-                    <div
-                      style={{
-                        width: '80px',
-                        height: '80px',
-                        background: 'var(--accent-primary)',
-                        borderRadius: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        margin: '0 auto 16px',
-                      }}
-                    >
-                      <Server size={40} color="white" />
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Auto-start servers</p>
+                        <p className="text-xs text-surface-500">Start servers when VS Code opens</p>
+                      </div>
+                      <Switch />
                     </div>
-                    <h2 style={{ marginBottom: '8px' }}>VS Code Mock Server</h2>
-                    <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                      Version 0.1.0
-                    </p>
-                    <p style={{ maxWidth: '400px', margin: '0 auto 24px', color: 'var(--text-secondary)' }}>
-                      A powerful mock server extension for VS Code that enables developers to
-                      create, manage, and run mock servers directly from their IDE.
-                    </p>
 
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                      <a
-                        href="https://github.com/mockserver/vscode-mock-server"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary"
-                      >
-                        <ExternalLink size={14} />
-                        GitHub
-                      </a>
-                      <a
-                        href="https://github.com/mockserver/vscode-mock-server/issues"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn btn-secondary"
-                      >
-                        Report Issue
-                      </a>
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Status bar indicator</p>
+                        <p className="text-xs text-surface-500">Show running servers in status bar</p>
+                      </div>
+                      <Switch defaultChecked />
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                  <div
-                    style={{
-                      borderTop: '1px solid var(--border-color)',
-                      marginTop: '24px',
-                      paddingTop: '24px',
-                    }}
-                  >
-                    <h4 style={{ marginBottom: '12px', fontSize: '13px' }}>Features</h4>
-                    <ul style={{ paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                      <li>HTTP, GraphQL, and WebSocket mock servers</li>
-                      <li>Path parameters and wildcards</li>
-                      <li>Dynamic responses with Handlebars templates</li>
-                      <li>Faker.js integration for realistic data</li>
-                      <li>Database integration (JSON, SQLite, MongoDB, SQL)</li>
-                      <li>Request logging and HAR export</li>
-                      <li>OpenAPI/Swagger import</li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            )}
+              {activeTab === 'server' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Server Defaults</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <FormGroup>
+                      <Label>Default Port</Label>
+                      <Input
+                        type="number"
+                        defaultValue={3000}
+                        min={1}
+                        max={65535}
+                        className="w-40"
+                      />
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label>Default Protocol</Label>
+                      <Select defaultValue="http">
+                        <SelectTrigger className="w-52">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="http">HTTP</SelectItem>
+                          <SelectItem value="graphql">GraphQL</SelectItem>
+                          <SelectItem value="websocket">WebSocket</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormGroup>
+
+                    <div className="pt-4 border-t border-surface-700">
+                      <h4 className="text-sm font-medium text-surface-200 mb-4">CORS Settings</h4>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between py-2">
+                          <div>
+                            <p className="text-sm font-medium text-surface-200">Enable CORS</p>
+                            <p className="text-xs text-surface-500">Allow cross-origin requests</p>
+                          </div>
+                          <Switch defaultChecked />
+                        </div>
+
+                        <FormGroup>
+                          <Label>Allowed Origins</Label>
+                          <Input
+                            defaultValue="*"
+                            placeholder="* or comma-separated origins"
+                          />
+                        </FormGroup>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === 'logging' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Logging Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <FormGroup>
+                      <Label>Maximum Log Entries</Label>
+                      <Input
+                        type="number"
+                        defaultValue={1000}
+                        min={100}
+                        max={10000}
+                        className="w-40"
+                      />
+                      <FormHint>Older entries will be automatically removed</FormHint>
+                    </FormGroup>
+
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Include body in logs</p>
+                        <p className="text-xs text-surface-500">Log request and response bodies</p>
+                      </div>
+                      <Switch defaultChecked />
+                    </div>
+
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Output channel logging</p>
+                        <p className="text-xs text-surface-500">Also log to VS Code output channel</p>
+                      </div>
+                      <Switch />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === 'database' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Database Settings</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <FormGroup>
+                      <Label>JSON Database Directory</Label>
+                      <Input
+                        defaultValue=".mockserver/data"
+                        placeholder=".mockserver/data"
+                      />
+                    </FormGroup>
+
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Auto-create collections</p>
+                        <p className="text-xs text-surface-500">Create JSON collections if they don't exist</p>
+                      </div>
+                      <Switch defaultChecked />
+                    </div>
+
+                    <div className="flex items-center justify-between py-2">
+                      <div>
+                        <p className="text-sm font-medium text-surface-200">Persist changes</p>
+                        <p className="text-xs text-surface-500">Keep database changes between sessions</p>
+                      </div>
+                      <Switch />
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {activeTab === 'about' && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>About Mock Server</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-center py-8">
+                      {/* Logo */}
+                      <div className="relative w-20 h-20 mx-auto mb-6">
+                        <div className="absolute inset-0 bg-brand-500/30 blur-xl rounded-full" />
+                        <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
+                          <Zap size={40} className="text-white" />
+                        </div>
+                      </div>
+
+                      <h2 className="text-2xl font-bold text-surface-50 mb-2">VS Code Mock Server</h2>
+                      <p className="text-surface-400 mb-2">Version 0.1.0</p>
+                      <p className="text-surface-400 max-w-md mx-auto mb-6">
+                        A powerful mock server extension for VS Code that enables developers to
+                        create, manage, and run mock servers directly from their IDE.
+                      </p>
+
+                      <div className="flex justify-center gap-3">
+                        <Button variant="secondary" asChild>
+                          <a
+                            href="https://github.com/mockserver/vscode-mock-server"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Github size={16} />
+                            GitHub
+                          </a>
+                        </Button>
+                        <Button variant="secondary" asChild>
+                          <a
+                            href="https://github.com/mockserver/vscode-mock-server/issues"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Bug size={16} />
+                            Report Issue
+                          </a>
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-surface-700 mt-6 pt-6">
+                      <h4 className="font-medium text-surface-200 mb-4">Features</h4>
+                      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {[
+                          'HTTP, GraphQL, and WebSocket servers',
+                          'Path parameters and wildcards',
+                          'Handlebars template responses',
+                          'Faker.js data generation',
+                          'Database integration',
+                          'Request logging & HAR export',
+                          'OpenAPI/Swagger import',
+                        ].map((feature) => (
+                          <li key={feature} className="flex items-center gap-2 text-sm text-surface-400">
+                            <Check size={14} className="text-brand-400 flex-shrink-0" />
+                            {feature}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </motion.div>
           </div>
         </div>
       </div>

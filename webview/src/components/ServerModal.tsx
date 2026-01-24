@@ -1,10 +1,36 @@
 import { useState, useEffect } from 'react';
 import { useStore, postMessage } from '../store';
-import { X } from 'lucide-react';
+import { Server, Globe, Zap, Radio } from 'lucide-react';
 import type { MockServerConfig } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Input,
+  Switch,
+  FormGroup,
+  Label,
+  FormHint,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui';
+import { cn } from '../lib/utils';
+
+const protocols = [
+  { value: 'http', label: 'HTTP / REST', icon: Globe, description: 'RESTful API endpoints' },
+  { value: 'graphql', label: 'GraphQL', icon: Zap, description: 'GraphQL queries & mutations' },
+  { value: 'websocket', label: 'WebSocket', icon: Radio, description: 'Real-time connections' },
+];
 
 export function ServerModal() {
-  const { editingServer, setShowServerModal, setEditingServer } = useStore();
+  const { editingServer, showServerModal, setShowServerModal, setEditingServer } = useStore();
 
   const [name, setName] = useState('');
   const [port, setPort] = useState(3000);
@@ -75,108 +101,105 @@ export function ServerModal() {
   };
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">
-            {isEditing ? 'Edit Server' : 'Create New Server'}
-          </h2>
-          <button className="btn btn-ghost btn-icon" onClick={handleClose}>
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog open={showServerModal} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="default">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-brand-500/15">
+              <Server className="w-5 h-5 text-brand-400" />
+            </div>
+            <div>
+              <DialogTitle>
+                {isEditing ? 'Edit Server' : 'Create New Server'}
+              </DialogTitle>
+              <DialogDescription>
+                {isEditing ? 'Update server configuration' : 'Configure your mock server settings'}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label className="form-label">Server Name *</label>
-              <input
-                type="text"
-                className="form-input"
+          <div className="space-y-5 py-4">
+            <FormGroup>
+              <Label required>Server Name</Label>
+              <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="My Mock Server"
                 autoFocus
               />
-            </div>
+            </FormGroup>
 
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label">Port *</label>
-                <input
+            <div className="grid grid-cols-2 gap-4">
+              <FormGroup>
+                <Label required>Port</Label>
+                <Input
                   type="number"
-                  className="form-input"
                   value={port}
                   onChange={(e) => setPort(parseInt(e.target.value) || 0)}
                   min={1}
                   max={65535}
                 />
-              </div>
+              </FormGroup>
 
-              <div className="form-group">
-                <label className="form-label">Protocol</label>
-                <select
-                  className="form-select"
-                  value={protocol}
-                  onChange={(e) => setProtocol(e.target.value as any)}
-                >
-                  <option value="http">HTTP / REST</option>
-                  <option value="graphql">GraphQL</option>
-                  <option value="websocket">WebSocket</option>
-                </select>
-              </div>
+              <FormGroup>
+                <Label>Protocol</Label>
+                <Select value={protocol} onValueChange={(v) => setProtocol(v as any)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {protocols.map((p) => (
+                      <SelectItem key={p.value} value={p.value}>
+                        <div className="flex items-center gap-2">
+                          <p.icon size={14} className="text-surface-400" />
+                          {p.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormGroup>
             </div>
 
-            <div
-              style={{
-                background: 'var(--bg-tertiary)',
-                borderRadius: 'var(--radius-md)',
-                padding: '16px',
-                marginTop: '8px',
-              }}
-            >
-              <h4 style={{ marginBottom: '12px', fontSize: '13px' }}>Server Settings</h4>
+            <div className="rounded-xl bg-surface-800/50 border border-surface-700/50 p-4 space-y-4">
+              <h4 className="text-sm font-medium text-surface-200">Server Settings</h4>
 
-              <div className="form-group" style={{ marginBottom: '8px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={corsEnabled}
-                    onChange={(e) => setCorsEnabled(e.target.checked)}
-                  />
-                  <span>Enable CORS</span>
-                </label>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '24px' }}>
-                  Allow cross-origin requests from any domain
-                </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-surface-200">Enable CORS</p>
+                  <p className="text-xs text-surface-500">Allow cross-origin requests</p>
+                </div>
+                <Switch
+                  checked={corsEnabled}
+                  onCheckedChange={setCorsEnabled}
+                />
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={loggingEnabled}
-                    onChange={(e) => setLoggingEnabled(e.target.checked)}
-                  />
-                  <span>Enable Request Logging</span>
-                </label>
-                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '24px' }}>
-                  Log all incoming requests and responses
-                </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-surface-200">Request Logging</p>
+                  <p className="text-xs text-surface-500">Log all incoming requests</p>
+                </div>
+                <Switch
+                  checked={loggingEnabled}
+                  onCheckedChange={setLoggingEnabled}
+                />
               </div>
             </div>
           </div>
 
-          <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={handleClose}>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={handleClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary">
+            </Button>
+            <Button type="submit">
               {isEditing ? 'Save Changes' : 'Create Server'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,7 +1,33 @@
 import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from '../store';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { Route, Plus, Trash2, Code, Settings2, Filter, Clock } from 'lucide-react';
 import type { RouteConfig, HttpMethod, ResponseConfig } from '../types';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  Button,
+  Input,
+  Textarea,
+  FormGroup,
+  Label,
+  FormHint,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Badge,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from './ui';
+import { cn } from '../lib/utils';
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 const STATUS_CODES = [
@@ -15,10 +41,30 @@ const STATUS_CODES = [
   { code: 500, text: 'Internal Server Error' },
 ];
 
-export function RouteModal() {
-  const { editingRoute, selectedServerId, setShowRouteModal, setEditingRoute } = useStore();
+const tabs = [
+  { id: 'basic', label: 'Basic', icon: Route },
+  { id: 'response', label: 'Response', icon: Code },
+  { id: 'matching', label: 'Matching', icon: Filter },
+  { id: 'advanced', label: 'Advanced', icon: Settings2 },
+];
 
-  const [activeTab, setActiveTab] = useState<'basic' | 'response' | 'matching' | 'advanced'>('basic');
+function getMethodColor(method: HttpMethod): string {
+  const colors: Record<HttpMethod, string> = {
+    GET: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    POST: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
+    PUT: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
+    DELETE: 'bg-red-500/15 text-red-400 border-red-500/30',
+    PATCH: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+    HEAD: 'bg-surface-500/15 text-surface-400 border-surface-500/30',
+    OPTIONS: 'bg-surface-500/15 text-surface-400 border-surface-500/30',
+  };
+  return colors[method] || colors.GET;
+}
+
+export function RouteModal() {
+  const { editingRoute, selectedServerId, showRouteModal, setShowRouteModal, setEditingRoute } = useStore();
+
+  const [activeTab, setActiveTab] = useState('basic');
 
   // Basic
   const [name, setName] = useState('');
@@ -59,14 +105,12 @@ export function RouteModal() {
           : JSON.stringify(editingRoute.response.body?.content, null, 2) || '{\n  \n}'
       );
 
-      // Headers
       const headers = Object.entries(editingRoute.response.headers || {}).map(([key, value]) => ({
         key,
         value,
       }));
       setResponseHeaders(headers);
 
-      // Matching
       if (editingRoute.matcher?.headers) {
         setMatchHeaders(
           Object.entries(editingRoute.matcher.headers).map(([key, value]) => ({ key, value }))
@@ -78,7 +122,6 @@ export function RouteModal() {
         );
       }
 
-      // Delay
       if (editingRoute.delay) {
         setDelayType(editingRoute.delay.type);
         if (editingRoute.delay.type === 'fixed') {
@@ -91,7 +134,6 @@ export function RouteModal() {
 
       setPriority(editingRoute.priority || 0);
     } else {
-      // Reset form
       setName('');
       setMethod('GET');
       setPath('/');
@@ -107,6 +149,7 @@ export function RouteModal() {
       setDelayMin(0);
       setDelayMax(1000);
       setPriority(0);
+      setActiveTab('basic');
     }
   }, [editingRoute]);
 
@@ -128,7 +171,6 @@ export function RouteModal() {
       return;
     }
 
-    // Parse response body
     let parsedBody: unknown;
     try {
       parsedBody = JSON.parse(responseBody);
@@ -136,13 +178,11 @@ export function RouteModal() {
       parsedBody = responseBody;
     }
 
-    // Build headers object
     const headersObj: Record<string, string> = { 'Content-Type': contentType };
     responseHeaders.forEach((h) => {
       if (h.key) headersObj[h.key] = h.value;
     });
 
-    // Build matcher
     const matcher: RouteConfig['matcher'] = {};
     if (matchHeaders.length > 0) {
       matcher.headers = {};
@@ -214,381 +254,405 @@ export function RouteModal() {
     setMatchQuery(matchQuery.filter((_, i) => i !== index));
 
   return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal" style={{ maxWidth: '700px' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2 className="modal-title">{isEditing ? 'Edit Route' : 'Create New Route'}</h2>
-          <button className="btn btn-ghost btn-icon" onClick={handleClose}>
-            <X size={20} />
-          </button>
-        </div>
+    <Dialog open={showRouteModal} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-brand-500/15">
+              <Route className="w-5 h-5 text-brand-400" />
+            </div>
+            <div>
+              <DialogTitle>{isEditing ? 'Edit Route' : 'Create New Route'}</DialogTitle>
+              <DialogDescription>
+                {isEditing ? 'Update route configuration' : 'Define endpoint behavior and response'}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          {/* Tabs */}
-          <div className="tabs" style={{ margin: '16px 20px 0' }}>
-            {(['basic', 'response', 'matching', 'advanced'] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                className={`tab ${activeTab === tab ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab)}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+            <TabsList className="w-full grid grid-cols-4">
+              {tabs.map((tab) => (
+                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
+                  <tab.icon size={14} />
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
 
-          <div className="modal-body">
-            {/* Basic Tab */}
-            {activeTab === 'basic' && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Route Name</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Get Users"
-                  />
-                </div>
-
-                <div className="grid-2">
-                  <div className="form-group">
-                    <label className="form-label">Method *</label>
-                    <select
-                      className="form-select"
-                      value={method}
-                      onChange={(e) => setMethod(e.target.value as HttpMethod)}
-                    >
-                      {HTTP_METHODS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="form-label">Status Code *</label>
-                    <select
-                      className="form-select"
-                      value={statusCode}
-                      onChange={(e) => setStatusCode(parseInt(e.target.value))}
-                    >
-                      {STATUS_CODES.map((s) => (
-                        <option key={s.code} value={s.code}>
-                          {s.code} {s.text}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Path *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={path}
-                    onChange={(e) => setPath(e.target.value)}
-                    placeholder="/api/users/:id"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  />
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Use :param for path parameters, * for single segment wildcard, ** for catch-all
-                  </p>
-                </div>
-              </>
-            )}
-
-            {/* Response Tab */}
-            {activeTab === 'response' && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Response Type</label>
-                  <select
-                    className="form-select"
-                    value={responseType}
-                    onChange={(e) => setResponseType(e.target.value as any)}
-                  >
-                    <option value="static">Static Response</option>
-                    <option value="dynamic">Dynamic (Template)</option>
-                    <option value="proxy">Proxy to Real Server</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Content Type</label>
-                  <select
-                    className="form-select"
-                    value={contentType}
-                    onChange={(e) => setContentType(e.target.value)}
-                  >
-                    <option value="application/json">application/json</option>
-                    <option value="text/plain">text/plain</option>
-                    <option value="text/html">text/html</option>
-                    <option value="application/xml">application/xml</option>
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Response Body</label>
-                  <textarea
-                    className="form-textarea"
-                    value={responseBody}
-                    onChange={(e) => setResponseBody(e.target.value)}
-                    rows={10}
-                    style={{ fontFamily: 'var(--font-mono)', fontSize: '12px' }}
-                    placeholder='{"message": "Hello World"}'
-                  />
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Use {'{{params.id}}'} for path params, {'{{faker.email}}'} for fake data
-                  </p>
-                </div>
-
-                {/* Response Headers */}
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      Response Headers
-                    </label>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={addHeader}>
-                      <Plus size={14} /> Add Header
-                    </button>
-                  </div>
-                  {responseHeaders.map((header, index) => (
-                    <div key={index} className="form-input-group" style={{ marginBottom: '8px' }}>
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={header.key}
-                        onChange={(e) => {
-                          const newHeaders = [...responseHeaders];
-                          newHeaders[index].key = e.target.value;
-                          setResponseHeaders(newHeaders);
-                        }}
-                        placeholder="Header Name"
+            <div className="py-4 min-h-[320px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {/* Basic Tab */}
+                  <TabsContent value="basic" className="space-y-5 mt-0">
+                    <FormGroup>
+                      <Label>Route Name</Label>
+                      <Input
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Get Users"
                       />
-                      <input
-                        type="text"
-                        className="form-input"
-                        value={header.value}
-                        onChange={(e) => {
-                          const newHeaders = [...responseHeaders];
-                          newHeaders[index].value = e.target.value;
-                          setResponseHeaders(newHeaders);
-                        }}
-                        placeholder="Header Value"
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        onClick={() => removeHeader(index)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    </FormGroup>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormGroup>
+                        <Label required>Method</Label>
+                        <Select value={method} onValueChange={(v) => setMethod(v as HttpMethod)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {HTTP_METHODS.map((m) => (
+                              <SelectItem key={m} value={m}>
+                                <div className="flex items-center gap-2">
+                                  <span className={cn(
+                                    'px-1.5 py-0.5 rounded text-xs font-mono font-bold',
+                                    getMethodColor(m)
+                                  )}>
+                                    {m}
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormGroup>
+
+                      <FormGroup>
+                        <Label required>Status Code</Label>
+                        <Select
+                          value={statusCode.toString()}
+                          onValueChange={(v) => setStatusCode(parseInt(v))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_CODES.map((s) => (
+                              <SelectItem key={s.code} value={s.code.toString()}>
+                                <span className="font-mono">{s.code}</span>
+                                <span className="text-surface-500 ml-2">{s.text}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormGroup>
                     </div>
-                  ))}
-                </div>
-              </>
-            )}
 
-            {/* Matching Tab */}
-            {activeTab === 'matching' && (
-              <>
-                <p style={{ marginBottom: '16px', color: 'var(--text-secondary)', fontSize: '13px' }}>
-                  Add conditions that must match for this route to handle the request.
-                </p>
+                    <FormGroup>
+                      <Label required>Path</Label>
+                      <Input
+                        value={path}
+                        onChange={(e) => setPath(e.target.value)}
+                        placeholder="/api/users/:id"
+                        className="font-mono"
+                      />
+                      <FormHint>
+                        Use :param for path parameters, * for single segment, ** for catch-all
+                      </FormHint>
+                    </FormGroup>
+                  </TabsContent>
 
-                {/* Match Headers */}
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      Match Request Headers
-                    </label>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={addMatchHeader}>
-                      <Plus size={14} /> Add
-                    </button>
-                  </div>
-                  {matchHeaders.length === 0 ? (
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      No header conditions
-                    </p>
-                  ) : (
-                    matchHeaders.map((header, index) => (
-                      <div key={index} className="form-input-group" style={{ marginBottom: '8px' }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={header.key}
-                          onChange={(e) => {
-                            const newHeaders = [...matchHeaders];
-                            newHeaders[index].key = e.target.value;
-                            setMatchHeaders(newHeaders);
-                          }}
-                          placeholder="Header Name"
-                        />
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={header.value}
-                          onChange={(e) => {
-                            const newHeaders = [...matchHeaders];
-                            newHeaders[index].value = e.target.value;
-                            setMatchHeaders(newHeaders);
-                          }}
-                          placeholder="Expected Value"
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-icon"
-                          onClick={() => removeMatchHeader(index)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                  {/* Response Tab */}
+                  <TabsContent value="response" className="space-y-5 mt-0">
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormGroup>
+                        <Label>Response Type</Label>
+                        <Select value={responseType} onValueChange={(v) => setResponseType(v as any)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="static">Static Response</SelectItem>
+                            <SelectItem value="dynamic">Dynamic (Template)</SelectItem>
+                            <SelectItem value="proxy">Proxy to Real Server</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormGroup>
+
+                      <FormGroup>
+                        <Label>Content Type</Label>
+                        <Select value={contentType} onValueChange={setContentType}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="application/json">application/json</SelectItem>
+                            <SelectItem value="text/plain">text/plain</SelectItem>
+                            <SelectItem value="text/html">text/html</SelectItem>
+                            <SelectItem value="application/xml">application/xml</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormGroup>
+                    </div>
+
+                    <FormGroup>
+                      <Label>Response Body</Label>
+                      <Textarea
+                        value={responseBody}
+                        onChange={(e) => setResponseBody(e.target.value)}
+                        rows={8}
+                        className="font-mono text-sm"
+                        placeholder='{"message": "Hello World"}'
+                      />
+                      <FormHint>
+                        Use {'{{params.id}}'} for path params, {'{{faker.email}}'} for fake data
+                      </FormHint>
+                    </FormGroup>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="mb-0">Response Headers</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={addHeader}>
+                          <Plus size={14} />
+                          Add Header
+                        </Button>
                       </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Match Query Params */}
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <label className="form-label" style={{ margin: 0 }}>
-                      Match Query Parameters
-                    </label>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={addMatchQuery}>
-                      <Plus size={14} /> Add
-                    </button>
-                  </div>
-                  {matchQuery.length === 0 ? (
-                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      No query parameter conditions
-                    </p>
-                  ) : (
-                    matchQuery.map((query, index) => (
-                      <div key={index} className="form-input-group" style={{ marginBottom: '8px' }}>
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={query.key}
-                          onChange={(e) => {
-                            const newQuery = [...matchQuery];
-                            newQuery[index].key = e.target.value;
-                            setMatchQuery(newQuery);
-                          }}
-                          placeholder="Parameter Name"
-                        />
-                        <input
-                          type="text"
-                          className="form-input"
-                          value={query.value}
-                          onChange={(e) => {
-                            const newQuery = [...matchQuery];
-                            newQuery[index].value = e.target.value;
-                            setMatchQuery(newQuery);
-                          }}
-                          placeholder="Expected Value"
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-icon"
-                          onClick={() => removeMatchQuery(index)}
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                      <div className="space-y-2">
+                        {responseHeaders.map((header, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <Input
+                              value={header.key}
+                              onChange={(e) => {
+                                const newHeaders = [...responseHeaders];
+                                newHeaders[index].key = e.target.value;
+                                setResponseHeaders(newHeaders);
+                              }}
+                              placeholder="Header Name"
+                              className="flex-1"
+                            />
+                            <Input
+                              value={header.value}
+                              onChange={(e) => {
+                                const newHeaders = [...responseHeaders];
+                                newHeaders[index].value = e.target.value;
+                                setResponseHeaders(newHeaders);
+                              }}
+                              placeholder="Header Value"
+                              className="flex-1"
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeHeader(index)}
+                            >
+                              <Trash2 size={14} className="text-red-400" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                    ))
-                  )}
-                </div>
-              </>
-            )}
+                    </div>
+                  </TabsContent>
 
-            {/* Advanced Tab */}
-            {activeTab === 'advanced' && (
-              <>
-                <div className="form-group">
-                  <label className="form-label">Response Delay</label>
-                  <select
-                    className="form-select"
-                    value={delayType}
-                    onChange={(e) => setDelayType(e.target.value as any)}
-                    style={{ marginBottom: '8px' }}
-                  >
-                    <option value="none">No Delay</option>
-                    <option value="fixed">Fixed Delay</option>
-                    <option value="random">Random Delay</option>
-                  </select>
+                  {/* Matching Tab */}
+                  <TabsContent value="matching" className="space-y-5 mt-0">
+                    <p className="text-sm text-surface-400">
+                      Add conditions that must match for this route to handle the request.
+                    </p>
 
-                  {delayType === 'fixed' && (
-                    <div className="form-input-group">
-                      <input
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="mb-0">Match Request Headers</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={addMatchHeader}>
+                          <Plus size={14} />
+                          Add
+                        </Button>
+                      </div>
+                      {matchHeaders.length === 0 ? (
+                        <p className="text-xs text-surface-500 py-2">No header conditions</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {matchHeaders.map((header, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={header.key}
+                                onChange={(e) => {
+                                  const newHeaders = [...matchHeaders];
+                                  newHeaders[index].key = e.target.value;
+                                  setMatchHeaders(newHeaders);
+                                }}
+                                placeholder="Header Name"
+                                className="flex-1"
+                              />
+                              <Input
+                                value={header.value}
+                                onChange={(e) => {
+                                  const newHeaders = [...matchHeaders];
+                                  newHeaders[index].value = e.target.value;
+                                  setMatchHeaders(newHeaders);
+                                }}
+                                placeholder="Expected Value"
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeMatchHeader(index)}
+                              >
+                                <Trash2 size={14} className="text-red-400" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <Label className="mb-0">Match Query Parameters</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={addMatchQuery}>
+                          <Plus size={14} />
+                          Add
+                        </Button>
+                      </div>
+                      {matchQuery.length === 0 ? (
+                        <p className="text-xs text-surface-500 py-2">No query parameter conditions</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {matchQuery.map((query, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <Input
+                                value={query.key}
+                                onChange={(e) => {
+                                  const newQuery = [...matchQuery];
+                                  newQuery[index].key = e.target.value;
+                                  setMatchQuery(newQuery);
+                                }}
+                                placeholder="Parameter Name"
+                                className="flex-1"
+                              />
+                              <Input
+                                value={query.value}
+                                onChange={(e) => {
+                                  const newQuery = [...matchQuery];
+                                  newQuery[index].value = e.target.value;
+                                  setMatchQuery(newQuery);
+                                }}
+                                placeholder="Expected Value"
+                                className="flex-1"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeMatchQuery(index)}
+                              >
+                                <Trash2 size={14} className="text-red-400" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+
+                  {/* Advanced Tab */}
+                  <TabsContent value="advanced" className="space-y-5 mt-0">
+                    <FormGroup>
+                      <Label>Response Delay</Label>
+                      <Select value={delayType} onValueChange={(v) => setDelayType(v as any)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Delay</SelectItem>
+                          <SelectItem value="fixed">Fixed Delay</SelectItem>
+                          <SelectItem value="random">Random Delay</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <AnimatePresence>
+                        {delayType === 'fixed' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                value={delayValue}
+                                onChange={(e) => setDelayValue(parseInt(e.target.value) || 0)}
+                                min={0}
+                                className="w-32"
+                              />
+                              <span className="text-sm text-surface-400">ms</span>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {delayType === 'random' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3"
+                          >
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-surface-400">Min:</span>
+                                <Input
+                                  type="number"
+                                  value={delayMin}
+                                  onChange={(e) => setDelayMin(parseInt(e.target.value) || 0)}
+                                  min={0}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-surface-400">ms</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-surface-400">Max:</span>
+                                <Input
+                                  type="number"
+                                  value={delayMax}
+                                  onChange={(e) => setDelayMax(parseInt(e.target.value) || 0)}
+                                  min={0}
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-surface-400">ms</span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </FormGroup>
+
+                    <FormGroup>
+                      <Label>Priority</Label>
+                      <Input
                         type="number"
-                        className="form-input"
-                        value={delayValue}
-                        onChange={(e) => setDelayValue(parseInt(e.target.value) || 0)}
-                        min={0}
+                        value={priority}
+                        onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
+                        className="w-32"
                       />
-                      <span style={{ padding: '8px', color: 'var(--text-secondary)' }}>ms</span>
-                    </div>
-                  )}
+                      <FormHint>Higher priority routes are matched first (default: 0)</FormHint>
+                    </FormGroup>
+                  </TabsContent>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </Tabs>
 
-                  {delayType === 'random' && (
-                    <div className="grid-2">
-                      <div className="form-input-group">
-                        <span style={{ padding: '8px', color: 'var(--text-secondary)' }}>Min:</span>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={delayMin}
-                          onChange={(e) => setDelayMin(parseInt(e.target.value) || 0)}
-                          min={0}
-                        />
-                        <span style={{ padding: '8px', color: 'var(--text-secondary)' }}>ms</span>
-                      </div>
-                      <div className="form-input-group">
-                        <span style={{ padding: '8px', color: 'var(--text-secondary)' }}>Max:</span>
-                        <input
-                          type="number"
-                          className="form-input"
-                          value={delayMax}
-                          onChange={(e) => setDelayMax(parseInt(e.target.value) || 0)}
-                          min={0}
-                        />
-                        <span style={{ padding: '8px', color: 'var(--text-secondary)' }}>ms</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Priority</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={priority}
-                    onChange={(e) => setPriority(parseInt(e.target.value) || 0)}
-                    style={{ width: '150px' }}
-                  />
-                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    Higher priority routes are matched first (default: 0)
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-
-          <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={handleClose}>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={handleClose}>
               Cancel
-            </button>
-            <button type="submit" className="btn btn-primary">
+            </Button>
+            <Button type="submit">
               {isEditing ? 'Save Changes' : 'Create Route'}
-            </button>
-          </div>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
