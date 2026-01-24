@@ -11,6 +11,9 @@ import {
   Bug,
   Zap,
   Check,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import {
   Button,
@@ -30,6 +33,7 @@ import {
   FormHint,
 } from './ui';
 import { cn } from '../lib/utils';
+import { useThemeStore } from '../hooks/useTheme';
 
 const settingsTabs = [
   { id: 'general', label: 'General', icon: SettingsIcon },
@@ -39,8 +43,15 @@ const settingsTabs = [
   { id: 'about', label: 'About', icon: Info },
 ];
 
+const themeOptions = [
+  { value: 'light', label: 'Light', icon: Sun, description: 'Light theme' },
+  { value: 'dark', label: 'Dark', icon: Moon, description: 'Dark theme' },
+  { value: 'system', label: 'System', icon: Monitor, description: 'Match system' },
+] as const;
+
 export function Settings() {
   const [activeTab, setActiveTab] = useState('general');
+  const { theme, setTheme } = useThemeStore();
 
   return (
     <>
@@ -97,14 +108,64 @@ export function Settings() {
                     <CardTitle>General Settings</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-6">
+                    {/* Theme Selector */}
                     <FormGroup>
-                      <Label>Configuration Path</Label>
-                      <Input
-                        defaultValue=".specter"
-                        placeholder=".specter"
-                      />
-                      <FormHint>Directory where server configurations are stored</FormHint>
+                      <Label>Appearance</Label>
+                      <div className="grid grid-cols-3 gap-3 mt-2">
+                        {themeOptions.map((option) => {
+                          const Icon = option.icon;
+                          const isSelected = theme === option.value;
+                          return (
+                            <button
+                              key={option.value}
+                              onClick={() => setTheme(option.value)}
+                              className={cn(
+                                'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
+                                isSelected
+                                  ? 'border-brand-500 bg-brand-500/10'
+                                  : 'border-surface-700 hover:border-surface-600 hover:bg-surface-800/50'
+                              )}
+                            >
+                              <div
+                                className={cn(
+                                  'p-3 rounded-lg',
+                                  isSelected
+                                    ? 'bg-brand-500/20 text-brand-400'
+                                    : 'bg-surface-700 text-surface-400'
+                                )}
+                              >
+                                <Icon size={20} />
+                              </div>
+                              <span
+                                className={cn(
+                                  'text-sm font-medium',
+                                  isSelected ? 'text-brand-400' : 'text-surface-300'
+                                )}
+                              >
+                                {option.label}
+                              </span>
+                              {isSelected && (
+                                <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-brand-500 flex items-center justify-center">
+                                  <Check size={12} className="text-white" />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <FormHint>Choose your preferred color scheme</FormHint>
                     </FormGroup>
+
+                    <div className="border-t border-surface-700 pt-6">
+                      <FormGroup>
+                        <Label>Configuration Path</Label>
+                        <Input
+                          defaultValue=".specter"
+                          placeholder=".specter"
+                        />
+                        <FormHint>Directory where server configurations are stored</FormHint>
+                      </FormGroup>
+                    </div>
 
                     <div className="flex items-center justify-between py-2">
                       <div>
