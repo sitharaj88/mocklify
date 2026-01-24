@@ -4,6 +4,7 @@
   "description": "Specter - Powerful API mocking for VS Code. Create, manage, and run mock servers with ease.",
   "version": "0.1.0",
   "publisher": "sitharaj",
+  "icon": "resources/icon.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -302,6 +303,7 @@
     "@typescript-eslint/parser": "^6.13.0",
     "esbuild": "^0.19.8",
     "eslint": "^8.55.0",
+    "sharp": "^0.34.5",
     "typescript": "^5.3.0",
     "vitest": "^1.0.0"
   },

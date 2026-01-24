@@ -14,3 +14,13 @@ vsc-extension-quickstart.md
 !dist/**
 esbuild.config.js
 *.vsix
+.mockserver/**
+.specter/**
+**/.mockserver/**
+**/.specter/**
+vitest.config.ts
+*.md
+!README.md
+dist/*.map
+.DS_Store
+sharp/**

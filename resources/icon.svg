@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0F172A"/>
+      <stop offset="100%" style="stop-color:#1E293B"/>
+    </linearGradient>
+    
+    <!-- Ghost gradient -->
+    <linearGradient id="ghostGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#22D3EE"/>
+      <stop offset="100%" style="stop-color:#06B6D4"/>
+    </linearGradient>
+    
+    <!-- Ring gradient -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8B5CF6"/>
+      <stop offset="50%" style="stop-color:#06B6D4"/>
+      <stop offset="100%" style="stop-color:#22D3EE"/>
+    </linearGradient>
+    
+    <!-- Glow -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Outer glow -->
+    <filter id="outerGlow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect x="0" y="0" width="128" height="128" rx="28" fill="url(#bgGrad)"/>
+  
+  <!-- Ambient glow -->
+  <circle cx="64" cy="64" r="40" fill="#06B6D4" opacity="0.1" filter="url(#outerGlow)"/>
+  
+  <!-- Outer orbital ring -->
+  <circle cx="64" cy="64" r="48" stroke="url(#ringGrad)" stroke-width="3" fill="none" opacity="0.8" filter="url(#glow)"/>
+  
+  <!-- Inner ring -->
+  <circle cx="64" cy="64" r="38" stroke="#06B6D4" stroke-width="1.5" fill="none" opacity="0.4"/>
+  
+  <!-- Ghost/Phantom body -->
+  <path 
+    d="M64 28C50.75 28 40 38.75 40 52v30c0 1.66 1.34 3 3 3s3-1.34 3-3v-2l4 4 4-4 4 4 4-4 4 4 4-4 4 4 4-4 4 4v2c0 1.66 1.34 3 3 3s3-1.34 3-3V52c0-13.25-10.75-24-24-24z"
+    fill="url(#ghostGrad)"
+    filter="url(#glow)"
+  />
+  
+  <!-- Shine highlight -->
+  <path 
+    d="M64 32C52.95 32 44 40.95 44 52v4c0-11.05 8.95-20 20-20s20 8.95 20 20v-4c0-11.05-8.95-20-20-20z"
+    fill="#fff"
+    opacity="0.25"
+  />
+  
+  <!-- Left eye -->
+  <ellipse cx="54" cy="54" rx="5" ry="6" fill="#0F172A"/>
+  <ellipse cx="55.5" cy="52.5" rx="1.5" ry="2" fill="#fff" opacity="0.9"/>
+  
+  <!-- Right eye -->
+  <ellipse cx="74" cy="54" rx="5" ry="6" fill="#0F172A"/>
+  <ellipse cx="75.5" cy="52.5" rx="1.5" ry="2" fill="#fff" opacity="0.9"/>
+  
+  <!-- Orbital dots -->
+  <circle cx="64" cy="16" r="4" fill="#8B5CF6"/>
+  <circle cx="106" cy="44" r="3" fill="#22D3EE" opacity="0.8"/>
+  <circle cx="106" cy="84" r="3" fill="#06B6D4" opacity="0.8"/>
+  <circle cx="64" cy="112" r="4" fill="#06B6D4"/>
+  <circle cx="22" cy="84" r="3" fill="#22D3EE" opacity="0.8"/>
+  <circle cx="22" cy="44" r="3" fill="#8B5CF6" opacity="0.8"/>
+</svg>

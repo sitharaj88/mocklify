@@ -10,7 +10,7 @@ const buildOptions = {
   format: 'cjs',
   platform: 'node',
   target: 'node18',
-  sourcemap: true,
+  sourcemap: isWatch,  // Only generate sourcemaps in watch mode
   minify: !isWatch,
   treeShaking: true,
 };
