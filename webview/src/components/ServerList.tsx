@@ -88,11 +88,11 @@ export function ServerList() {
             <Server className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-surface-50">Servers</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Servers</h1>
             <p className="text-sm text-surface-400">{servers.length} servers configured</p>
           </div>
         </div>
-        <Button onClick={handleCreateServer}>
+        <Button onClick={handleCreateServer} className="w-full sm:w-auto">
           <Plus size={16} />
           New Server
         </Button>

@@ -120,7 +120,7 @@ export function ServerModal() {
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 py-4">
+          <div className="space-y-5 px-6 py-4 overflow-y-auto max-h-[60vh]">
             <FormGroup>
               <Label required>Server Name</Label>
               <Input
@@ -131,7 +131,7 @@ export function ServerModal() {
               />
             </FormGroup>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <FormGroup>
                 <Label required>Port</Label>
                 <Input

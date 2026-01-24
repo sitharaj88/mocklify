@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import {
@@ -11,6 +11,8 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { Badge, StatusDot, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui';
@@ -27,6 +29,21 @@ interface NavItem {
 export function Sidebar() {
   const { activeView, setActiveView, servers, serverStates } = useStore();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close mobile menu when view changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [activeView]);
+
+  // Handle escape key to close mobile menu
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileOpen(false);
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, []);
 
   const runningCount = Object.values(serverStates).filter(
     (s) => s.status === 'running'
@@ -43,11 +60,51 @@ export function Sidebar() {
 
   return (
     <TooltipProvider delayDuration={0}>
+      {/* Mobile Header Bar */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-surface-900 border-b border-surface-800 flex items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <div className="relative w-8 h-8">
+            <div className="absolute inset-0 bg-brand-500/30 blur-lg rounded-full" />
+            <div className="relative w-full h-full rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
+              <Zap size={16} className="text-white" />
+            </div>
+          </div>
+          <h1 className="font-bold text-surface-50">Specter</h1>
+        </div>
+        <button
+          onClick={() => setMobileOpen(!mobileOpen)}
+          className="p-2 rounded-lg text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors"
+        >
+          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setMobileOpen(false)}
+            className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar */}
       <motion.aside
         initial={false}
-        animate={{ width: collapsed ? 72 : 240 }}
+        animate={{ 
+          width: collapsed ? 72 : 240,
+          x: mobileOpen ? 0 : (typeof window !== 'undefined' && window.innerWidth < 1024 ? -240 : 0)
+        }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className="h-screen flex flex-col bg-surface-900 border-r border-surface-800"
+        className={cn(
+          "h-screen flex flex-col bg-surface-900 border-r border-surface-800",
+          "fixed lg:relative z-50 lg:z-auto",
+          "lg:translate-x-0"
+        )}
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-4 border-b border-surface-800">
@@ -147,8 +204,8 @@ export function Sidebar() {
           </ul>
         </nav>
 
-        {/* Collapse Toggle */}
-        <div className="p-3 border-t border-surface-800">
+        {/* Collapse Toggle - Desktop only */}
+        <div className="hidden lg:block p-3 border-t border-surface-800">
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors"

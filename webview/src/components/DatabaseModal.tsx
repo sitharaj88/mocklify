@@ -192,7 +192,7 @@ export function DatabaseModal() {
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <div className="space-y-5 py-4">
+          <div className="space-y-5 px-6 py-4 overflow-y-auto max-h-[60vh]">
             <FormGroup>
               <Label required>Connection Name</Label>
               <Input

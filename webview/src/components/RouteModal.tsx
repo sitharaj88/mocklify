@@ -271,17 +271,19 @@ export function RouteModal() {
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="px-4 sm:px-6 pt-4">
             <TabsList className="w-full grid grid-cols-4">
               {tabs.map((tab) => (
-                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2">
-                  <tab.icon size={14} />
-                  {tab.label}
+                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm">
+                  <tab.icon size={14} className="hidden sm:block" />
+                  <tab.icon size={12} className="block sm:hidden" />
+                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span className="sm:hidden">{tab.label.slice(0, 3)}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
 
-            <div className="py-4 min-h-[320px]">
+            <div className="py-4 min-h-[280px] sm:min-h-[320px] overflow-y-auto max-h-[50vh]">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}

@@ -94,13 +94,13 @@ export function RouteList() {
   return (
     <>
       <header className="content-header">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-500/10">
               <Route className="w-5 h-5 text-amber-400" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-surface-50">Routes</h1>
+              <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Routes</h1>
               <p className="text-sm text-surface-400">Manage API endpoints</p>
             </div>
           </div>
@@ -110,7 +110,7 @@ export function RouteList() {
             value={selectedServerId || ''}
             onValueChange={(value) => setSelectedServerId(value || null)}
           >
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
               <SelectValue placeholder="Select a server..." />
             </SelectTrigger>
             <SelectContent>
@@ -123,7 +123,7 @@ export function RouteList() {
           </Select>
         </div>
 
-        <Button onClick={handleCreateRoute} disabled={!selectedServerId}>
+        <Button onClick={handleCreateRoute} disabled={!selectedServerId} className="w-full sm:w-auto">
           <Plus size={16} />
           New Route
         </Button>

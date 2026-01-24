@@ -120,11 +120,11 @@ export function DatabaseList() {
             <Database className="w-5 h-5 text-purple-400" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-surface-50">Database Connections</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Database Connections</h1>
             <p className="text-sm text-surface-400">{databases.length} connections</p>
           </div>
         </div>
-        <Button onClick={handleCreateDatabase}>
+        <Button onClick={handleCreateDatabase} className="w-full sm:w-auto">
           <Plus size={16} />
           New Connection
         </Button>

@@ -96,7 +96,7 @@ function App() {
   return (
     <div className="app-container">
       <Sidebar />
-      <main className="main-content mesh-bg">
+      <main className="main-content mesh-bg pt-14 lg:pt-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeView}

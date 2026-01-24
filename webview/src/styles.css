@@ -42,20 +42,20 @@
 
   /* Main Content Area */
   .main-content {
-    @apply flex-1 flex flex-col overflow-hidden min-w-0;
+    @apply flex-1 flex flex-col overflow-hidden min-w-0 w-full;
   }
 
   /* Content Layout */
   .content-header {
-    @apply flex items-center justify-between px-6 py-4 border-b border-surface-800 bg-surface-900/80 backdrop-blur-sm flex-shrink-0;
+    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-800 bg-surface-900/80 backdrop-blur-sm flex-shrink-0;
   }
 
   .content-header h1 {
-    @apply text-xl font-semibold text-surface-50;
+    @apply text-lg sm:text-xl font-semibold text-surface-50;
   }
 
   .content-body {
-    @apply flex-1 overflow-auto p-6;
+    @apply flex-1 overflow-auto p-4 sm:p-6;
   }
 
   /* Glass Effect */

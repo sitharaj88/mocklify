@@ -76,32 +76,32 @@ export function LogsViewer() {
             <ScrollText className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-surface-50">Request Logs</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Request Logs</h1>
             <p className="text-sm text-surface-400">{logs.length} total requests</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={handleExportLogs}>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button variant="secondary" onClick={handleExportLogs} className="flex-1 sm:flex-none">
             <Download size={16} />
-            Export
+            <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button variant="secondary" onClick={handleClearLogs}>
+          <Button variant="secondary" onClick={handleClearLogs} className="flex-1 sm:flex-none">
             <Trash2 size={16} />
-            Clear
+            <span className="hidden sm:inline">Clear</span>
           </Button>
         </div>
       </header>
 
-      <div className="content-body flex gap-4 h-full">
+      <div className="content-body flex flex-col lg:flex-row gap-4 h-full">
         {/* Logs List */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Filters */}
-          <div className="flex gap-3 mb-4 items-center">
+          <div className="flex flex-wrap gap-3 mb-4 items-center">
             <Select
               value={selectedServerId || 'all'}
               onValueChange={(value) => setSelectedServerId(value === 'all' ? null : value)}
             >
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full sm:w-[200px]">
                 <SelectValue placeholder="All Servers" />
               </SelectTrigger>
               <SelectContent>
@@ -115,7 +115,7 @@ export function LogsViewer() {
             </Select>
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full sm:w-[180px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -35,11 +35,11 @@ const DialogContent = React.forwardRef<
   }
 >(({ className, children, size = 'default', ...props }, ref) => {
   const sizeClasses = {
-    sm: 'max-w-md',
-    default: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-[90vw]',
+    sm: 'sm:max-w-md',
+    default: 'sm:max-w-lg',
+    lg: 'sm:max-w-2xl',
+    xl: 'sm:max-w-4xl',
+    full: 'sm:max-w-[90vw]',
   };
 
   return (
@@ -48,7 +48,7 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          'fixed left-[50%] top-[50%] z-50 grid w-full translate-x-[-50%] translate-y-[-50%]',
+          'fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] sm:w-full translate-x-[-50%] translate-y-[-50%]',
           'bg-surface-800 border border-surface-700 shadow-2xl shadow-black/40 rounded-xl',
           'duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
@@ -62,7 +62,7 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-lg p-1.5 text-surface-400 transition-colors hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
+        <DialogPrimitive.Close className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-lg p-1.5 text-surface-400 transition-colors hover:bg-surface-700 hover:text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500">
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
@@ -78,7 +78,7 @@ const DialogHeader = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-col space-y-2 p-6 pb-4 border-b border-surface-700',
+      'flex flex-col space-y-2 p-4 sm:p-6 pb-3 sm:pb-4 border-b border-surface-700',
       className
     )}
     {...props}
@@ -92,7 +92,7 @@ const DialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      'flex flex-row justify-end gap-3 p-6 pt-4 border-t border-surface-700 bg-surface-800/50',
+      'flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 p-4 sm:p-6 pt-3 sm:pt-4 border-t border-surface-700 bg-surface-800/50',
       className
     )}
     {...props}
@@ -107,7 +107,7 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-xl font-semibold leading-none tracking-tight text-surface-50',
+      'text-lg sm:text-xl font-semibold leading-none tracking-tight text-surface-50',
       className
     )}
     {...props}
@@ -132,7 +132,7 @@ const DialogBody = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex-1 overflow-y-auto p-6', className)}
+    className={cn('flex-1 overflow-y-auto p-4 sm:p-6', className)}
     {...props}
   />
 );

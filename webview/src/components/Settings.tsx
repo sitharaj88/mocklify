@@ -50,25 +50,25 @@ export function Settings() {
             <SettingsIcon className="w-5 h-5 text-surface-300" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-surface-50">Settings</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Settings</h1>
             <p className="text-sm text-surface-400">Configure Specter</p>
           </div>
         </div>
       </header>
 
       <div className="content-body">
-        <div className="flex gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Settings Navigation */}
-          <div className="w-56 flex-shrink-0">
+          <div className="w-full lg:w-56 flex-shrink-0">
             <Card className="overflow-hidden">
-              <div className="p-2">
+              <div className="p-2 flex lg:flex-col gap-1 overflow-x-auto">
                 {settingsTabs.map((item) => (
                   <motion.button
                     key={item.id}
                     whileHover={{ x: 4 }}
                     whileTap={{ scale: 0.98 }}
                     className={cn(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap',
                       activeTab === item.id
                         ? 'bg-brand-500/15 text-brand-400'
                         : 'text-surface-400 hover:bg-surface-700/50 hover:text-surface-200'

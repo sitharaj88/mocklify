@@ -122,22 +122,25 @@ export function Dashboard() {
             <Zap className="w-5 h-5 text-brand-400" />
           </div>
           <div>
-            <h1 className="text-xl font-semibold text-surface-50">Dashboard</h1>
+            <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Dashboard</h1>
             <p className="text-sm text-surface-400">Overview of your servers</p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={handleStartAll}>
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="secondary" onClick={handleStartAll} className="flex-1 sm:flex-none">
             <Play size={16} />
-            Start All
+            <span className="hidden sm:inline">Start All</span>
+            <span className="sm:hidden">Start</span>
           </Button>
-          <Button variant="secondary" onClick={handleStopAll}>
+          <Button variant="secondary" onClick={handleStopAll} className="flex-1 sm:flex-none">
             <Square size={16} />
-            Stop All
+            <span className="hidden sm:inline">Stop All</span>
+            <span className="sm:hidden">Stop</span>
           </Button>
-          <Button onClick={handleCreateServer}>
+          <Button onClick={handleCreateServer} className="flex-1 sm:flex-none">
             <Plus size={16} />
-            New Server
+            <span className="hidden sm:inline">New Server</span>
+            <span className="sm:hidden">New</span>
           </Button>
         </div>
       </header>
