@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #8b5cf6;
+  --color-primary-dark: #7c3aed;
+  --color-secondary: #06b6d4;
+  --color-accent: #f59e0b;
+}
+
+/* Base theme variables */
+:root {
+  --bg-primary: #0f172a;
+  --bg-secondary: #1e293b;
+  --bg-card: #1a2332;
+  --bg-hover: #334155;
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --border-color: #334155;
+  --border-light: #1e293b;
+}
+
+:root.light {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-card: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.2s, color 0.2s;
+}
+
+/* Theme classes */
+.theme-bg { background-color: var(--bg-primary); }
+.theme-bg-secondary { background-color: var(--bg-secondary); }
+.theme-bg-card { background-color: var(--bg-card); }
+.theme-text { color: var(--text-primary); }
+.theme-text-secondary { color: var(--text-secondary); }
+.theme-text-muted { color: var(--text-muted); }
+.theme-border { border-color: var(--border-color); }
+.theme-border-light { border-color: var(--border-light); }
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-hover);
+}
+
+/* Code block styling - dark theme default */
+.dark .code-block-wrapper pre {
+  background: #1a2332 !important;
+}
+
+.light .code-block-wrapper pre {
+  background: #f1f5f9 !important;
+}
+
+/* Smooth animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glow effect */
+.glow {
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+}
+
+/* Navigation active state */
+.nav-active {
+  background: linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, transparent 100%);
+  border-left: 3px solid #8b5cf6;
+}

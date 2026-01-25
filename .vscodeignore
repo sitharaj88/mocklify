@@ -3,6 +3,8 @@
 src/**
 test/**
 webview/**
+docs/**
+site/**
 node_modules/**
 .gitignore
 .yarnrc
