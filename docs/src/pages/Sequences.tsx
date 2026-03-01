@@ -13,10 +13,10 @@ export default function Sequences() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Response sequences allow you to simulate stateful API behavior by returning different responses on each call. This is useful for testing:
         </p>
-        <ul className="space-y-2 text-slate-400 mb-4">
+        <ul className="space-y-2 theme-text-secondary mb-4">
           <li>• Retry logic and exponential backoff</li>
           <li>• Polling for status changes</li>
           <li>• Rate limiting scenarios</li>
@@ -62,7 +62,7 @@ export default function Sequences() {
       {/* Error Sequences */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Error & Retry Sequences</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Test retry logic by returning errors initially, then success:
         </p>
         
@@ -189,8 +189,8 @@ export default function Sequences() {
   }
 }`}
         />
-        <p className="text-slate-400 mt-2 mb-6">
-          When <code className="px-2 py-0.5 bg-slate-800 rounded">loop: true</code> (default), the sequence repeats from the beginning after the last response.
+        <p className="theme-text-secondary mt-2 mb-6">
+          When <code className="px-2 py-0.5 theme-bg-secondary rounded">loop: true</code> (default), the sequence repeats from the beginning after the last response.
         </p>
 
         <h3 className="text-lg font-medium mb-3">Stick to Last</h3>
@@ -207,28 +207,28 @@ export default function Sequences() {
   }
 }`}
         />
-        <p className="text-slate-400 mt-2">
-          When <code className="px-2 py-0.5 bg-slate-800 rounded">loop: false</code>, the last response is returned for all subsequent calls.
+        <p className="theme-text-secondary mt-2">
+          When <code className="px-2 py-0.5 theme-bg-secondary rounded">loop: false</code>, the last response is returned for all subsequent calls.
         </p>
       </section>
 
       {/* Reset */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Resetting Sequences</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Sequence counters can be reset in several ways:
         </p>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• <strong>Restart Server:</strong> All sequences reset when the server restarts</li>
           <li>• <strong>Clear Logs:</strong> Use "Clear Logs" to reset all sequence counters</li>
-          <li>• <strong>API:</strong> POST to <code className="px-2 py-0.5 bg-slate-800 rounded">/__mocklify/reset</code> on your mock server</li>
+          <li>• <strong>API:</strong> POST to <code className="px-2 py-0.5 theme-bg-secondary rounded">/__mocklify/reset</code> on your mock server</li>
         </ul>
       </section>
 
       {/* With Delay */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Sequences with Delays</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Each response in a sequence can have its own delay:
         </p>
         <CodeBlock

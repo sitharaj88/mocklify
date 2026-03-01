@@ -13,10 +13,10 @@ export default function Database() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Mocklify supports database-like functionality for more realistic mock scenarios:
         </p>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• <strong>JSON File Databases:</strong> Query JSON files as collections</li>
           <li>• <strong>In-Memory Store:</strong> Temporary data that persists during server runtime</li>
           <li>• <strong>CRUD Operations:</strong> Create, read, update, delete operations</li>
@@ -26,8 +26,8 @@ export default function Database() {
       {/* JSON Database */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">JSON File Database</h2>
-        <p className="text-slate-400 mb-4">
-          Create a JSON file in your <code className="px-2 py-0.5 bg-slate-800 rounded">.mocklify/databases/</code> folder:
+        <p className="theme-text-secondary mb-4">
+          Create a JSON file in your <code className="px-2 py-0.5 theme-bg-secondary rounded">.mocklify/databases/</code> folder:
         </p>
         
         <CodeBlock
@@ -46,8 +46,8 @@ export default function Database() {
       {/* Querying */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Querying Data</h2>
-        <p className="text-slate-400 mb-4">
-          Use the <code className="px-2 py-0.5 bg-slate-800 rounded">db</code> helper in your responses:
+        <p className="theme-text-secondary mb-4">
+          Use the <code className="px-2 py-0.5 theme-bg-secondary rounded">db</code> helper in your responses:
         </p>
 
         <h3 className="text-lg font-medium mb-3">Get All Records</h3>
@@ -147,7 +147,7 @@ export default function Database() {
       {/* In-Memory Store */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">In-Memory Store</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use the in-memory store for temporary data that doesn't need to persist:
         </p>
         
@@ -222,10 +222,10 @@ export default function Database() {
       {/* Managing Databases */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Managing Databases</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use the Mocklify dashboard to manage your databases:
         </p>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• View and edit database records</li>
           <li>• Create new databases</li>
           <li>• Import data from CSV or JSON</li>

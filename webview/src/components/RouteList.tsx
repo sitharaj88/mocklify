@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
@@ -19,6 +20,7 @@ import {
   getMethodVariant,
   getStatusVariant,
   EmptyState,
+  ConfirmDialog,
   Table,
   TableHeader,
   TableBody,
@@ -42,6 +44,8 @@ export function RouteList() {
     setEditingRoute,
   } = useStore();
 
+  const [deleteRouteId, setDeleteRouteId] = useState<string | null>(null);
+
   const selectedServer = servers.find((s) => s.id === selectedServerId);
   const routes = selectedServer?.routes || [];
 
@@ -59,15 +63,14 @@ export function RouteList() {
     setShowRouteModal(true);
   };
 
-  const handleDeleteRoute = (routeId: string) => {
-    if (!selectedServerId) return;
-    if (confirm('Are you sure you want to delete this route?')) {
-      postMessage({
-        type: 'deleteRoute',
-        serverId: selectedServerId,
-        routeId,
-      });
-    }
+  const handleDeleteRoute = () => {
+    if (!selectedServerId || !deleteRouteId) return;
+    postMessage({
+      type: 'deleteRoute',
+      serverId: selectedServerId,
+      routeId: deleteRouteId,
+    });
+    setDeleteRouteId(null);
   };
 
   const handleToggleRoute = (route: RouteConfig) => {
@@ -223,7 +226,7 @@ export function RouteList() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => handleDeleteRoute(route.id)}
+                            onClick={() => setDeleteRouteId(route.id)}
                             title="Delete route"
                             className="hover:text-red-400"
                           >
@@ -239,6 +242,15 @@ export function RouteList() {
           </motion.div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteRouteId}
+        onOpenChange={(open) => !open && setDeleteRouteId(null)}
+        title="Delete Route"
+        description="Are you sure you want to delete this route? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDeleteRoute}
+      />
     </>
   );
 }

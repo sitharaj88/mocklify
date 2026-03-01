@@ -47,6 +47,9 @@ body {
 .theme-text-muted { color: var(--text-muted); }
 .theme-border { border-color: var(--border-color); }
 .theme-border-light { border-color: var(--border-light); }
+.theme-card { background-color: var(--bg-card); }
+.theme-secondary-bg { background-color: var(--bg-secondary); }
+.theme-border-color { border-color: var(--border-color); }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {

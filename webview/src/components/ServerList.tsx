@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
@@ -20,6 +21,7 @@ import {
   Badge,
   StatusDot,
   EmptyState,
+  ConfirmDialog,
 } from './ui';
 import { cn } from '../lib/utils';
 
@@ -46,6 +48,8 @@ export function ServerList() {
     setActiveView,
   } = useStore();
 
+  const [deleteServerId, setDeleteServerId] = useState<string | null>(null);
+
   const handleCreateServer = () => {
     setEditingServer(null);
     setShowServerModal(true);
@@ -56,10 +60,10 @@ export function ServerList() {
     setShowServerModal(true);
   };
 
-  const handleDeleteServer = (serverId: string) => {
-    if (confirm('Are you sure you want to delete this server?')) {
-      postMessage({ type: 'deleteServer', serverId });
-    }
+  const handleDeleteServer = () => {
+    if (!deleteServerId) return;
+    postMessage({ type: 'deleteServer', serverId: deleteServerId });
+    setDeleteServerId(null);
   };
 
   const handleToggleServer = (server: MockServerConfig) => {
@@ -174,7 +178,7 @@ export function ServerList() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
-                            onClick={() => handleDeleteServer(server.id)}
+                            onClick={() => setDeleteServerId(server.id)}
                             title="Delete Server"
                             className="hover:text-red-400"
                           >
@@ -241,6 +245,15 @@ export function ServerList() {
           </motion.div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={!!deleteServerId}
+        onOpenChange={(open) => !open && setDeleteServerId(null)}
+        title="Delete Server"
+        description="Are you sure you want to delete this server and all its routes? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDeleteServer}
+      />
     </>
   );
 }

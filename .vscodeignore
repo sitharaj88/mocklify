@@ -3,6 +3,7 @@
 src/**
 test/**
 webview/**
+!webview/dist/**
 docs/**
 site/**
 node_modules/**

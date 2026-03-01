@@ -152,7 +152,7 @@
         {
           "id": "mocklifyExplorer",
           "title": "Mocklify",
-          "icon": "resources/icon.svg"
+          "icon": "resources/sidebar-icon.svg"
         }
       ]
     },
@@ -160,13 +160,11 @@
       "mocklifyExplorer": [
         {
           "id": "mocklifyServers",
-          "name": "Servers",
-          "icon": "resources/icon.svg"
+          "name": "Servers"
         },
         {
           "id": "mocklifyLogs",
-          "name": "Request Logs",
-          "icon": "resources/icon.svg"
+          "name": "Request Logs"
         }
       ]
     },

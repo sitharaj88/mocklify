@@ -13,7 +13,7 @@ export default function GraphQL() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Mocklify supports GraphQL mocking by matching operations based on operation name, query content, and variables.
         </p>
       </section>
@@ -54,7 +54,7 @@ export default function GraphQL() {
       {/* Multiple Operations */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Multiple Operations</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Create separate routes for different GraphQL operations:
         </p>
         
@@ -117,7 +117,7 @@ export default function GraphQL() {
       {/* Variable Access */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Accessing Variables</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Access GraphQL variables in your response templates:
         </p>
         
@@ -190,7 +190,7 @@ export default function GraphQL() {
       {/* Query Matching */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Query Content Matching</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Match based on query content for operations without names:
         </p>
         

@@ -21,7 +21,7 @@ export default function GettingStarted() {
       {/* Installation */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Installation</h2>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 p-6">
+        <div className="theme-bg-card rounded-xl border theme-border p-6">
           <h3 className="font-medium mb-4">From VS Code Marketplace</h3>
           <ol className="space-y-3">
             {steps.map((step, index) => (
@@ -29,7 +29,7 @@ export default function GettingStarted() {
                 <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 text-sm">
                   {index + 1}
                 </span>
-                <span className="text-slate-300">{step}</span>
+                <span className="theme-text">{step}</span>
               </li>
             ))}
           </ol>
@@ -50,9 +50,9 @@ export default function GettingStarted() {
             </span>
             <div>
               <h4 className="font-medium mb-1">Open Command Palette</h4>
-              <p className="text-slate-400 text-sm">
-                Press <code className="px-2 py-0.5 bg-slate-800 rounded">Cmd+Shift+P</code> (Mac) or{' '}
-                <code className="px-2 py-0.5 bg-slate-800 rounded">Ctrl+Shift+P</code> (Windows/Linux)
+              <p className="theme-text-secondary text-sm">
+                Press <code className="px-2 py-0.5 theme-bg-secondary rounded">Cmd+Shift+P</code> (Mac) or{' '}
+                <code className="px-2 py-0.5 theme-bg-secondary rounded">Ctrl+Shift+P</code> (Windows/Linux)
               </p>
             </div>
           </li>
@@ -62,7 +62,7 @@ export default function GettingStarted() {
             </span>
             <div>
               <h4 className="font-medium mb-1">Create Server</h4>
-              <p className="text-slate-400 text-sm">
+              <p className="theme-text-secondary text-sm">
                 Type "Mocklify: Create Server" and press Enter
               </p>
             </div>
@@ -73,7 +73,7 @@ export default function GettingStarted() {
             </span>
             <div>
               <h4 className="font-medium mb-1">Configure Server</h4>
-              <p className="text-slate-400 text-sm">
+              <p className="theme-text-secondary text-sm">
                 Enter a name (e.g., "API Server") and port (e.g., 3000)
               </p>
             </div>
@@ -84,7 +84,7 @@ export default function GettingStarted() {
       {/* Add Route */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Add a Route</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Right-click on your server in the Mocklify sidebar and select "Add Route", or use the dashboard.
         </p>
         <CodeBlock
@@ -104,12 +104,12 @@ export default function GettingStarted() {
         <h2 className="text-2xl font-semibold mb-4">Start the Server</h2>
         <div className="flex items-start gap-3 mb-4">
           <CheckCircle2 className="w-5 h-5 text-green-500 mt-1 shrink-0" />
-          <p className="text-slate-300">
+          <p className="theme-text">
             Click the ▶️ play button next to your server, or use the keyboard shortcut{' '}
-            <code className="px-2 py-0.5 bg-slate-800 rounded">Cmd/Ctrl+Shift+S</code>
+            <code className="px-2 py-0.5 theme-bg-secondary rounded">Cmd/Ctrl+Shift+S</code>
           </p>
         </div>
-        <p className="text-slate-400">
+        <p className="theme-text-secondary">
           Your mock API is now running! Test it with:
         </p>
         <CodeBlock
@@ -121,7 +121,7 @@ export default function GettingStarted() {
       {/* What's Next */}
       <section className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-xl border border-purple-500/20 p-6">
         <h2 className="text-xl font-semibold mb-4">What's Next?</h2>
-        <ul className="space-y-2 text-slate-300">
+        <ul className="space-y-2 theme-text">
           <li>• Learn about <a href="#/templates" className="text-purple-400 hover:underline">dynamic templates</a> with Faker.js</li>
           <li>• Set up <a href="#/matching" className="text-purple-400 hover:underline">request matching</a> for conditional responses</li>
           <li>• Configure <a href="#/proxy" className="text-purple-400 hover:underline">proxy pass-through</a> to forward requests</li>

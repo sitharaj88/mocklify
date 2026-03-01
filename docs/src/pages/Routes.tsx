@@ -13,7 +13,7 @@ export default function Routes() {
       {/* Creating Routes */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Creating Routes</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Routes define how your mock server responds to specific HTTP requests.
         </p>
         
@@ -43,42 +43,42 @@ export default function Routes() {
       {/* Route Properties */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Route Properties</h2>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Property</th>
-                <th className="text-left px-4 py-3 text-slate-300">Required</th>
-                <th className="text-left px-4 py-3 text-slate-300">Description</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text">Property</th>
+                <th className="text-left px-4 py-3 theme-text">Required</th>
+                <th className="text-left px-4 py-3 theme-text">Description</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">name</td>
                 <td className="px-4 py-3">Yes</td>
                 <td className="px-4 py-3">Display name</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">method</td>
                 <td className="px-4 py-3">Yes</td>
                 <td className="px-4 py-3">GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">path</td>
                 <td className="px-4 py-3">Yes</td>
                 <td className="px-4 py-3">URL path (supports parameters)</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">response</td>
                 <td className="px-4 py-3">Yes</td>
                 <td className="px-4 py-3">Response configuration</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">delay</td>
                 <td className="px-4 py-3">No</td>
                 <td className="px-4 py-3">Response delay in ms</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">matcher</td>
                 <td className="px-4 py-3">No</td>
                 <td className="px-4 py-3">Request matching rules</td>
@@ -96,7 +96,7 @@ export default function Routes() {
       {/* Path Parameters */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Path Parameters</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use colons to define dynamic path segments:
         </p>
         <CodeBlock
@@ -152,7 +152,7 @@ export default function Routes() {
       {/* Response Delays */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Response Delays</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Simulate network latency with fixed or random delays:
         </p>
         

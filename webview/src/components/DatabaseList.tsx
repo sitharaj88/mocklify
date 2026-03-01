@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import {
@@ -20,6 +21,7 @@ import {
   CardContent,
   Badge,
   EmptyState,
+  ConfirmDialog,
 } from './ui';
 import { cn } from '../lib/utils';
 
@@ -43,6 +45,8 @@ export function DatabaseList() {
     setEditingDatabase,
   } = useStore();
 
+  const [deleteDatabaseId, setDeleteDatabaseId] = useState<string | null>(null);
+
   const handleCreateDatabase = () => {
     setEditingDatabase(null);
     setShowDatabaseModal(true);
@@ -53,10 +57,10 @@ export function DatabaseList() {
     setShowDatabaseModal(true);
   };
 
-  const handleDeleteDatabase = (databaseId: string) => {
-    if (confirm('Are you sure you want to delete this database connection?')) {
-      postMessage({ type: 'deleteDatabase', databaseId });
-    }
+  const handleDeleteDatabase = () => {
+    if (!deleteDatabaseId) return;
+    postMessage({ type: 'deleteDatabase', databaseId: deleteDatabaseId });
+    setDeleteDatabaseId(null);
   };
 
   const handleTestConnection = (databaseId: string) => {
@@ -233,7 +237,7 @@ export function DatabaseList() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteDatabase(database.id)}
+                          onClick={() => setDeleteDatabaseId(database.id)}
                           className="hover:text-red-400"
                         >
                           <Trash2 size={14} />
@@ -281,6 +285,15 @@ export function DatabaseList() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteDatabaseId}
+        onOpenChange={(open) => !open && setDeleteDatabaseId(null)}
+        title="Delete Database"
+        description="Are you sure you want to delete this database connection? This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDeleteDatabase}
+      />
     </>
   );
 }

@@ -13,10 +13,10 @@ export default function Proxy() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           The proxy feature allows you to:
         </p>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• Forward unmatched requests to a real API</li>
           <li>• Record API responses to create mock routes</li>
           <li>• Work with a mix of mocked and real endpoints</li>
@@ -27,7 +27,7 @@ export default function Proxy() {
       {/* Enable Proxy */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Enabling Proxy</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Configure proxy at the server level:
         </p>
         
@@ -46,24 +46,24 @@ export default function Proxy() {
         />
 
         <h3 className="text-lg font-medium mb-3 mt-6">Proxy Options</h3>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Option</th>
-                <th className="text-left px-4 py-3 text-slate-300">Description</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text">Option</th>
+                <th className="text-left px-4 py-3 theme-text">Description</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">target</td>
                 <td className="px-4 py-3">Target URL to forward requests to</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">changeOrigin</td>
                 <td className="px-4 py-3">Rewrite origin header to match target</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">secure</td>
                 <td className="px-4 py-3">Verify SSL certificates (default: true)</td>
               </tr>
@@ -92,15 +92,15 @@ export default function Proxy() {
   }
 }`}
         />
-        <p className="text-slate-400 mt-4">
-          Request to <code className="px-2 py-0.5 bg-slate-800 rounded">/api/v1/users</code> forwards to <code className="px-2 py-0.5 bg-slate-800 rounded">https://api.example.com/v1/users</code>
+        <p className="theme-text-secondary mt-4">
+          Request to <code className="px-2 py-0.5 theme-bg-secondary rounded">/api/v1/users</code> forwards to <code className="px-2 py-0.5 theme-bg-secondary rounded">https://api.example.com/v1/users</code>
         </p>
       </section>
 
       {/* Recording */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Request Recording</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Record proxied requests to automatically generate mock routes:
         </p>
 
@@ -108,23 +108,23 @@ export default function Proxy() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open the Mocklify dashboard</span>
+            <span className="theme-text">Open the Mocklify dashboard</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Click "Start Recording" on your server</span>
+            <span className="theme-text">Click "Start Recording" on your server</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
-            <span className="text-slate-300">Enter the target API URL</span>
+            <span className="theme-text">Enter the target API URL</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">4</span>
-            <span className="text-slate-300">Make requests through your mock server</span>
+            <span className="theme-text">Make requests through your mock server</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">5</span>
-            <span className="text-slate-300">Click "Stop Recording" when done</span>
+            <span className="theme-text">Click "Stop Recording" when done</span>
           </li>
         </ol>
 
@@ -157,7 +157,7 @@ export default function Proxy() {
       {/* Generate Routes */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Generate Routes from Recording</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           After recording, Mocklify can generate mock routes from the captured data:
         </p>
         
@@ -188,7 +188,7 @@ export default function Proxy() {
       {/* Mixed Mode */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Mixed Mode</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use a combination of mocked and proxied endpoints:
         </p>
         
@@ -222,7 +222,7 @@ export default function Proxy() {
       {/* Headers */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Custom Headers</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Add custom headers to proxied requests:
         </p>
         <CodeBlock

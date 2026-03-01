@@ -96,7 +96,7 @@ export class WebViewManager {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; font-src ${webview.cspSource} data:; img-src ${webview.cspSource} https: data:; connect-src ${webview.cspSource};">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' 'unsafe-eval'; worker-src blob:; font-src ${webview.cspSource} data:; img-src ${webview.cspSource} https: data:; connect-src ${webview.cspSource};">
   <link rel="stylesheet" href="${styleUri}">
   <title>Mocklify Dashboard</title>
 </head>
@@ -188,6 +188,12 @@ export class WebViewManager {
       case 'deleteDatabase':
         if (message.databaseId) {
           await this.deleteDatabase(message.databaseId);
+        }
+        break;
+
+      case 'testDatabase':
+        if (message.databaseId) {
+          await this.testDatabase(message.databaseId);
         }
         break;
 
@@ -343,6 +349,40 @@ export class WebViewManager {
     await this.context.globalState.update('mocklify.databases', this.databases);
     await this.sendState();
     this.sendSuccess('Database connection deleted');
+  }
+
+  private async testDatabase(databaseId: string): Promise<void> {
+    const database = this.databases.find((d) => d.id === databaseId);
+    if (!database) {
+      this.sendError('Database connection not found');
+      return;
+    }
+
+    try {
+      if (database.type === 'json') {
+        const filePath = (database.config as { filePath?: string }).filePath;
+        if (filePath) {
+          const fs = await import('fs');
+          const path = await import('path');
+          const workspaceFolders = vscode.workspace.workspaceFolders;
+          const basePath = workspaceFolders?.[0]?.uri.fsPath || '';
+          const fullPath = path.resolve(basePath, filePath);
+          if (fs.existsSync(fullPath)) {
+            const content = fs.readFileSync(fullPath, 'utf-8');
+            JSON.parse(content);
+            this.sendSuccess('Connection successful! JSON file is valid.');
+          } else {
+            this.sendError(`File not found: ${filePath}`);
+          }
+        } else {
+          this.sendError('No file path configured');
+        }
+      } else {
+        this.sendSuccess(`Connection test for ${database.type} is not yet implemented.`);
+      }
+    } catch (error) {
+      this.sendError(error instanceof Error ? error.message : 'Connection test failed');
+    }
   }
 
   private sendError(message: string): void {

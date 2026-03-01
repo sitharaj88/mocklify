@@ -13,33 +13,33 @@ export default function Servers() {
       {/* Creating Servers */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Creating a Server</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           You can create servers using the Command Palette, sidebar context menu, or the dashboard.
         </p>
         
         <h3 className="text-lg font-medium mb-3">Server Properties</h3>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Property</th>
-                <th className="text-left px-4 py-3 text-slate-300">Description</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text">Property</th>
+                <th className="text-left px-4 py-3 theme-text">Description</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">name</td>
                 <td className="px-4 py-3">Display name for the server</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">port</td>
                 <td className="px-4 py-3">Port number (1024-65535)</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">protocol</td>
                 <td className="px-4 py-3">HTTP or WebSocket</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">delay</td>
                 <td className="px-4 py-3">Default response delay in ms</td>
               </tr>
@@ -75,9 +75,9 @@ export default function Servers() {
         <h2 className="text-2xl font-semibold mb-4">Managing Servers</h2>
         
         <h3 className="text-lg font-medium mb-3">Starting & Stopping</h3>
-        <ul className="space-y-2 text-slate-400 mb-6">
+        <ul className="space-y-2 theme-text-secondary mb-6">
           <li>• Click the ▶️/⏹️ button next to the server in the sidebar</li>
-          <li>• Use keyboard shortcuts: <code className="px-2 py-0.5 bg-slate-800 rounded">Cmd/Ctrl+Shift+S</code> to start, <code className="px-2 py-0.5 bg-slate-800 rounded">Cmd/Ctrl+Shift+X</code> to stop</li>
+          <li>• Use keyboard shortcuts: <code className="px-2 py-0.5 theme-bg-secondary rounded">Cmd/Ctrl+Shift+S</code> to start, <code className="px-2 py-0.5 theme-bg-secondary rounded">Cmd/Ctrl+Shift+X</code> to stop</li>
           <li>• Right-click context menu options</li>
         </ul>
 
@@ -89,10 +89,10 @@ export default function Servers() {
       {/* Multiple Servers */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Running Multiple Servers</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           You can run multiple mock servers simultaneously on different ports. This is useful for:
         </p>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• Mocking multiple microservices</li>
           <li>• Testing different API versions</li>
           <li>• Simulating complex architectures</li>
@@ -107,7 +107,7 @@ export default function Servers() {
       {/* Environment Variables */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Environment Variables</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Define environment variables at the server level to use across all routes:
         </p>
         <CodeBlock
@@ -121,8 +121,8 @@ export default function Servers() {
   }
 }`}
         />
-        <p className="text-slate-400 mt-4">
-          Access in templates: <code className="px-2 py-0.5 bg-slate-800 rounded">{"{{env.API_VERSION}}"}</code>
+        <p className="theme-text-secondary mt-4">
+          Access in templates: <code className="px-2 py-0.5 theme-bg-secondary rounded">{"{{env.API_VERSION}}"}</code>
         </p>
       </section>
     </div>

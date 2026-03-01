@@ -20,6 +20,7 @@ import {
   getMethodVariant,
   getStatusVariant,
   EmptyState,
+  ConfirmDialog,
   Select,
   SelectContent,
   SelectItem,
@@ -33,6 +34,7 @@ export function LogsViewer() {
   const [selectedServerId, setSelectedServerId] = useState<string | null>(null);
   const [selectedLog, setSelectedLog] = useState<RequestLogEntry | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const filteredLogs = logs.filter((log) => {
     if (selectedServerId && log.serverId !== selectedServerId) return false;
@@ -42,9 +44,7 @@ export function LogsViewer() {
   });
 
   const handleClearLogs = () => {
-    if (confirm('Are you sure you want to clear all logs?')) {
-      postMessage({ type: 'clearLogs', serverId: selectedServerId || undefined });
-    }
+    postMessage({ type: 'clearLogs', serverId: selectedServerId || undefined });
   };
 
   const handleExportLogs = () => {
@@ -85,7 +85,7 @@ export function LogsViewer() {
             <Download size={16} />
             <span className="hidden sm:inline">Export</span>
           </Button>
-          <Button variant="secondary" onClick={handleClearLogs} className="flex-1 sm:flex-none">
+          <Button variant="secondary" onClick={() => setShowClearConfirm(true)} className="flex-1 sm:flex-none">
             <Trash2 size={16} />
             <span className="hidden sm:inline">Clear</span>
           </Button>
@@ -279,6 +279,15 @@ export function LogsViewer() {
           )}
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        onOpenChange={setShowClearConfirm}
+        title="Clear Logs"
+        description="Are you sure you want to clear all request logs? This action cannot be undone."
+        confirmLabel="Clear"
+        onConfirm={handleClearLogs}
+      />
     </>
   );
 }

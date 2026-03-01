@@ -13,7 +13,7 @@ export default function Import() {
       {/* OpenAPI Import */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">OpenAPI / Swagger Import</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Import mock routes from OpenAPI 3.0 or Swagger 2.0 specifications:
         </p>
 
@@ -21,24 +21,24 @@ export default function Import() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open Command Palette (Cmd/Ctrl+Shift+P)</span>
+            <span className="theme-text">Open Command Palette (Cmd/Ctrl+Shift+P)</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Type "Mocklify: Import from OpenAPI"</span>
+            <span className="theme-text">Type "Mocklify: Import from OpenAPI"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
-            <span className="text-slate-300">Select your OpenAPI JSON or YAML file</span>
+            <span className="theme-text">Select your OpenAPI JSON or YAML file</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">4</span>
-            <span className="text-slate-300">Routes are automatically created</span>
+            <span className="theme-text">Routes are automatically created</span>
           </li>
         </ol>
 
         <h3 className="text-lg font-medium mb-3">Supported Features</h3>
-        <ul className="space-y-2 text-slate-400 mb-4">
+        <ul className="space-y-2 theme-text-secondary mb-4">
           <li>• Path parameters → Dynamic path segments</li>
           <li>• Response schemas → Mock response bodies</li>
           <li>• Example values → Used in responses</li>
@@ -54,12 +54,12 @@ export default function Import() {
       {/* Postman Import */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Postman Collection Import</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Import from Postman Collection v2.1 format:
         </p>
 
         <h3 className="text-lg font-medium mb-3">How to Export from Postman</h3>
-        <ol className="space-y-2 text-slate-400 mb-6">
+        <ol className="space-y-2 theme-text-secondary mb-6">
           <li>1. In Postman, select your collection</li>
           <li>2. Click "..." → Export</li>
           <li>3. Choose "Collection v2.1"</li>
@@ -70,20 +70,20 @@ export default function Import() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open Command Palette (Cmd/Ctrl+Shift+P)</span>
+            <span className="theme-text">Open Command Palette (Cmd/Ctrl+Shift+P)</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Type "Mocklify: Import from Postman"</span>
+            <span className="theme-text">Type "Mocklify: Import from Postman"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
-            <span className="text-slate-300">Select your Postman collection JSON file</span>
+            <span className="theme-text">Select your Postman collection JSON file</span>
           </li>
         </ol>
 
         <h3 className="text-lg font-medium mb-3">What's Imported</h3>
-        <ul className="space-y-2 text-slate-400">
+        <ul className="space-y-2 theme-text-secondary">
           <li>• Request names → Route names</li>
           <li>• Request method and path</li>
           <li>• Example responses (if available)</li>
@@ -94,7 +94,7 @@ export default function Import() {
       {/* HAR Export */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">HAR Export</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Export request logs in HTTP Archive (HAR) format for analysis in browser dev tools:
         </p>
 
@@ -102,15 +102,15 @@ export default function Import() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open the Mocklify dashboard</span>
+            <span className="theme-text">Open the Mocklify dashboard</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Go to the Logs tab</span>
+            <span className="theme-text">Go to the Logs tab</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
-            <span className="text-slate-300">Click "Export as HAR"</span>
+            <span className="theme-text">Click "Export as HAR"</span>
           </li>
         </ol>
 
@@ -152,12 +152,12 @@ export default function Import() {
       {/* cURL Export */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">cURL Export</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Generate cURL commands from logged requests:
         </p>
 
         <h3 className="text-lg font-medium mb-3">Single Request</h3>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Right-click on any log entry and select "Copy as cURL":
         </p>
         
@@ -170,7 +170,7 @@ export default function Import() {
         />
 
         <h3 className="text-lg font-medium mb-3 mt-6">Bulk Export</h3>
-        <p className="text-slate-400">
+        <p className="theme-text-secondary">
           Export all logs as a shell script with multiple cURL commands from the Logs tab menu.
         </p>
       </section>
@@ -178,18 +178,18 @@ export default function Import() {
       {/* JSON Export */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Configuration Export</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Export your mock server configuration:
         </p>
 
         <h3 className="text-lg font-medium mb-3">Export Server</h3>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Right-click on a server and select "Export Configuration" to save as JSON.
         </p>
 
         <h3 className="text-lg font-medium mb-3">Share with Team</h3>
-        <p className="text-slate-400 mb-4">
-          The <code className="px-2 py-0.5 bg-slate-800 rounded">.mocklify</code> folder can be committed to version control to share mock configurations with your team.
+        <p className="theme-text-secondary mb-4">
+          The <code className="px-2 py-0.5 theme-bg-secondary rounded">.mocklify</code> folder can be committed to version control to share mock configurations with your team.
         </p>
 
         <InfoBox type="tip">

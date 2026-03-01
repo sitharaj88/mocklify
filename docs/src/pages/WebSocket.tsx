@@ -13,7 +13,7 @@ export default function WebSocket() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Mocklify supports WebSocket mocking for real-time applications. Create event handlers that respond to client messages and simulate server-push events.
         </p>
       </section>
@@ -40,7 +40,7 @@ export default function WebSocket() {
       {/* Event Handlers */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Event Handlers</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Define handlers for different event types:
         </p>
         
@@ -68,7 +68,7 @@ export default function WebSocket() {
       {/* Connection Events */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Connection Events</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Handle connection and disconnection events:
         </p>
         
@@ -112,7 +112,7 @@ export default function WebSocket() {
       {/* Rooms */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Rooms</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Organize connections into rooms for targeted messaging:
         </p>
         
@@ -157,28 +157,28 @@ export default function WebSocket() {
       {/* Broadcast */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Broadcasting</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Configure how responses are sent:
         </p>
 
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto mb-6">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto mb-6">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Mode</th>
-                <th className="text-left px-4 py-3 text-slate-300">Description</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text">Mode</th>
+                <th className="text-left px-4 py-3 theme-text">Description</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">reply</td>
                 <td className="px-4 py-3">Send only to the sender (default)</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">broadcast</td>
                 <td className="px-4 py-3">Send to all connected clients</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">room</td>
                 <td className="px-4 py-3">Send to all clients in a room</td>
               </tr>
@@ -214,7 +214,7 @@ export default function WebSocket() {
       {/* Auto Events */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Automatic Events</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Configure periodic server-push events:
         </p>
         

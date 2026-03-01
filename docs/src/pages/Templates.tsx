@@ -13,7 +13,7 @@ export default function Templates() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Mocklify uses Handlebars templating with 80+ Faker.js helpers to generate dynamic, realistic data for your mock responses.
         </p>
         <CodeBlock
@@ -32,41 +32,41 @@ export default function Templates() {
       {/* Faker.js Helpers */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Faker.js Helpers</h2>
-        <p className="text-slate-400 mb-4">
-          Access any Faker.js method using the <code className="px-2 py-0.5 bg-slate-800 rounded">faker</code> helper:
+        <p className="theme-text-secondary mb-4">
+          Access any Faker.js method using the <code className="px-2 py-0.5 theme-bg-secondary rounded">faker</code> helper:
         </p>
         
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Category</th>
-                <th className="text-left px-4 py-3 text-slate-300">Examples</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text whitespace-nowrap">Category</th>
+                <th className="text-left px-4 py-3 theme-text">Examples</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
-                <td className="px-4 py-3 font-medium text-white">Person</td>
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
+                <td className="px-4 py-3 font-medium theme-text">Person</td>
                 <td className="px-4 py-3 font-mono text-sm">person.firstName, person.lastName, person.fullName, person.jobTitle</td>
               </tr>
-              <tr className="border-b border-slate-800">
-                <td className="px-4 py-3 font-medium text-white">Internet</td>
+              <tr className="border-b theme-border">
+                <td className="px-4 py-3 font-medium theme-text">Internet</td>
                 <td className="px-4 py-3 font-mono text-sm">internet.email, internet.url, internet.userName, internet.password</td>
               </tr>
-              <tr className="border-b border-slate-800">
-                <td className="px-4 py-3 font-medium text-white">Location</td>
+              <tr className="border-b theme-border">
+                <td className="px-4 py-3 font-medium theme-text">Location</td>
                 <td className="px-4 py-3 font-mono text-sm">location.city, location.country, location.streetAddress, location.zipCode</td>
               </tr>
-              <tr className="border-b border-slate-800">
-                <td className="px-4 py-3 font-medium text-white">Commerce</td>
+              <tr className="border-b theme-border">
+                <td className="px-4 py-3 font-medium theme-text">Commerce</td>
                 <td className="px-4 py-3 font-mono text-sm">commerce.productName, commerce.price, commerce.department</td>
               </tr>
-              <tr className="border-b border-slate-800">
-                <td className="px-4 py-3 font-medium text-white">Lorem</td>
+              <tr className="border-b theme-border">
+                <td className="px-4 py-3 font-medium theme-text">Lorem</td>
                 <td className="px-4 py-3 font-mono text-sm">lorem.sentence, lorem.paragraph, lorem.words</td>
               </tr>
               <tr>
-                <td className="px-4 py-3 font-medium text-white">String</td>
+                <td className="px-4 py-3 font-medium theme-text">String</td>
                 <td className="px-4 py-3 font-mono text-sm">string.uuid, string.alphanumeric, string.nanoid</td>
               </tr>
             </tbody>
@@ -82,32 +82,32 @@ export default function Templates() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Built-in Helpers</h2>
         
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+        <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Helper</th>
-                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Description</th>
-                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Example Output</th>
+              <tr className="border-b theme-border">
+                <th className="text-left px-4 py-3 theme-text whitespace-nowrap">Helper</th>
+                <th className="text-left px-4 py-3 theme-text whitespace-nowrap">Description</th>
+                <th className="text-left px-4 py-3 theme-text whitespace-nowrap">Example Output</th>
               </tr>
             </thead>
-            <tbody className="text-slate-400">
-              <tr className="border-b border-slate-800">
+            <tbody className="theme-text-secondary">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">{"{{now}}"}</td>
                 <td className="px-4 py-3">Current ISO timestamp</td>
                 <td className="px-4 py-3 font-mono text-sm">2024-01-15T10:30:00.000Z</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">{"{{timestamp}}"}</td>
                 <td className="px-4 py-3">Unix timestamp (ms)</td>
                 <td className="px-4 py-3 font-mono text-sm">1705315800000</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">{"{{uuid}}"}</td>
                 <td className="px-4 py-3">Random UUID v4</td>
                 <td className="px-4 py-3 font-mono text-sm">a1b2c3d4-e5f6-...</td>
               </tr>
-              <tr className="border-b border-slate-800">
+              <tr className="border-b theme-border">
                 <td className="px-4 py-3 font-mono text-purple-400">{"{{randomInt min max}}"}</td>
                 <td className="px-4 py-3">Random integer</td>
                 <td className="px-4 py-3 font-mono text-sm">42</td>
@@ -125,8 +125,8 @@ export default function Templates() {
       {/* Request Data Access */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Accessing Request Data</h2>
-        <p className="text-slate-400 mb-4">
-          Use the <code className="px-2 py-0.5 bg-slate-800 rounded">request</code> object to access incoming request data:
+        <p className="theme-text-secondary mb-4">
+          Use the <code className="px-2 py-0.5 theme-bg-secondary rounded">request</code> object to access incoming request data:
         </p>
 
         <CodeBlock
@@ -147,8 +147,8 @@ export default function Templates() {
       {/* Repeat Helper */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Generating Arrays</h2>
-        <p className="text-slate-400 mb-4">
-          Use the <code className="px-2 py-0.5 bg-slate-800 rounded">repeat</code> helper to generate arrays of data:
+        <p className="theme-text-secondary mb-4">
+          Use the <code className="px-2 py-0.5 theme-bg-secondary rounded">repeat</code> helper to generate arrays of data:
         </p>
 
         <CodeBlock
@@ -170,7 +170,7 @@ export default function Templates() {
       {/* Conditional Logic */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Conditional Logic</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use Handlebars conditionals for dynamic responses:
         </p>
 
@@ -190,7 +190,7 @@ export default function Templates() {
       {/* JSON Stringify */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Echo Request Body</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Echo back the request body in your response:
         </p>
 

@@ -17,9 +17,9 @@ const buttonVariants = cva(
         outline:
           'border border-surface-600 bg-transparent text-surface-200 hover:bg-surface-700/50 hover:border-surface-500',
         danger:
-          'bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20',
+          'bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-500/20 border border-red-500/25 dark:border-red-500/20',
         success:
-          'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20',
+          'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/25 dark:border-emerald-500/20',
         link:
           'text-brand-400 underline-offset-4 hover:underline hover:text-brand-300',
       },

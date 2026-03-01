@@ -13,7 +13,7 @@ export default function Matching() {
       {/* Overview */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Request matching allows you to create multiple routes with the same path/method but different responses based on request conditions.
         </p>
         <InfoBox type="info">
@@ -124,7 +124,7 @@ export default function Matching() {
       {/* JSONPath Matching */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">JSONPath Matching</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Use JSONPath expressions for advanced body matching:
         </p>
         
@@ -200,7 +200,7 @@ export default function Matching() {
       {/* Combined Matching */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Combined Matching</h2>
-        <p className="text-slate-400 mb-4">
+        <p className="theme-text-secondary mb-4">
           Combine multiple conditions - all must match (AND logic):
         </p>
         
@@ -232,8 +232,8 @@ export default function Matching() {
       {/* Priority */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Route Priority</h2>
-        <p className="text-slate-400 mb-4">
-          When multiple routes match, use the <code className="px-2 py-0.5 bg-slate-800 rounded">priority</code> field:
+        <p className="theme-text-secondary mb-4">
+          When multiple routes match, use the <code className="px-2 py-0.5 theme-bg-secondary rounded">priority</code> field:
         </p>
         
         <CodeBlock

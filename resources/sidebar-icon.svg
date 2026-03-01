@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Left curly brace { -->
+  <path d="M8 4 Q4 4 4 8 L4 10 Q4 12 2 12 Q4 12 4 14 L4 16 Q4 20 8 20"/>
+  <!-- Right curly brace } -->
+  <path d="M16 4 Q20 4 20 8 L20 10 Q20 12 22 12 Q20 12 20 14 L20 16 Q20 20 16 20"/>
+  <!-- Toggle dot in center -->
+  <circle cx="13" cy="12" r="2.5" fill="currentColor" stroke="none"/>
+  <!-- Toggle track -->
+  <rect x="8.5" y="9.5" width="7" height="5" rx="2.5" fill="none"/>
+</svg>

@@ -38,10 +38,10 @@ function KeyCombo({ keys }: { keys: string[] }) {
     <div className="flex gap-1">
       {keys.map((key, index) => (
         <span key={index} className="flex items-center">
-          <kbd className="px-2 py-1 text-xs font-mono bg-slate-800 border border-slate-700 rounded text-slate-300">
+          <kbd className="px-2 py-1 text-xs font-mono theme-bg-secondary border theme-border rounded theme-text">
             {key}
           </kbd>
-          {index < keys.length - 1 && <span className="mx-1 text-slate-500">+</span>}
+          {index < keys.length - 1 && <span className="mx-1 theme-text-muted">+</span>}
         </span>
       ))}
     </div>
@@ -52,21 +52,21 @@ function ShortcutTable({ title, shortcuts }: { title: string; shortcuts: { keys:
   return (
     <div className="mb-8">
       <h2 className="text-xl font-semibold mb-4">{title}</h2>
-      <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
+      <div className="theme-bg-card rounded-xl border theme-border overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-slate-700">
-              <th className="text-left px-4 py-3 text-sm text-slate-400 w-1/2">Shortcut</th>
-              <th className="text-left px-4 py-3 text-sm text-slate-400">Action</th>
+            <tr className="border-b theme-border">
+              <th className="text-left px-4 py-3 text-sm theme-text-secondary w-1/2">Shortcut</th>
+              <th className="text-left px-4 py-3 text-sm theme-text-secondary">Action</th>
             </tr>
           </thead>
           <tbody>
             {shortcuts.map((shortcut, index) => (
-              <tr key={index} className="border-b border-slate-800 last:border-0">
+              <tr key={index} className="border-b theme-border last:border-0">
                 <td className="px-4 py-3">
                   <KeyCombo keys={shortcut.keys} />
                 </td>
-                <td className="px-4 py-3 text-slate-300">{shortcut.action}</td>
+                <td className="px-4 py-3 theme-text">{shortcut.action}</td>
               </tr>
             ))}
           </tbody>
@@ -92,18 +92,18 @@ export default function Shortcuts() {
       {/* Tips */}
       <div className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-xl border border-purple-500/20 p-6">
         <h2 className="text-xl font-semibold mb-4">Tips</h2>
-        <ul className="space-y-3 text-slate-300">
+        <ul className="space-y-3 theme-text">
           <li className="flex gap-3">
             <span className="text-purple-400">•</span>
-            Use <kbd className="px-2 py-0.5 text-xs font-mono bg-slate-800 border border-slate-700 rounded">Cmd/Ctrl + K</kbd> to quickly search for routes, servers, or logs
+            Use <kbd className="px-2 py-0.5 text-xs font-mono theme-bg-secondary border theme-border rounded">Cmd/Ctrl + K</kbd> to quickly search for routes, servers, or logs
           </li>
           <li className="flex gap-3">
             <span className="text-purple-400">•</span>
-            Number shortcuts (<kbd className="px-2 py-0.5 text-xs font-mono bg-slate-800 border border-slate-700 rounded">Alt + 1-9</kbd>) work in the server list
+            Number shortcuts (<kbd className="px-2 py-0.5 text-xs font-mono theme-bg-secondary border theme-border rounded">Alt + 1-9</kbd>) work in the server list
           </li>
           <li className="flex gap-3">
             <span className="text-purple-400">•</span>
-            Press <kbd className="px-2 py-0.5 text-xs font-mono bg-slate-800 border border-slate-700 rounded">Escape</kbd> twice to close nested modals
+            Press <kbd className="px-2 py-0.5 text-xs font-mono theme-bg-secondary border theme-border rounded">Escape</kbd> twice to close nested modals
           </li>
           <li className="flex gap-3">
             <span className="text-purple-400">•</span>
@@ -115,11 +115,11 @@ export default function Shortcuts() {
       {/* VS Code Commands */}
       <div>
         <h2 className="text-xl font-semibold mb-4">VS Code Commands</h2>
-        <p className="text-slate-400 mb-4">
-          Access all Mocklify commands from the Command Palette (<kbd className="px-2 py-0.5 text-xs font-mono bg-slate-800 border border-slate-700 rounded">Cmd/Ctrl + Shift + P</kbd>):
+        <p className="theme-text-secondary mb-4">
+          Access all Mocklify commands from the Command Palette (<kbd className="px-2 py-0.5 text-xs font-mono theme-bg-secondary border theme-border rounded">Cmd/Ctrl + Shift + P</kbd>):
         </p>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 p-4">
-          <ul className="space-y-2 text-slate-300 font-mono text-sm">
+        <div className="theme-bg-card rounded-xl border theme-border p-4">
+          <ul className="space-y-2 theme-text font-mono text-sm">
             <li>Mocklify: Create Server</li>
             <li>Mocklify: Add Route</li>
             <li>Mocklify: Start Server</li>

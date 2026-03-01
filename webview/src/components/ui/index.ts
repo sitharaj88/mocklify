@@ -42,3 +42,4 @@ export {
 export { Skeleton } from './Skeleton';
 export { EmptyState } from './EmptyState';
 export { StatusDot } from './StatusDot';
+export { ConfirmDialog } from './ConfirmDialog';
