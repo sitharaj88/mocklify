@@ -161,7 +161,7 @@ export default function WebSocket() {
           Configure how responses are sent:
         </p>
 
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden mb-6">
+        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto mb-6">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">

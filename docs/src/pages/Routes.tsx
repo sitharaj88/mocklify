@@ -43,7 +43,7 @@ export default function Routes() {
       {/* Route Properties */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Route Properties</h2>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden">
+        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">

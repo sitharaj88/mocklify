@@ -36,11 +36,11 @@ export default function Templates() {
           Access any Faker.js method using the <code className="px-2 py-0.5 bg-slate-800 rounded">faker</code> helper:
         </p>
         
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden">
+        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Category</th>
+                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Category</th>
                 <th className="text-left px-4 py-3 text-slate-300">Examples</th>
               </tr>
             </thead>
@@ -82,13 +82,13 @@ export default function Templates() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Built-in Helpers</h2>
         
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden">
+        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">
-                <th className="text-left px-4 py-3 text-slate-300">Helper</th>
-                <th className="text-left px-4 py-3 text-slate-300">Description</th>
-                <th className="text-left px-4 py-3 text-slate-300">Example Output</th>
+                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Helper</th>
+                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Description</th>
+                <th className="text-left px-4 py-3 text-slate-300 whitespace-nowrap">Example Output</th>
               </tr>
             </thead>
             <tbody className="text-slate-400">

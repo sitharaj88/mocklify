@@ -76,7 +76,7 @@ export default function UIOverview() {
           The sidebar provides quick navigation to all sections of Mocklify. It features animated transitions and intelligent visual feedback.
         </p>
 
-        <div className="theme-card rounded-lg p-6 mb-6">
+        <div className="theme-card rounded-lg p-4 sm:p-6 mb-6">
           <h3 className="font-semibold theme-text mb-4">Navigation Items</h3>
           <div className="space-y-3">
             <div className="flex items-center gap-3 p-3 theme-secondary-bg rounded-lg">
@@ -138,7 +138,7 @@ export default function UIOverview() {
         </p>
 
         <h3 className="text-lg font-semibold theme-text mb-3">Statistics Cards</h3>
-        <div className="grid md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <div className="theme-card rounded-lg p-4 border-l-4 border-blue-500">
             <p className="text-2xl font-bold theme-text">4</p>
             <p className="text-sm theme-text-secondary">Total Servers</p>
@@ -190,7 +190,7 @@ export default function UIOverview() {
         </p>
 
         <h3 className="text-lg font-semibold theme-text mb-3">Server Card Anatomy</h3>
-        <div className="theme-card rounded-lg p-6 mb-6">
+        <div className="theme-card rounded-lg p-4 sm:p-6 mb-6">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
@@ -285,7 +285,7 @@ export default function UIOverview() {
         </p>
 
         <h3 className="text-lg font-semibold theme-text mb-3">Route Table</h3>
-        <div className="theme-card rounded-lg overflow-hidden mb-6">
+        <div className="theme-card rounded-lg overflow-x-auto mb-6">
           <table className="w-full text-sm">
             <thead className="theme-secondary-bg">
               <tr>
@@ -544,11 +544,11 @@ export default function UIOverview() {
         </p>
 
         <h3 className="text-lg font-semibold theme-text mb-3">Keyboard Navigation</h3>
-        <div className="theme-card rounded-lg overflow-hidden">
+        <div className="theme-card rounded-lg overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="theme-secondary-bg">
               <tr>
-                <th className="text-left p-3 font-medium theme-text-secondary">Shortcut</th>
+                <th className="text-left p-3 font-medium theme-text-secondary whitespace-nowrap">Shortcut</th>
                 <th className="text-left p-3 font-medium theme-text-secondary">Action</th>
               </tr>
             </thead>

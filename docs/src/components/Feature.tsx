@@ -8,7 +8,7 @@ interface FeatureProps {
 
 export default function Feature({ icon: Icon, title, description }: FeatureProps) {
   return (
-    <div className="p-6 rounded-xl theme-bg-card border theme-border hover:border-purple-500/50 transition-colors">
+    <div className="p-4 sm:p-6 rounded-xl theme-bg-card border theme-border hover:border-purple-500/50 transition-colors">
       <div className="w-12 h-12 rounded-lg bg-purple-500/20 flex items-center justify-center mb-4">
         <Icon className="w-6 h-6 text-purple-400" />
       </div>

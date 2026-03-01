@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import {
-  Ghost,
   Server,
   FileCode,
   Target,
@@ -12,6 +11,7 @@ import {
   Zap,
   ChevronRight,
 } from 'lucide-react';
+const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import Feature from '../components/Feature';
 
 const features = [
@@ -63,9 +63,9 @@ export default function Home() {
       {/* Hero */}
       <div className="text-center py-12">
         <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 mb-8 glow">
-          <Ghost className="w-12 h-12 text-purple-400" />
+          <img src={logoUrl} alt="Mocklify" className="w-12 h-12" />
         </div>
-        <h1 className="text-4xl lg:text-5xl font-bold mb-4">
+        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
           <span className="gradient-text">Mocklify</span>
         </h1>
         <p className="text-xl theme-text-secondary mb-8 max-w-2xl mx-auto">
@@ -102,9 +102,9 @@ export default function Home() {
       </div>
 
       {/* Quick Overview */}
-      <div className="theme-bg-card rounded-xl border theme-border p-8">
+      <div className="theme-bg-card rounded-xl border theme-border p-4 sm:p-8">
         <h2 className="text-2xl font-bold mb-6">Why Mocklify?</h2>
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
           <div>
             <h3 className="font-semibold text-purple-400 mb-2">⚡ Fast Setup</h3>
             <p className="theme-text-secondary text-sm">

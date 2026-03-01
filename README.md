@@ -13,10 +13,15 @@
 </p>
 
 <p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=sitharaj.mocklify"><img src="https://img.shields.io/visual-studio-marketplace/v/sitharaj.mocklify?label=VS%20Code%20Marketplace&logo=visual-studio-code&color=blue" alt="VS Code Marketplace"></a>
+  <a href="https://github.com/sitharaj88/mocklify/blob/main/LICENSE"><img src="https://img.shields.io/github/license/sitharaj88/mocklify?color=green" alt="License"></a>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#quick-start">Quick Start</a> •
-  <a href="#documentation">Documentation</a> •
+  <a href="https://sitharaj88.github.io/mocklify/">Documentation</a> •
   <a href="#keyboard-shortcuts">Shortcuts</a>
 </p>
 
@@ -121,6 +126,8 @@ curl http://localhost:3000/api/users
 ---
 
 ## 📖 Documentation
+
+> For full documentation, visit the **[Mocklify Documentation Site](https://sitharaj88.github.io/mocklify/)**.
 
 ### Dynamic Responses with Templates
 
@@ -328,7 +335,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- [Fastify](https://fastify.io/) - Fast and low overhead web framework
+- [Fastify](https://fastify.dev/) - Fast and low overhead web framework
 - [Faker.js](https://fakerjs.dev/) - Generate realistic fake data
 - [Handlebars](https://handlebarsjs.com/) - Semantic templating
 - [VS Code Extension API](https://code.visualstudio.com/api) - Extension development
@@ -336,5 +343,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 <p align="center">
-  Made with ❤️ by <a href="https://github.com/sitharaj">Sitharaj</a>
+  Made with ❤️ by <a href="https://github.com/sitharaj88">Sitharaj</a>
 </p>

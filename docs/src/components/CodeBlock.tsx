@@ -21,19 +21,19 @@ export default function CodeBlock({ code, language = 'json', title }: CodeBlockP
   };
 
   return (
-    <div className="rounded-lg overflow-hidden theme-bg-card border theme-border my-4 code-block-wrapper">
+    <div className="rounded-lg theme-bg-card border theme-border my-4 code-block-wrapper overflow-hidden">
       {title && (
         <div className="flex items-center justify-between px-4 py-2 theme-bg border-b theme-border">
-          <span className="text-sm theme-text-secondary">{title}</span>
+          <span className="text-sm theme-text-secondary truncate mr-2">{title}</span>
           <button
             onClick={handleCopy}
-            className="p-1.5 theme-text-secondary hover:theme-text transition-colors"
+            className="p-1.5 theme-text-secondary hover:theme-text transition-colors shrink-0"
           >
             {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
       )}
-      <div className="relative">
+      <div className="relative overflow-x-auto">
         {!title && (
           <button
             onClick={handleCopy}
@@ -50,6 +50,7 @@ export default function CodeBlock({ code, language = 'json', title }: CodeBlockP
             padding: '1rem',
             background: 'transparent',
             fontSize: '0.875rem',
+            minWidth: 'min-content',
           }}
         >
           {code}

@@ -52,7 +52,7 @@ function ShortcutTable({ title, shortcuts }: { title: string; shortcuts: { keys:
   return (
     <div className="mb-8">
       <h2 className="text-xl font-semibold mb-4">{title}</h2>
-      <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden">
+      <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-slate-700">

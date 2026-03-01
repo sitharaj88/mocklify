@@ -110,3 +110,19 @@ body {
   background: linear-gradient(90deg, rgba(139, 92, 246, 0.2) 0%, transparent 100%);
   border-left: 3px solid #8b5cf6;
 }
+
+/* Mobile responsive tables */
+@media (max-width: 640px) {
+  table td,
+  table th {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+}
+
+/* Prevent content overflow on mobile */
+@media (max-width: 768px) {
+  .code-block-wrapper {
+    max-width: calc(100vw - 2rem);
+  }
+}

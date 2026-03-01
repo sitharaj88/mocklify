@@ -1,6 +1,5 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import {
-  Ghost,
   Home,
   PlayCircle,
   Server,
@@ -25,6 +24,7 @@ import {
   Globe,
   Heart,
 } from 'lucide-react';
+const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import { useState } from 'react';
 import { useTheme } from '../context/ThemeContext';
 
@@ -51,12 +51,12 @@ export default function Layout() {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="min-h-screen theme-bg theme-text">
+    <div className="min-h-screen theme-bg theme-text overflow-x-hidden">
       {/* Mobile Header */}
       <header className="lg:hidden fixed top-0 left-0 right-0 z-50 theme-bg backdrop-blur border-b theme-border px-4 py-3" style={{ backgroundColor: 'var(--bg-primary)', opacity: 0.98 }}>
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <Ghost className="w-8 h-8 text-purple-500" />
+            <img src={logoUrl} alt="Mocklify" className="w-8 h-8" />
             <span className="text-xl font-bold">Mocklify</span>
           </Link>
           <div className="flex items-center gap-2">
@@ -109,7 +109,7 @@ export default function Layout() {
         {/* Logo */}
         <div className="p-6 border-b theme-border">
           <Link to="/" className="flex items-center gap-3">
-            <Ghost className="w-10 h-10 text-purple-500" />
+            <img src={logoUrl} alt="Mocklify" className="w-10 h-10" />
             <div>
               <h1 className="text-xl font-bold">Mocklify</h1>
               <p className="text-xs theme-text-muted">Documentation</p>
@@ -161,7 +161,7 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="lg:ml-64 min-h-screen flex flex-col">
-        <div className="max-w-4xl mx-auto px-6 py-8 lg:py-12 pt-20 lg:pt-12 flex-1">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 lg:py-12 pt-20 lg:pt-12 flex-1 w-full overflow-hidden">
           <div className="fade-in">
             <Outlet />
           </div>
@@ -169,11 +169,11 @@ export default function Layout() {
 
         {/* Footer */}
         <footer className="theme-border-color border-t mt-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               {/* Brand */}
               <div className="flex items-center gap-3">
-                <Ghost className="w-6 h-6 text-purple-500" />
+                <img src={logoUrl} alt="Mocklify" className="w-6 h-6" />
                 <span className="font-semibold theme-text">Mocklify</span>
                 <span className="theme-text-secondary text-sm">Mock Server</span>
               </div>

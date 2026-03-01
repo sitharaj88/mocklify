@@ -46,7 +46,7 @@ export default function Proxy() {
         />
 
         <h3 className="text-lg font-medium mb-3 mt-6">Proxy Options</h3>
-        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-hidden">
+        <div className="bg-[#1a2332] rounded-xl border border-slate-800 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-700">
