@@ -108,7 +108,7 @@ export default function Proxy() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open the Specter dashboard</span>
+            <span className="text-slate-300">Open the Mocklify dashboard</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
@@ -129,7 +129,7 @@ export default function Proxy() {
         </ol>
 
         <InfoBox type="tip">
-          Recorded responses are saved to the <code>.specter/recordings/</code> folder and can be imported as routes.
+          Recorded responses are saved to the <code>.mocklify/recordings/</code> folder and can be imported as routes.
         </InfoBox>
       </section>
 
@@ -158,7 +158,7 @@ export default function Proxy() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Generate Routes from Recording</h2>
         <p className="text-slate-400 mb-4">
-          After recording, Specter can generate mock routes from the captured data:
+          After recording, Mocklify can generate mock routes from the captured data:
         </p>
         
         <CodeBlock

@@ -91,7 +91,7 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
               <Zap size={16} className="text-white" />
             </div>
           </div>
-          <h1 className="font-bold text-surface-50">Specter</h1>
+          <h1 className="font-bold text-surface-50">Mocklify</h1>
         </div>
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
@@ -148,7 +148,7 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
                   exit={{ opacity: 0, x: -10 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <h1 className="font-bold text-surface-50 whitespace-nowrap">Specter</h1>
+                  <h1 className="font-bold text-surface-50 whitespace-nowrap">Mocklify</h1>
                   <p className="text-xs text-surface-500">v0.1.0</p>
                 </motion.div>
               )}

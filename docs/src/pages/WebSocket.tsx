@@ -14,7 +14,7 @@ export default function WebSocket() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
         <p className="text-slate-400 mb-4">
-          Specter supports WebSocket mocking for real-time applications. Create event handlers that respond to client messages and simulate server-push events.
+          Mocklify supports WebSocket mocking for real-time applications. Create event handlers that respond to client messages and simulate server-push events.
         </p>
       </section>
 

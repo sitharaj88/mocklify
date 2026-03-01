@@ -13,7 +13,7 @@ export class StatusBarController {
       vscode.StatusBarAlignment.Left,
       100
     );
-    this.statusBarItem.command = 'specter.showQuickPick';
+    this.statusBarItem.command = 'mocklify.showQuickPick';
 
     // Update on server changes
     manager.onDidChangeServers(() => this.update());
@@ -45,22 +45,22 @@ export class StatusBarController {
     );
 
     if (runningCount > 0) {
-      this.statusBarItem.text = `$(ghost) Specter: ${runningCount} server${runningCount !== 1 ? 's' : ''} (${totalRequests} req)`;
+      this.statusBarItem.text = `$(ghost) Mocklify: ${runningCount} server${runningCount !== 1 ? 's' : ''} (${totalRequests} req)`;
       this.statusBarItem.backgroundColor = undefined;
       this.statusBarItem.tooltip = this.buildTooltip(states);
     } else if (states.size > 0) {
-      this.statusBarItem.text = `$(ghost) Specter: ${states.size} server${states.size !== 1 ? 's' : ''}`;
-      this.statusBarItem.tooltip = 'Click to manage Specter servers';
+      this.statusBarItem.text = `$(ghost) Mocklify: ${states.size} server${states.size !== 1 ? 's' : ''}`;
+      this.statusBarItem.tooltip = 'Click to manage Mocklify servers';
     } else {
-      this.statusBarItem.text = `$(ghost) Specter`;
-      this.statusBarItem.tooltip = 'Click to create a Specter server';
+      this.statusBarItem.text = `$(ghost) Mocklify`;
+      this.statusBarItem.tooltip = 'Click to create a Mocklify server';
     }
 
     this.statusBarItem.show();
   }
 
   private buildTooltip(states: Map<string, { status: string; port: number; requestCount: number }>): string {
-    const lines: string[] = ['Specter Servers', ''];
+    const lines: string[] = ['Mocklify Servers', ''];
 
     for (const [id, state] of states) {
       const statusIcon = state.status === 'running' ? '●' : '○';

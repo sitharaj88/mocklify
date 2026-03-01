@@ -17,9 +17,9 @@ vsc-extension-quickstart.md
 esbuild.config.js
 *.vsix
 .mockserver/**
-.specter/**
+.mocklify/**
 **/.mockserver/**
-**/.specter/**
+**/.mocklify/**
 vitest.config.ts
 *.md
 !README.md

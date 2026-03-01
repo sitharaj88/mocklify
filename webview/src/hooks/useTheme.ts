@@ -15,7 +15,7 @@ export const useThemeStore = create<ThemeStore>()(
       setTheme: (theme) => set({ theme }),
     }),
     {
-      name: 'specter-theme',
+      name: 'mocklify-theme',
     }
   )
 );

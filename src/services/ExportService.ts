@@ -132,7 +132,7 @@ export class ExportService {
     return {
       version: '1.2',
       creator: {
-        name: 'Specter',
+        name: 'Mocklify',
         version: '0.1.0',
       },
       entries,

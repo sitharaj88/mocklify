@@ -14,7 +14,7 @@ export default function Templates() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
         <p className="text-slate-400 mb-4">
-          Specter uses Handlebars templating with 80+ Faker.js helpers to generate dynamic, realistic data for your mock responses.
+          Mocklify uses Handlebars templating with 80+ Faker.js helpers to generate dynamic, realistic data for your mock responses.
         </p>
         <CodeBlock
           title="Example Template"

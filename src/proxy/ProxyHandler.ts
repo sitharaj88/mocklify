@@ -208,7 +208,7 @@ export class ProxyHandler {
       this.addAuthHeaders(headers, options.auth);
     }
 
-    headers['x-forwarded-by'] = 'specter-proxy';
+    headers['x-forwarded-by'] = 'mocklify-proxy';
 
     return headers;
   }

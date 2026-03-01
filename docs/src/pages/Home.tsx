@@ -66,7 +66,7 @@ export default function Home() {
           <Ghost className="w-12 h-12 text-purple-400" />
         </div>
         <h1 className="text-4xl lg:text-5xl font-bold mb-4">
-          <span className="gradient-text">Specter</span>
+          <span className="gradient-text">Mocklify</span>
         </h1>
         <p className="text-xl theme-text-secondary mb-8 max-w-2xl mx-auto">
           Powerful API Mocking for VS Code. Create, manage, and run mock servers directly from your editor.
@@ -80,7 +80,7 @@ export default function Home() {
             Get Started
           </Link>
           <a
-            href="https://marketplace.visualstudio.com/items?itemName=sitharaj.specter"
+            href="https://marketplace.visualstudio.com/items?itemName=sitharaj.mocklify"
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-2 px-6 py-3 theme-bg-card border theme-border hover:border-purple-500/50 rounded-lg font-medium transition-colors"
@@ -103,7 +103,7 @@ export default function Home() {
 
       {/* Quick Overview */}
       <div className="theme-bg-card rounded-xl border theme-border p-8">
-        <h2 className="text-2xl font-bold mb-6">Why Specter?</h2>
+        <h2 className="text-2xl font-bold mb-6">Why Mocklify?</h2>
         <div className="grid md:grid-cols-3 gap-8">
           <div>
             <h3 className="font-semibold text-purple-400 mb-2">⚡ Fast Setup</h3>

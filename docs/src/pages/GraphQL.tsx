@@ -14,7 +14,7 @@ export default function GraphQL() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
         <p className="text-slate-400 mb-4">
-          Specter supports GraphQL mocking by matching operations based on operation name, query content, and variables.
+          Mocklify supports GraphQL mocking by matching operations based on operation name, query content, and variables.
         </p>
       </section>
 

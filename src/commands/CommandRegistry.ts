@@ -17,42 +17,42 @@ export class CommandRegistry {
   ) {}
 
   registerAll(): void {
-    this.register('specter.createServer', () => this.createServer());
-    this.register('specter.startServer', (item?: ServerTreeItem) =>
+    this.register('mocklify.createServer', () => this.createServer());
+    this.register('mocklify.startServer', (item?: ServerTreeItem) =>
       this.startServer(item)
     );
-    this.register('specter.stopServer', (item?: ServerTreeItem) =>
+    this.register('mocklify.stopServer', (item?: ServerTreeItem) =>
       this.stopServer(item)
     );
-    this.register('specter.deleteServer', (item?: ServerTreeItem) =>
+    this.register('mocklify.deleteServer', (item?: ServerTreeItem) =>
       this.deleteServer(item)
     );
-    this.register('specter.startAll', () => this.startAll());
-    this.register('specter.stopAll', () => this.stopAll());
-    this.register('specter.addRoute', (item?: ServerTreeItem) =>
+    this.register('mocklify.startAll', () => this.startAll());
+    this.register('mocklify.stopAll', () => this.stopAll());
+    this.register('mocklify.addRoute', (item?: ServerTreeItem) =>
       this.addRoute(item)
     );
-    this.register('specter.editRoute', (item?: RouteTreeItem) =>
+    this.register('mocklify.editRoute', (item?: RouteTreeItem) =>
       this.editRoute(item)
     );
-    this.register('specter.deleteRoute', (item?: RouteTreeItem) =>
+    this.register('mocklify.deleteRoute', (item?: RouteTreeItem) =>
       this.deleteRoute(item)
     );
-    this.register('specter.toggleRoute', (item?: RouteTreeItem) =>
+    this.register('mocklify.toggleRoute', (item?: RouteTreeItem) =>
       this.toggleRoute(item)
     );
-    this.register('specter.refresh', () => this.refresh());
-    this.register('specter.showQuickPick', () => this.showQuickPick());
+    this.register('mocklify.refresh', () => this.refresh());
+    this.register('mocklify.showQuickPick', () => this.showQuickPick());
 
     // New import/export commands
-    this.register('specter.importOpenApi', () => this.importOpenApi());
-    this.register('specter.importPostman', () => this.importPostman());
-    this.register('specter.exportServer', (item?: ServerTreeItem) => this.exportServer(item));
-    this.register('specter.exportLogs', (item?: ServerTreeItem) => this.exportLogs(item));
+    this.register('mocklify.importOpenApi', () => this.importOpenApi());
+    this.register('mocklify.importPostman', () => this.importPostman());
+    this.register('mocklify.exportServer', (item?: ServerTreeItem) => this.exportServer(item));
+    this.register('mocklify.exportLogs', (item?: ServerTreeItem) => this.exportLogs(item));
 
     // Recording commands
-    this.register('specter.startRecording', (item?: ServerTreeItem) => this.startRecording(item));
-    this.register('specter.stopRecording', (item?: ServerTreeItem) => this.stopRecording(item));
+    this.register('mocklify.startRecording', (item?: ServerTreeItem) => this.startRecording(item));
+    this.register('mocklify.stopRecording', (item?: ServerTreeItem) => this.stopRecording(item));
   }
 
   private register(command: string, callback: (...args: unknown[]) => unknown): void {
@@ -98,7 +98,7 @@ export class CommandRegistry {
 
     try {
       const server = await this.manager.createServer(name.trim(), port);
-      vscode.window.showInformationMessage(`Specter: Created server "${server.name}"`);
+      vscode.window.showInformationMessage(`Mocklify: Created server "${server.name}"`);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to create server: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -373,7 +373,7 @@ export class CommandRegistry {
     if (servers.length === 0) {
       const action = await vscode.window.showQuickPick(
         [{ label: '$(add) Create Server', action: 'create' }],
-        { placeHolder: 'No Specter servers configured' }
+        { placeHolder: 'No Mocklify servers configured' }
       );
 
       if (action?.action === 'create') {
@@ -500,7 +500,7 @@ export class CommandRegistry {
         const server = await this.manager.createServer(name);
         const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, server.id);
         vscode.window.showInformationMessage(
-          `Specter: Imported ${routes.length} routes from OpenAPI spec`
+          `Mocklify: Imported ${routes.length} routes from OpenAPI spec`
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -511,7 +511,7 @@ export class CommandRegistry {
       try {
         const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, serverId);
         vscode.window.showInformationMessage(
-          `Specter: Imported ${routes.length} routes from OpenAPI spec`
+          `Mocklify: Imported ${routes.length} routes from OpenAPI spec`
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -548,7 +548,7 @@ export class CommandRegistry {
         const server = await this.manager.createServer(name);
         const routes = await this.manager.importFromPostman(fileUri[0].fsPath, server.id);
         vscode.window.showInformationMessage(
-          `Specter: Imported ${routes.length} routes from Postman collection`
+          `Mocklify: Imported ${routes.length} routes from Postman collection`
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -559,7 +559,7 @@ export class CommandRegistry {
       try {
         const routes = await this.manager.importFromPostman(fileUri[0].fsPath, serverId);
         vscode.window.showInformationMessage(
-          `Specter: Imported ${routes.length} routes from Postman collection`
+          `Mocklify: Imported ${routes.length} routes from Postman collection`
         );
       } catch (error) {
         vscode.window.showErrorMessage(
@@ -588,7 +588,7 @@ export class CommandRegistry {
 
     try {
       await this.manager.exportServer(serverId, saveUri.fsPath);
-      vscode.window.showInformationMessage(`Specter: Exported server configuration`);
+      vscode.window.showInformationMessage(`Mocklify: Exported server configuration`);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -633,7 +633,7 @@ export class CommandRegistry {
         const content = exportService.exportLogsToCurl(logs, server.port);
         await exportService.exportToFile(saveUri.fsPath, content);
       }
-      vscode.window.showInformationMessage(`Specter: Exported request logs`);
+      vscode.window.showInformationMessage(`Mocklify: Exported request logs`);
     } catch (error) {
       vscode.window.showErrorMessage(
         `Failed to export: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -678,7 +678,7 @@ export class CommandRegistry {
       session.start();
 
       vscode.window.showInformationMessage(
-        `Specter: Recording started. Requests to localhost:${server.port} will be proxied to ${targetUrl}`
+        `Mocklify: Recording started. Requests to localhost:${server.port} will be proxied to ${targetUrl}`
       );
     } catch (error) {
       vscode.window.showErrorMessage(
@@ -727,11 +727,11 @@ export class CommandRegistry {
         await this.manager.addRoute(serverId, route);
       }
       vscode.window.showInformationMessage(
-        `Specter: Generated ${routes.length} routes from recordings`
+        `Mocklify: Generated ${routes.length} routes from recordings`
       );
     } else {
       await recordingManager.saveSession(serverId);
-      vscode.window.showInformationMessage('Specter: Recordings saved');
+      vscode.window.showInformationMessage('Mocklify: Recordings saved');
     }
 
     recordingManager.deleteSession(serverId);

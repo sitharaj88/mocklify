@@ -25,7 +25,7 @@ export default function Import() {
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Type "Specter: Import from OpenAPI"</span>
+            <span className="text-slate-300">Type "Mocklify: Import from OpenAPI"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
@@ -47,7 +47,7 @@ export default function Import() {
         </ul>
 
         <InfoBox type="tip">
-          Specter uses example values from your OpenAPI spec when available. Otherwise, it generates fake data based on schema types.
+          Mocklify uses example values from your OpenAPI spec when available. Otherwise, it generates fake data based on schema types.
         </InfoBox>
       </section>
 
@@ -74,7 +74,7 @@ export default function Import() {
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="text-slate-300">Type "Specter: Import from Postman"</span>
+            <span className="text-slate-300">Type "Mocklify: Import from Postman"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
@@ -102,7 +102,7 @@ export default function Import() {
         <ol className="space-y-3 mb-6">
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">1</span>
-            <span className="text-slate-300">Open the Specter dashboard</span>
+            <span className="text-slate-300">Open the Mocklify dashboard</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
@@ -121,7 +121,7 @@ export default function Import() {
   "log": {
     "version": "1.2",
     "creator": {
-      "name": "Specter",
+      "name": "Mocklify",
       "version": "0.1.0"
     },
     "entries": [
@@ -189,7 +189,7 @@ export default function Import() {
 
         <h3 className="text-lg font-medium mb-3">Share with Team</h3>
         <p className="text-slate-400 mb-4">
-          The <code className="px-2 py-0.5 bg-slate-800 rounded">.specter</code> folder can be committed to version control to share mock configurations with your team.
+          The <code className="px-2 py-0.5 bg-slate-800 rounded">.mocklify</code> folder can be committed to version control to share mock configurations with your team.
         </p>
 
         <InfoBox type="tip">

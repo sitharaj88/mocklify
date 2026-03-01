@@ -57,7 +57,7 @@ export default function Layout() {
         <div className="flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
             <Ghost className="w-8 h-8 text-purple-500" />
-            <span className="text-xl font-bold">Specter</span>
+            <span className="text-xl font-bold">Mocklify</span>
           </Link>
           <div className="flex items-center gap-2">
             <button
@@ -111,7 +111,7 @@ export default function Layout() {
           <Link to="/" className="flex items-center gap-3">
             <Ghost className="w-10 h-10 text-purple-500" />
             <div>
-              <h1 className="text-xl font-bold">Specter</h1>
+              <h1 className="text-xl font-bold">Mocklify</h1>
               <p className="text-xs theme-text-muted">Documentation</p>
             </div>
           </Link>
@@ -141,7 +141,7 @@ export default function Layout() {
         {/* Footer */}
         <div className="p-4 border-t theme-border flex items-center justify-between">
           <a
-            href="https://github.com/sitharaj/specter"
+            href="https://github.com/sitharaj88/mocklify"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 theme-text-secondary hover:theme-text transition-colors"
@@ -174,7 +174,7 @@ export default function Layout() {
               {/* Brand */}
               <div className="flex items-center gap-3">
                 <Ghost className="w-6 h-6 text-purple-500" />
-                <span className="font-semibold theme-text">Specter</span>
+                <span className="font-semibold theme-text">Mocklify</span>
                 <span className="theme-text-secondary text-sm">Mock Server</span>
               </div>
 

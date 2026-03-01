@@ -13,7 +13,7 @@ let statusBarController: StatusBarController | undefined;
 let webViewManager: WebViewManager | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  console.log('Specter extension is now active');
+  console.log('Mocklify extension is now active');
 
   // Get workspace root
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -25,7 +25,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Initialize manager (loads configurations)
     await manager.initialize();
   } catch (error) {
-    console.error('Failed to initialize Specter manager:', error);
+    console.error('Failed to initialize Mocklify manager:', error);
     // Continue anyway - the user can still create servers
   }
 
@@ -37,12 +37,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const logsTreeProvider = new RequestLogsTreeViewProvider(manager);
 
   // Register tree views
-  const serversTreeView = vscode.window.createTreeView('specterServers', {
+  const serversTreeView = vscode.window.createTreeView('mocklifyServers', {
     treeDataProvider: serversTreeProvider,
     showCollapseAll: true,
   });
 
-  const logsTreeView = vscode.window.createTreeView('specterLogs', {
+  const logsTreeView = vscode.window.createTreeView('mocklifyLogs', {
     treeDataProvider: logsTreeProvider,
     showCollapseAll: false,
   });
@@ -59,7 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Register command to open dashboard
   context.subscriptions.push(
-    vscode.commands.registerCommand('specter.openDashboard', () => {
+    vscode.commands.registerCommand('mocklify.openDashboard', () => {
       webViewManager?.show();
     })
   );
@@ -67,9 +67,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Watch for configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('specter')) {
+      if (e.affectsConfiguration('mocklify')) {
         // Reload configuration settings
-        console.log('Specter configuration changed');
+        console.log('Mocklify configuration changed');
       }
     })
   );
@@ -78,20 +78,20 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const servers = await manager.getServers();
   if (servers.length === 0 && workspaceRoot) {
     const action = await vscode.window.showInformationMessage(
-      'Specter: No servers configured. Open Dashboard to get started.',
+      'Mocklify: No servers configured. Open Dashboard to get started.',
       'Open Dashboard',
       'Create Server'
     );
     if (action === 'Open Dashboard') {
       webViewManager?.show();
     } else if (action === 'Create Server') {
-      vscode.commands.executeCommand('specter.createServer');
+      vscode.commands.executeCommand('mocklify.createServer');
     }
   }
 }
 
 export async function deactivate(): Promise<void> {
-  console.log('Specter extension is deactivating');
+  console.log('Mocklify extension is deactivating');
 
   // Clean up WebView
   if (webViewManager) {

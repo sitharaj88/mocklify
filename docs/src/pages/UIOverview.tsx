@@ -36,18 +36,18 @@ export default function UIOverview() {
     <div>
       <PageHeader
         title="User Interface Overview"
-        description="A comprehensive guide to Specter's intuitive dashboard and all its features"
+        description="A comprehensive guide to Mocklify's intuitive dashboard and all its features"
       />
 
       <InfoBox type="tip">
-        Open the Specter dashboard by clicking the ghost icon in the status bar, using the command palette (<code>Cmd+Shift+P</code> → "Specter: Open Dashboard"), or pressing <code>Cmd+Shift+M</code>.
+        Open the Mocklify dashboard by clicking the ghost icon in the status bar, using the command palette (<code>Cmd+Shift+P</code> → "Mocklify: Open Dashboard"), or pressing <code>Cmd+Shift+M</code>.
       </InfoBox>
 
       {/* Main Layout */}
       <section className="mt-8">
         <h2 className="text-2xl font-bold theme-text mb-4">Main Layout</h2>
         <p className="theme-text-secondary mb-4">
-          Specter's UI is built with a modern, responsive design that adapts seamlessly to different screen sizes. The interface consists of three main areas:
+          Mocklify's UI is built with a modern, responsive design that adapts seamlessly to different screen sizes. The interface consists of three main areas:
         </p>
 
         <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -73,7 +73,7 @@ export default function UIOverview() {
       <section className="mt-12">
         <h2 className="text-2xl font-bold theme-text mb-4">Sidebar Navigation</h2>
         <p className="theme-text-secondary mb-4">
-          The sidebar provides quick navigation to all sections of Specter. It features animated transitions and intelligent visual feedback.
+          The sidebar provides quick navigation to all sections of Mocklify. It features animated transitions and intelligent visual feedback.
         </p>
 
         <div className="theme-card rounded-lg p-6 mb-6">
@@ -507,7 +507,7 @@ export default function UIOverview() {
       <section className="mt-12">
         <h2 className="text-2xl font-bold theme-text mb-4">Modal Dialogs</h2>
         <p className="theme-text-secondary mb-4">
-          Specter uses modal dialogs for focused data entry. All modals share consistent design patterns.
+          Mocklify uses modal dialogs for focused data entry. All modals share consistent design patterns.
         </p>
 
         <div className="grid md:grid-cols-2 gap-4 mb-6">
@@ -586,7 +586,7 @@ export default function UIOverview() {
       <section className="mt-12">
         <h2 className="text-2xl font-bold theme-text mb-4">Theme Support</h2>
         <p className="theme-text-secondary mb-4">
-          Specter supports three theme modes that can be switched from Settings → General:
+          Mocklify supports three theme modes that can be switched from Settings → General:
         </p>
 
         <div className="grid md:grid-cols-3 gap-4 mb-6">
@@ -612,7 +612,7 @@ export default function UIOverview() {
       <section className="mt-12">
         <h2 className="text-2xl font-bold theme-text mb-4">Animations & Transitions</h2>
         <p className="theme-text-secondary mb-4">
-          Specter uses smooth animations powered by Framer Motion for a polished user experience:
+          Mocklify uses smooth animations powered by Framer Motion for a polished user experience:
         </p>
 
         <ul className="list-disc list-inside theme-text-secondary space-y-2">
@@ -632,7 +632,7 @@ export default function UIOverview() {
       <section className="mt-12">
         <h2 className="text-2xl font-bold theme-text mb-4">Import Feature</h2>
         <p className="theme-text-secondary mb-4">
-          Access the Import feature from the sidebar footer. Specter can import routes from:
+          Access the Import feature from the sidebar footer. Mocklify can import routes from:
         </p>
 
         <div className="grid md:grid-cols-2 gap-4 mb-6">

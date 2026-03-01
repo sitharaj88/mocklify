@@ -17,7 +17,7 @@ export class RecordingManager {
 
   constructor(workspaceRoot: string | undefined) {
     this.recordingsPath = workspaceRoot
-      ? path.join(workspaceRoot, '.specter', 'recordings')
+      ? path.join(workspaceRoot, '.mocklify', 'recordings')
       : '';
   }
 

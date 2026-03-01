@@ -41,7 +41,7 @@ export class MockServerManager {
     this.workspaceRoot = workspaceRoot;
     this.configStore = new ConfigurationStore(workspaceRoot);
 
-    const config = vscode.workspace.getConfiguration('specter');
+    const config = vscode.workspace.getConfiguration('mocklify');
     const maxLogEntries = config.get<number>('logging.maxEntries', 1000);
     this.requestLogger = new RequestLogger(maxLogEntries);
 
@@ -67,7 +67,7 @@ export class MockServerManager {
     }
 
     // Auto-start servers if enabled
-    const autoStart = vscode.workspace.getConfiguration('specter').get<boolean>('autoStart', false);
+    const autoStart = vscode.workspace.getConfiguration('mocklify').get<boolean>('autoStart', false);
     if (autoStart) {
       await this.startAll();
     }
@@ -81,7 +81,7 @@ export class MockServerManager {
     port?: number,
     protocol: 'http' | 'graphql' | 'websocket' = 'http'
   ): Promise<MockServerConfig> {
-    const config = vscode.workspace.getConfiguration('specter');
+    const config = vscode.workspace.getConfiguration('mocklify');
     const defaultPort = config.get<number>('defaultPort', 3000);
 
     const serverConfig: MockServerConfig = {

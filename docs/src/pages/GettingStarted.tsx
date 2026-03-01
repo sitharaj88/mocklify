@@ -6,7 +6,7 @@ import { CheckCircle2 } from 'lucide-react';
 const steps = [
   'Open VS Code',
   'Go to Extensions (Cmd+Shift+X / Ctrl+Shift+X)',
-  'Search for "Specter"',
+  'Search for "Mocklify"',
   'Click Install',
 ];
 
@@ -15,7 +15,7 @@ export default function GettingStarted() {
     <div className="space-y-8">
       <PageHeader
         title="Getting Started"
-        description="Get up and running with Specter in minutes."
+        description="Get up and running with Mocklify in minutes."
       />
 
       {/* Installation */}
@@ -63,7 +63,7 @@ export default function GettingStarted() {
             <div>
               <h4 className="font-medium mb-1">Create Server</h4>
               <p className="text-slate-400 text-sm">
-                Type "Specter: Create Server" and press Enter
+                Type "Mocklify: Create Server" and press Enter
               </p>
             </div>
           </li>
@@ -85,7 +85,7 @@ export default function GettingStarted() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Add a Route</h2>
         <p className="text-slate-400 mb-4">
-          Right-click on your server in the Specter sidebar and select "Add Route", or use the dashboard.
+          Right-click on your server in the Mocklify sidebar and select "Add Route", or use the dashboard.
         </p>
         <CodeBlock
           title="Example Route Response"

@@ -221,7 +221,7 @@ export default function Sequences() {
         <ul className="space-y-2 text-slate-400">
           <li>• <strong>Restart Server:</strong> All sequences reset when the server restarts</li>
           <li>• <strong>Clear Logs:</strong> Use "Clear Logs" to reset all sequence counters</li>
-          <li>• <strong>API:</strong> POST to <code className="px-2 py-0.5 bg-slate-800 rounded">/__specter/reset</code> on your mock server</li>
+          <li>• <strong>API:</strong> POST to <code className="px-2 py-0.5 bg-slate-800 rounded">/__mocklify/reset</code> on your mock server</li>
         </ul>
       </section>
 

@@ -82,7 +82,7 @@ export default function Servers() {
         </ul>
 
         <InfoBox type="info">
-          Servers persist across VS Code sessions. Configuration is stored in the <code>.specter</code> folder.
+          Servers persist across VS Code sessions. Configuration is stored in the <code>.mocklify</code> folder.
         </InfoBox>
       </section>
 
@@ -100,7 +100,7 @@ export default function Servers() {
         </ul>
 
         <InfoBox type="warning" title="Port Conflicts">
-          Ensure each server uses a unique port. Specter will show an error if a port is already in use.
+          Ensure each server uses a unique port. Mocklify will show an error if a port is already in use.
         </InfoBox>
       </section>
 

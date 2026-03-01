@@ -62,7 +62,7 @@ export function Settings() {
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Settings</h1>
-            <p className="text-sm text-surface-400">Configure Specter</p>
+            <p className="text-sm text-surface-400">Configure Mocklify</p>
           </div>
         </div>
       </header>
@@ -160,8 +160,8 @@ export function Settings() {
                       <FormGroup>
                         <Label>Configuration Path</Label>
                         <Input
-                          defaultValue=".specter"
-                          placeholder=".specter"
+                          defaultValue=".mocklify"
+                          placeholder=".mocklify"
                         />
                         <FormHint>Directory where server configurations are stored</FormHint>
                       </FormGroup>
@@ -288,8 +288,8 @@ export function Settings() {
                     <FormGroup>
                       <Label>JSON Database Directory</Label>
                       <Input
-                        defaultValue=".specter/data"
-                        placeholder=".specter/data"
+                        defaultValue=".mocklify/data"
+                        placeholder=".mocklify/data"
                       />
                     </FormGroup>
 
@@ -315,7 +315,7 @@ export function Settings() {
               {activeTab === 'about' && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>About Specter</CardTitle>
+                    <CardTitle>About Mocklify</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="text-center py-8">
@@ -327,7 +327,7 @@ export function Settings() {
                         </div>
                       </div>
 
-                      <h2 className="text-2xl font-bold text-surface-50 mb-2">Specter</h2>
+                      <h2 className="text-2xl font-bold text-surface-50 mb-2">Mocklify</h2>
                       <p className="text-surface-400 mb-2">Version 0.1.0</p>
                       <p className="text-surface-400 max-w-md mx-auto mb-6">
                         A powerful API mocking extension for VS Code that enables developers to
@@ -337,7 +337,7 @@ export function Settings() {
                       <div className="flex justify-center gap-3">
                         <Button variant="secondary" asChild>
                           <a
-                            href="https://github.com/sitharaj/specter"
+                            href="https://github.com/sitharaj88/mocklify"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
@@ -347,7 +347,7 @@ export function Settings() {
                         </Button>
                         <Button variant="secondary" asChild>
                           <a
-                            href="https://github.com/sitharaj/specter/issues"
+                            href="https://github.com/sitharaj88/mocklify/issues"
                             target="_blank"
                             rel="noopener noreferrer"
                           >

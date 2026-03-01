@@ -14,7 +14,7 @@ export default function Database() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Overview</h2>
         <p className="text-slate-400 mb-4">
-          Specter supports database-like functionality for more realistic mock scenarios:
+          Mocklify supports database-like functionality for more realistic mock scenarios:
         </p>
         <ul className="space-y-2 text-slate-400">
           <li>• <strong>JSON File Databases:</strong> Query JSON files as collections</li>
@@ -27,11 +27,11 @@ export default function Database() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">JSON File Database</h2>
         <p className="text-slate-400 mb-4">
-          Create a JSON file in your <code className="px-2 py-0.5 bg-slate-800 rounded">.specter/databases/</code> folder:
+          Create a JSON file in your <code className="px-2 py-0.5 bg-slate-800 rounded">.mocklify/databases/</code> folder:
         </p>
         
         <CodeBlock
-          title=".specter/databases/users.json"
+          title=".mocklify/databases/users.json"
           language="json"
           code={`{
   "users": [
@@ -223,7 +223,7 @@ export default function Database() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">Managing Databases</h2>
         <p className="text-slate-400 mb-4">
-          Use the Specter dashboard to manage your databases:
+          Use the Mocklify dashboard to manage your databases:
         </p>
         <ul className="space-y-2 text-slate-400">
           <li>• View and edit database records</li>

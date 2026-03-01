@@ -1,10 +1,15 @@
 {
-  "name": "specter",
-  "displayName": "Specter",
-  "description": "Specter - Powerful API mocking for VS Code. Create, manage, and run mock servers with ease.",
+  "name": "mocklify",
+  "displayName": "Mocklify",
+  "description": "Mocklify - Powerful API mocking for VS Code. Create, manage, and run mock servers with ease.",
   "version": "0.1.0",
   "publisher": "sitharaj",
   "icon": "resources/icon.png",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sitharaj88/mocklify"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -13,7 +18,7 @@
     "Other"
   ],
   "keywords": [
-    "specter",
+    "mocklify",
     "mock",
     "server",
     "api",
@@ -23,261 +28,263 @@
     "mocking"
   ],
   "activationEvents": [
-    "workspaceContains:.specter"
+    "workspaceContains:.mocklify"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "specter.createServer",
+        "command": "mocklify.createServer",
         "title": "Create Server",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(add)"
       },
       {
-        "command": "specter.startServer",
+        "command": "mocklify.startServer",
         "title": "Start Server",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(play)"
       },
       {
-        "command": "specter.stopServer",
+        "command": "mocklify.stopServer",
         "title": "Stop Server",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "specter.startAll",
+        "command": "mocklify.startAll",
         "title": "Start All Servers",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(run-all)"
       },
       {
-        "command": "specter.stopAll",
+        "command": "mocklify.stopAll",
         "title": "Stop All Servers",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "specter.deleteServer",
+        "command": "mocklify.deleteServer",
         "title": "Delete Server",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(trash)"
       },
       {
-        "command": "specter.addRoute",
+        "command": "mocklify.addRoute",
         "title": "Add Route",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(add)"
       },
       {
-        "command": "specter.editRoute",
+        "command": "mocklify.editRoute",
         "title": "Edit Route",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(edit)"
       },
       {
-        "command": "specter.deleteRoute",
+        "command": "mocklify.deleteRoute",
         "title": "Delete Route",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(trash)"
       },
       {
-        "command": "specter.toggleRoute",
+        "command": "mocklify.toggleRoute",
         "title": "Toggle Route",
-        "category": "Specter"
+        "category": "Mocklify"
       },
       {
-        "command": "specter.importOpenApi",
+        "command": "mocklify.importOpenApi",
         "title": "Import OpenAPI/Swagger",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "specter.importPostman",
+        "command": "mocklify.importPostman",
         "title": "Import Postman Collection",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "specter.exportServer",
+        "command": "mocklify.exportServer",
         "title": "Export Server Config",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(cloud-upload)"
       },
       {
-        "command": "specter.exportLogs",
+        "command": "mocklify.exportLogs",
         "title": "Export Request Logs",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(export)"
       },
       {
-        "command": "specter.startRecording",
+        "command": "mocklify.startRecording",
         "title": "Start Recording",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(record)"
       },
       {
-        "command": "specter.stopRecording",
+        "command": "mocklify.stopRecording",
         "title": "Stop Recording",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "specter.openLogs",
+        "command": "mocklify.openLogs",
         "title": "Open Request Logs",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(output)"
       },
       {
-        "command": "specter.refresh",
+        "command": "mocklify.refresh",
         "title": "Refresh",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(refresh)"
       },
       {
-        "command": "specter.openDashboard",
+        "command": "mocklify.openDashboard",
         "title": "Open Dashboard",
-        "category": "Specter",
+        "category": "Mocklify",
         "icon": "$(dashboard)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "specterExplorer",
-          "title": "Specter",
-          "icon": "resources/specter.svg"
+          "id": "mocklifyExplorer",
+          "title": "Mocklify",
+          "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "specterExplorer": [
+      "mocklifyExplorer": [
         {
-          "id": "specterServers",
-          "name": "Servers"
+          "id": "mocklifyServers",
+          "name": "Servers",
+          "icon": "resources/icon.svg"
         },
         {
-          "id": "specterLogs",
-          "name": "Request Logs"
+          "id": "mocklifyLogs",
+          "name": "Request Logs",
+          "icon": "resources/icon.svg"
         }
       ]
     },
     "menus": {
       "view/title": [
         {
-          "command": "specter.openDashboard",
-          "when": "view == specterServers",
+          "command": "mocklify.openDashboard",
+          "when": "view == mocklifyServers",
           "group": "navigation@1"
         },
         {
-          "command": "specter.createServer",
-          "when": "view == specterServers",
+          "command": "mocklify.createServer",
+          "when": "view == mocklifyServers",
           "group": "navigation@2"
         },
         {
-          "command": "specter.startAll",
-          "when": "view == specterServers",
+          "command": "mocklify.startAll",
+          "when": "view == mocklifyServers",
           "group": "navigation@3"
         },
         {
-          "command": "specter.stopAll",
-          "when": "view == specterServers",
+          "command": "mocklify.stopAll",
+          "when": "view == mocklifyServers",
           "group": "navigation@4"
         },
         {
-          "command": "specter.refresh",
-          "when": "view == specterServers",
+          "command": "mocklify.refresh",
+          "when": "view == mocklifyServers",
           "group": "navigation@5"
         }
       ],
       "view/item/context": [
         {
-          "command": "specter.startServer",
-          "when": "view == specterServers && viewItem == server-stopped",
+          "command": "mocklify.startServer",
+          "when": "view == mocklifyServers && viewItem == server-stopped",
           "group": "inline"
         },
         {
-          "command": "specter.stopServer",
-          "when": "view == specterServers && viewItem == server-running",
+          "command": "mocklify.stopServer",
+          "when": "view == mocklifyServers && viewItem == server-running",
           "group": "inline"
         },
         {
-          "command": "specter.addRoute",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.addRoute",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
         {
-          "command": "specter.importOpenApi",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.importOpenApi",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
         {
-          "command": "specter.importPostman",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.importPostman",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
         {
-          "command": "specter.exportServer",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.exportServer",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "3_export"
         },
         {
-          "command": "specter.exportLogs",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.exportLogs",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "3_export"
         },
         {
-          "command": "specter.startRecording",
-          "when": "view == specterServers && viewItem == server-running",
+          "command": "mocklify.startRecording",
+          "when": "view == mocklifyServers && viewItem == server-running",
           "group": "4_recording"
         },
         {
-          "command": "specter.deleteServer",
-          "when": "view == specterServers && viewItem =~ /^server/",
+          "command": "mocklify.deleteServer",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "9_manage"
         },
         {
-          "command": "specter.editRoute",
-          "when": "view == specterServers && viewItem == route",
+          "command": "mocklify.editRoute",
+          "when": "view == mocklifyServers && viewItem == route",
           "group": "inline"
         },
         {
-          "command": "specter.toggleRoute",
-          "when": "view == specterServers && viewItem == route",
+          "command": "mocklify.toggleRoute",
+          "when": "view == mocklifyServers && viewItem == route",
           "group": "1_toggle"
         },
         {
-          "command": "specter.deleteRoute",
-          "when": "view == specterServers && viewItem == route",
+          "command": "mocklify.deleteRoute",
+          "when": "view == mocklifyServers && viewItem == route",
           "group": "2_manage"
         }
       ]
     },
     "configuration": {
-      "title": "Specter",
+      "title": "Mocklify",
       "properties": {
-        "specter.autoStart": {
+        "mocklify.autoStart": {
           "type": "boolean",
           "default": false,
           "description": "Automatically start servers when VS Code opens"
         },
-        "specter.defaultPort": {
+        "mocklify.defaultPort": {
           "type": "number",
           "default": 3000,
-          "description": "Default port for new Specter servers"
+          "description": "Default port for new Mocklify servers"
         },
-        "specter.configPath": {
+        "mocklify.configPath": {
           "type": "string",
-          "default": ".specter",
+          "default": ".mocklify",
           "description": "Path to configuration directory relative to workspace"
         },
-        "specter.logging.maxEntries": {
+        "mocklify.logging.maxEntries": {
           "type": "number",
           "default": 1000,
           "description": "Maximum number of log entries to keep"
         },
-        "specter.logging.includeBody": {
+        "mocklify.logging.includeBody": {
           "type": "boolean",
           "default": true,
           "description": "Include request/response body in logs"

@@ -1,7 +1,7 @@
-# Specter
+# Mocklify
 
 <p align="center">
-  <img src="resources/icon.png" alt="Specter Logo" width="128" height="128">
+  <img src="resources/icon.png" alt="Mocklify Logo" width="128" height="128">
 </p>
 
 <p align="center">
@@ -68,7 +68,7 @@
 
 1. Open VS Code
 2. Go to Extensions (`Cmd+Shift+X` / `Ctrl+Shift+X`)
-3. Search for "Specter"
+3. Search for "Mocklify"
 4. Click Install
 
 ### From VSIX File
@@ -86,12 +86,12 @@
 ### 1. Create Your First Server
 
 1. Open the Command Palette (`Cmd+Shift+P` / `Ctrl+Shift+P`)
-2. Type "Specter: Create Server"
+2. Type "Mocklify: Create Server"
 3. Enter a name and port (e.g., "API Server" on port 3000)
 
 ### 2. Add a Route
 
-1. Right-click on your server in the Specter sidebar
+1. Right-click on your server in the Mocklify sidebar
 2. Select "Add Route"
 3. Configure your route:
    - **Name**: `Get Users`
@@ -283,10 +283,10 @@ Create WebSocket event handlers:
 
 ## 🗂️ Project Structure
 
-Specter stores configuration in a `.specter` folder in your workspace:
+Mocklify stores configuration in a `.mocklify` folder in your workspace:
 
 ```
-.specter/
+.mocklify/
 ├── servers.json      # Server configurations
 ├── recordings/       # Recorded sessions
 └── databases/        # JSON database files
@@ -300,11 +300,11 @@ Specter stores configuration in a `.specter` folder in your workspace:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `specter.autoStart` | `false` | Auto-start servers on VS Code launch |
-| `specter.defaultPort` | `3000` | Default port for new servers |
-| `specter.configPath` | `.specter` | Configuration directory path |
-| `specter.logging.maxEntries` | `1000` | Maximum log entries to keep |
-| `specter.logging.includeBody` | `true` | Include request/response bodies in logs |
+| `mocklify.autoStart` | `false` | Auto-start servers on VS Code launch |
+| `mocklify.defaultPort` | `3000` | Default port for new servers |
+| `mocklify.configPath` | `.mocklify` | Configuration directory path |
+| `mocklify.logging.maxEntries` | `1000` | Maximum log entries to keep |
+| `mocklify.logging.includeBody` | `true` | Include request/response bodies in logs |
 
 ---
 
