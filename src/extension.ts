@@ -7,6 +7,16 @@ import {
 import { StatusBarController } from './views/StatusBarController.js';
 import { CommandRegistry } from './commands/CommandRegistry.js';
 import { WebViewManager } from './views/WebViewManager.js';
+import {
+  CopilotService,
+  AiService,
+  ApiKeyManager,
+  MockGenerator,
+  DocumentationGenerator,
+  MocklifyChatParticipant,
+  registerLanguageModelTools,
+  registerAiCommands,
+} from './ai/index.js';
 
 let manager: MockServerManager | undefined;
 let statusBarController: StatusBarController | undefined;
@@ -29,8 +39,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     // Continue anyway - the user can still create servers
   }
 
+  // AI services (used by the dashboard, chat participant, and AI commands).
+  // AiService routes requests to GitHub Copilot, Claude, OpenAI, or Gemini.
+  const copilotService = new CopilotService();
+  const apiKeyManager = new ApiKeyManager(context.secrets);
+  const aiService = new AiService(copilotService, apiKeyManager);
+  const mockGenerator = new MockGenerator(aiService);
+  const docsGenerator = new DocumentationGenerator(aiService);
+
   // Create WebView manager
-  webViewManager = new WebViewManager(context, manager);
+  webViewManager = new WebViewManager(context, manager, mockGenerator, aiService, apiKeyManager);
 
   // Create tree view providers
   const serversTreeProvider = new MockServerTreeViewProvider(manager);
@@ -61,8 +79,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   context.subscriptions.push(
     vscode.commands.registerCommand('mocklify.openDashboard', () => {
       webViewManager?.show();
+    }),
+    vscode.commands.registerCommand('mocklify.openLogs', () => {
+      vscode.commands.executeCommand('mocklifyLogs.focus');
     })
   );
+
+  // AI features: @mocklify chat participant, Copilot agent tools, and AI commands
+  new MocklifyChatParticipant(context, manager, aiService, mockGenerator, docsGenerator);
+  registerLanguageModelTools(context, manager);
+  registerAiCommands(context, manager, aiService, apiKeyManager, mockGenerator, docsGenerator);
 
   // Watch for configuration changes
   context.subscriptions.push(

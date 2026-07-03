@@ -71,16 +71,32 @@ export const DatabaseResponseConfigSchema = z.object({
 });
 export type DatabaseResponseConfig = z.infer<typeof DatabaseResponseConfigSchema>;
 
-// Response Sequence Configuration
-export const ResponseSequenceConfigSchema = z.object({
-  responses: z.array(z.lazy(() => ResponseConfigSchema)),
-  resetAfter: z.number().optional(), // Reset after N calls
-  resetOnTime: z.number().optional(), // Reset after N milliseconds
-});
-export type ResponseSequenceConfig = z.infer<typeof ResponseSequenceConfigSchema>;
+// Response Configuration (explicit interfaces because the sequence type is
+// mutually recursive with ResponseConfig — see the z.lazy below)
+export interface ResponseSequenceConfig {
+  responses: ResponseConfig[];
+  resetAfter?: number; // Reset after N calls
+  resetOnTime?: number; // Reset after N milliseconds
+}
 
-// Response Configuration
-export const ResponseConfigSchema = z.object({
+export interface ResponseConfig {
+  type: 'static' | 'dynamic' | 'proxy' | 'database' | 'sequence';
+  statusCode: number;
+  headers?: Record<string, string>;
+  body?: ResponseBody;
+  template?: TemplateConfig;
+  proxy?: ProxyConfig;
+  database?: DatabaseResponseConfig;
+  sequence?: ResponseSequenceConfig;
+}
+
+export const ResponseSequenceConfigSchema: z.ZodType<ResponseSequenceConfig> = z.object({
+  responses: z.array(z.lazy(() => ResponseConfigSchema)),
+  resetAfter: z.number().optional(),
+  resetOnTime: z.number().optional(),
+});
+
+export const ResponseConfigSchema: z.ZodType<ResponseConfig> = z.object({
   type: z.enum(['static', 'dynamic', 'proxy', 'database', 'sequence']),
   statusCode: z.number().min(100).max(599),
   headers: z.record(z.string()).optional(),
@@ -90,7 +106,6 @@ export const ResponseConfigSchema = z.object({
   database: DatabaseResponseConfigSchema.optional(),
   sequence: ResponseSequenceConfigSchema.optional(),
 });
-export type ResponseConfig = z.infer<typeof ResponseConfigSchema>;
 
 // Route Configuration
 export const RouteConfigSchema = z.object({
@@ -215,6 +230,7 @@ export interface IMockServer {
   start(): Promise<void>;
   stop(): Promise<void>;
   updateConfig(config: MockServerConfig): Promise<void>;
+  onEvent(handler: EventHandler): () => void;
 }
 
 // Configuration Store Interface

@@ -2,6 +2,16 @@ import * as vscode from 'vscode';
 import { MockServerManager } from '../core/MockServerManager.js';
 import { MockServerConfig, RouteConfig, DatabaseConnection } from '../types/core.js';
 import { v4 as uuidv4 } from 'uuid';
+import { AiUnavailableError, AiProviderId } from '../ai/providers/types.js';
+import type { MockGenerator } from '../ai/MockGenerator.js';
+import type { AiService } from '../ai/AiService.js';
+import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
+
+const MODEL_SETTINGS: Record<string, string> = {
+  claude: 'ai.claudeModel',
+  openai: 'ai.openaiModel',
+  gemini: 'ai.geminiModel',
+};
 
 interface MessageToExtension {
   type: string;
@@ -18,7 +28,10 @@ export class WebViewManager {
 
   constructor(
     private context: vscode.ExtensionContext,
-    private manager: MockServerManager
+    private manager: MockServerManager,
+    private mockGenerator?: MockGenerator,
+    private aiService?: AiService,
+    private apiKeys?: ApiKeyManager
   ) {
     // Load databases from storage
     this.databases = context.globalState.get('mocklify.databases', []);
@@ -200,6 +213,71 @@ export class WebViewManager {
       case 'clearLogs':
         this.manager.clearLogs(message.serverId);
         await this.sendState();
+        break;
+
+      // AI configuration
+      case 'getAiConfig':
+        await this.sendAiConfig();
+        break;
+
+      case 'setAiProvider':
+        await vscode.workspace
+          .getConfiguration('mocklify')
+          .update(
+            'ai.provider',
+            (message.data as { provider: string }).provider,
+            vscode.ConfigurationTarget.Global
+          );
+        await this.sendAiConfig();
+        break;
+
+      case 'setAiModel': {
+        const { provider, model } = message.data as { provider: string; model: string };
+        const setting = MODEL_SETTINGS[provider];
+        if (setting && model.trim()) {
+          await vscode.workspace
+            .getConfiguration('mocklify')
+            .update(setting, model.trim(), vscode.ConfigurationTarget.Global);
+        }
+        await this.sendAiConfig();
+        break;
+      }
+
+      case 'setAiApiKey': {
+        const { provider, key } = message.data as { provider: AiProviderId; key: string };
+        if (key.trim() && this.apiKeys) {
+          await this.apiKeys.setKey(provider, key.trim());
+          this.sendSuccess(`${provider} API key saved`);
+        }
+        await this.sendAiConfig();
+        break;
+      }
+
+      case 'clearAiApiKey': {
+        const { provider } = message.data as { provider: AiProviderId };
+        await this.apiKeys?.deleteKey(provider);
+        await this.sendAiConfig();
+        break;
+      }
+
+      case 'testAiProvider':
+        await this.testAiProvider();
+        break;
+
+      // AI generation
+      case 'aiGenerateServer':
+        await this.aiGenerateServer(
+          message.data as { description: string; autoStart?: boolean }
+        );
+        break;
+
+      case 'aiGenerateRoutes':
+        if (message.serverId) {
+          await this.aiGenerateRoutes(
+            message.serverId,
+            message.data as { description: string }
+          );
+        }
         break;
 
       // Import/Export handlers
@@ -394,18 +472,197 @@ export class WebViewManager {
     this.panel?.webview.postMessage({ type: 'success', message });
   }
 
+  // AI configuration implementations
+  private async sendAiConfig(): Promise<void> {
+    if (!this.aiService) {
+      return;
+    }
+
+    const config = vscode.workspace.getConfiguration('mocklify');
+    const providers = await Promise.all(
+      this.aiService.getAllProviders().map(async (p) => ({
+        id: p.id,
+        label: p.label,
+        available: await p.isAvailable(),
+        requiresKey: p.id !== 'copilot',
+        hasKey: p.id !== 'copilot' ? ((await this.apiKeys?.hasKey(p.id)) ?? false) : false,
+        model: MODEL_SETTINGS[p.id] ? config.get<string>(MODEL_SETTINGS[p.id]) : undefined,
+      }))
+    );
+
+    this.panel?.webview.postMessage({
+      type: 'aiConfig',
+      provider: this.aiService.getConfiguredProviderId(),
+      activeLabel: await this.aiService.getActiveProviderLabel(),
+      providers,
+    });
+  }
+
+  private async testAiProvider(): Promise<void> {
+    if (!this.aiService) {
+      return;
+    }
+    try {
+      const provider = await this.aiService.resolveProvider();
+      const start = Date.now();
+      const reply = await this.aiService.sendRequest(
+        'Reply with exactly the word OK and nothing else.',
+        { justification: 'Mocklify is testing your AI provider configuration.' }
+      );
+      const seconds = ((Date.now() - start) / 1000).toFixed(1);
+      this.panel?.webview.postMessage({
+        type: 'aiTestResult',
+        ok: true,
+        message: `${provider.label} responded in ${seconds}s — AI is working. Reply: "${reply.trim().slice(0, 60)}"`,
+      });
+    } catch (error) {
+      this.panel?.webview.postMessage({
+        type: 'aiTestResult',
+        ok: false,
+        message: this.describeAiError(error),
+      });
+    }
+  }
+
+  // AI generation implementations
+  private async aiGenerateServer(data: {
+    description: string;
+    autoStart?: boolean;
+  }): Promise<void> {
+    if (!this.mockGenerator) {
+      this.sendAiStatus('error', 'AI features are not available in this session.');
+      return;
+    }
+    if (!data.description?.trim()) {
+      this.sendAiStatus('error', 'Please describe the API you want to mock.');
+      return;
+    }
+
+    this.sendAiStatus('generating', undefined, await this.aiService?.getActiveProviderLabel());
+
+    try {
+      const config = vscode.workspace.getConfiguration('mocklify');
+      const defaultPort = config.get<number>('defaultPort', 3000);
+      const servers = await this.manager.getServers();
+      const usedPorts = new Set(servers.map((s) => s.port));
+      let freePort = defaultPort;
+      while (usedPorts.has(freePort)) {
+        freePort++;
+      }
+
+      const generated = await this.mockGenerator.generateServer(data.description, {
+        defaultPort: freePort,
+      });
+      if (usedPorts.has(generated.port)) {
+        generated.port = freePort;
+      }
+
+      const server = await this.manager.createServer(generated.name, generated.port);
+      for (const route of generated.routes) {
+        await this.manager.addRoute(server.id, route);
+      }
+
+      if (data.autoStart) {
+        try {
+          await this.manager.startServer(server.id);
+        } catch (error) {
+          // Server was created; surface the start failure without failing generation
+          this.sendError(
+            `Server created, but failed to start: ${error instanceof Error ? error.message : 'unknown error'}`
+          );
+        }
+      }
+
+      await this.sendState();
+      this.panel?.webview.postMessage({
+        type: 'aiStatus',
+        status: 'done',
+        serverId: server.id,
+        serverName: server.name,
+        port: server.port,
+        routeCount: generated.routes.length,
+      });
+    } catch (error) {
+      this.sendAiStatus('error', this.describeAiError(error));
+    }
+  }
+
+  private async aiGenerateRoutes(
+    serverId: string,
+    data: { description: string }
+  ): Promise<void> {
+    if (!this.mockGenerator) {
+      this.sendAiStatus('error', 'AI features are not available in this session.');
+      return;
+    }
+    if (!data.description?.trim()) {
+      this.sendAiStatus('error', 'Please describe the route(s) you want to add.');
+      return;
+    }
+
+    const server = await this.manager.getServer(serverId);
+    if (!server) {
+      this.sendAiStatus('error', 'Server not found.');
+      return;
+    }
+
+    this.sendAiStatus('generating', undefined, await this.aiService?.getActiveProviderLabel());
+
+    try {
+      const routes = await this.mockGenerator.generateRoutes(data.description, server);
+      for (const route of routes) {
+        await this.manager.addRoute(serverId, route);
+      }
+
+      await this.sendState();
+      this.panel?.webview.postMessage({
+        type: 'aiStatus',
+        status: 'done',
+        serverId,
+        serverName: server.name,
+        port: server.port,
+        routeCount: routes.length,
+      });
+    } catch (error) {
+      this.sendAiStatus('error', this.describeAiError(error));
+    }
+  }
+
+  private sendAiStatus(
+    status: 'generating' | 'done' | 'error',
+    message?: string,
+    provider?: string
+  ): void {
+    this.panel?.webview.postMessage({ type: 'aiStatus', status, message, provider });
+  }
+
+  private describeAiError(error: unknown): string {
+    if (error instanceof AiUnavailableError) {
+      return error.message;
+    }
+    return error instanceof Error ? error.message : 'AI generation failed';
+  }
+
   // Import/Export implementations
   private async importOpenApi(serverId: string, data: { content: string }): Promise<void> {
     try {
       const openApiService = this.manager.getOpenApiService();
-      const routes = openApiService.parseSpec(data.content);
-      
-      for (const route of routes) {
+      const result = openApiService.importFromString(data.content, {
+        generateFakeData: true,
+        includeExamples: true,
+      });
+
+      if (!result.success) {
+        this.sendError(result.errors.join(', ') || 'Failed to import OpenAPI spec');
+        return;
+      }
+
+      for (const route of result.routes) {
         await this.manager.addRoute(serverId, route);
       }
-      
+
       await this.sendState();
-      this.sendSuccess(`Imported ${routes.length} routes from OpenAPI spec`);
+      this.sendSuccess(`Imported ${result.routes.length} routes from OpenAPI spec`);
     } catch (error) {
       this.sendError(error instanceof Error ? error.message : 'Failed to import OpenAPI spec');
     }
@@ -414,14 +671,22 @@ export class WebViewManager {
   private async importPostman(serverId: string, data: { content: string }): Promise<void> {
     try {
       const postmanService = this.manager.getPostmanService();
-      const routes = postmanService.parseCollection(data.content);
-      
-      for (const route of routes) {
+      const result = postmanService.importFromString(data.content, {
+        includeExamples: true,
+        convertVariables: true,
+      });
+
+      if (!result.success) {
+        this.sendError(result.errors.join(', ') || 'Failed to import Postman collection');
+        return;
+      }
+
+      for (const route of result.routes) {
         await this.manager.addRoute(serverId, route);
       }
-      
+
       await this.sendState();
-      this.sendSuccess(`Imported ${routes.length} routes from Postman collection`);
+      this.sendSuccess(`Imported ${result.routes.length} routes from Postman collection`);
     } catch (error) {
       this.sendError(error instanceof Error ? error.message : 'Failed to import Postman collection');
     }
@@ -437,17 +702,8 @@ export class WebViewManager {
         return;
       }
       
-      const routes: RouteConfig[] = [];
-      for (const route of server.routes) {
-        routes.push(route);
-      }
-      
-      const content = exportService.exportServerConfig({
-        name: server.name,
-        port: server.port,
-        routes,
-      });
-      
+      const content = exportService.exportServerToJson(server, { pretty: true });
+
       this.panel?.webview.postMessage({
         type: 'exportResult',
         format: 'json',
@@ -473,7 +729,8 @@ export class WebViewManager {
         content = exportService.exportLogsToCurl(logs, server?.port || 3000);
         extension = 'sh';
       } else {
-        content = exportService.exportLogsToHar(logs);
+        const server = serverId ? await this.manager.getServer(serverId) : null;
+        content = JSON.stringify(exportService.exportLogsToHar(logs, server?.port), null, 2);
         extension = 'har';
       }
       
@@ -497,11 +754,11 @@ export class WebViewManager {
       const recordingManager = this.manager.getRecordingManager();
       
       const session = recordingManager.createSession(serverId, data.targetUrl, {
-        pathFilter: data.pathFilter ? new RegExp(data.pathFilter) : undefined,
+        filterPaths: data.pathFilter ? [data.pathFilter] : undefined,
       });
-      
-      session.start();
-      
+
+      recordingManager.startRecording(session.id);
+
       this.sendRecordingStatus(serverId);
       this.sendSuccess('Recording started');
     } catch (error) {
@@ -512,28 +769,30 @@ export class WebViewManager {
   private async stopRecording(serverId: string, data: { action: string }): Promise<void> {
     try {
       const recordingManager = this.manager.getRecordingManager();
-      const session = recordingManager.getSession(serverId);
-      
+      const session = this.findSessionForServer(serverId);
+
       if (!session) {
         this.sendError('No active recording session');
         return;
       }
-      
-      session.stop();
-      const recordings = session.getRecordings();
-      
+
+      await recordingManager.stopRecording(session.id);
+      const recordings = session.requests;
+
       if (data.action === 'generate' && recordings.length > 0) {
-        const routes = session.generateRoutes();
+        const routes = session.generateRoutes({ deduplicatePaths: true, extractPathParams: true });
         for (const route of routes) {
           await this.manager.addRoute(serverId, route);
         }
         this.sendSuccess(`Generated ${routes.length} routes from recordings`);
+        await recordingManager.deleteSession(session.id);
       } else if (data.action === 'save') {
-        await recordingManager.saveSession(serverId);
+        // stopRecording already persisted the session to .mocklify/recordings
         this.sendSuccess('Recordings saved');
+      } else {
+        await recordingManager.deleteSession(session.id);
       }
-      
-      recordingManager.deleteSession(serverId);
+
       await this.sendState();
       this.sendRecordingStatus(serverId);
     } catch (error) {
@@ -542,16 +801,26 @@ export class WebViewManager {
   }
 
   private sendRecordingStatus(serverId: string): void {
-    const recordingManager = this.manager.getRecordingManager();
-    const session = recordingManager.getSession(serverId);
-    
+    const session = this.findSessionForServer(serverId);
+
     this.panel?.webview.postMessage({
       type: 'recordingStatus',
       serverId,
-      isRecording: session?.isRecording() || false,
-      recordingCount: session?.getRecordings().length || 0,
-      targetUrl: session ? (session as { targetUrl?: string }).targetUrl : undefined,
+      isRecording: session?.state.status === 'recording',
+      recordingCount: session?.requests.length || 0,
+      targetUrl: session?.config.targetUrl,
     });
+  }
+
+  /** Recording sessions are created with the server id as their name. */
+  private findSessionForServer(serverId: string) {
+    const recordingManager = this.manager.getRecordingManager();
+    return (
+      recordingManager
+        .getAllSessions()
+        .find((s) => s.config.name === serverId && s.state.status !== 'stopped') ??
+      recordingManager.getActiveSession()
+    );
   }
 
   private async searchRoutes(data: { query: string; serverId?: string }): Promise<void> {
@@ -564,10 +833,11 @@ export class WebViewManager {
       if (data.serverId && server.id !== data.serverId) continue;
       
       const matchingRoutes = server.routes.filter((route) => {
+        const methods = Array.isArray(route.method) ? route.method : [route.method];
         return (
           route.name.toLowerCase().includes(query) ||
           route.path.toLowerCase().includes(query) ||
-          route.method.toLowerCase().includes(query) ||
+          methods.some((m) => m.toLowerCase().includes(query)) ||
           (route.tags && route.tags.some((tag) => tag.toLowerCase().includes(query)))
         );
       });

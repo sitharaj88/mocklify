@@ -12,6 +12,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { AiCreatePanel } from './AiCreatePanel';
 import {
   Button,
   Card,
@@ -146,6 +147,9 @@ export function Dashboard() {
       </header>
 
       <div className="content-body space-y-6">
+        {/* AI server generation */}
+        <AiCreatePanel />
+
         {/* Stats Grid */}
         <motion.div
           variants={containerVariants}

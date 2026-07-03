@@ -6,6 +6,9 @@ import type {
   RequestLogEntry,
   RouteConfig,
   MessageToExtension,
+  AiGenerationState,
+  AiConfig,
+  AiTestResult,
 } from '../types';
 
 type ActiveView = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
@@ -47,6 +50,13 @@ interface AppStore {
   // Recording state
   recordingStates: Record<string, RecordingState>;
 
+  // AI generation state
+  aiGeneration: AiGenerationState;
+
+  // AI configuration state
+  aiConfig: AiConfig | null;
+  aiTestResult: AiTestResult | null;
+
   // Theme
   theme: 'light' | 'dark' | 'system';
 
@@ -78,6 +88,13 @@ interface AppStore {
 
   // Recording actions
   setRecordingState: (serverId: string, state: RecordingState) => void;
+
+  // AI generation actions
+  setAiGeneration: (state: AiGenerationState) => void;
+
+  // AI configuration actions
+  setAiConfig: (config: AiConfig | null) => void;
+  setAiTestResult: (result: AiTestResult | null) => void;
 
   // Theme actions
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
@@ -119,6 +136,13 @@ export const useStore = create<AppStore>((set, get) => ({
 
   // Recording initial state
   recordingStates: {},
+
+  // AI generation initial state
+  aiGeneration: { status: 'idle' },
+
+  // AI configuration initial state
+  aiConfig: null,
+  aiTestResult: null,
 
   // Theme
   theme: 'system',
@@ -167,6 +191,13 @@ export const useStore = create<AppStore>((set, get) => ({
     set((s) => ({
       recordingStates: { ...s.recordingStates, [serverId]: state },
     })),
+
+  // AI generation actions
+  setAiGeneration: (aiGeneration) => set({ aiGeneration }),
+
+  // AI configuration actions
+  setAiConfig: (aiConfig) => set({ aiConfig }),
+  setAiTestResult: (aiTestResult) => set({ aiTestResult }),
 
   // Theme actions
   setTheme: (theme) => set({ theme }),

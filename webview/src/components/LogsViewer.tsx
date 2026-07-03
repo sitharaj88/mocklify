@@ -228,14 +228,14 @@ export function LogsViewer() {
                     </div>
 
                     {/* Body */}
-                    {selectedLog.request.body && (
+                    {selectedLog.request.body != null ? (
                       <div>
                         <p className="text-xs font-medium text-surface-500 mb-2">Body</p>
                         <pre className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 text-xs font-mono max-h-32 overflow-auto whitespace-pre-wrap break-all text-surface-300">
                           {formatBody(selectedLog.request.body)}
                         </pre>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Response */}
@@ -264,14 +264,14 @@ export function LogsViewer() {
                     </div>
 
                     {/* Response Body */}
-                    {selectedLog.response.body && (
+                    {selectedLog.response.body != null ? (
                       <div>
                         <p className="text-xs font-medium text-surface-500 mb-2">Body</p>
                         <pre className="p-3 rounded-lg bg-surface-900/50 border border-surface-700/50 text-xs font-mono max-h-48 overflow-auto whitespace-pre-wrap break-all text-surface-300">
                           {formatBody(selectedLog.response.body)}
                         </pre>
                       </div>
-                    )}
+                    ) : null}
                   </div>
                 </CardContent>
               </Card>

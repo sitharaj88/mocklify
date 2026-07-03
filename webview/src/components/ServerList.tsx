@@ -24,6 +24,7 @@ import {
   ConfirmDialog,
 } from './ui';
 import { cn } from '../lib/utils';
+import { AiCreatePanel } from './AiCreatePanel';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -103,11 +104,12 @@ export function ServerList() {
       </header>
 
       <div className="content-body">
+        <AiCreatePanel />
         {servers.length === 0 ? (
           <EmptyState
             icon={Server}
             title="No servers yet"
-            description="Create your first server to start intercepting requests"
+            description="Describe your API above to generate one with AI, or create one manually"
             action={{
               label: 'Create Server',
               onClick: handleCreateServer,

@@ -14,7 +14,9 @@ import {
   Sun,
   Moon,
   Monitor,
+  Sparkles,
 } from 'lucide-react';
+import { AiSettings } from './AiSettings';
 import {
   Button,
   Card,
@@ -37,6 +39,7 @@ import { useThemeStore } from '../hooks/useTheme';
 
 const settingsTabs = [
   { id: 'general', label: 'General', icon: SettingsIcon },
+  { id: 'ai', label: 'AI Provider', icon: Sparkles },
   { id: 'server', label: 'Server Defaults', icon: Server },
   { id: 'logging', label: 'Logging', icon: ScrollText },
   { id: 'database', label: 'Database', icon: Database },
@@ -185,6 +188,8 @@ export function Settings() {
                   </CardContent>
                 </Card>
               )}
+
+              {activeTab === 'ai' && <AiSettings />}
 
               {activeTab === 'server' && (
                 <Card>

@@ -194,7 +194,17 @@ export type MessageToExtension =
   | { type: 'stopRecording'; serverId: string; data: { action: string } }
   | { type: 'getRecordingStatus'; serverId: string }
   // Search
-  | { type: 'searchRoutes'; data: { query: string; serverId?: string } };
+  | { type: 'searchRoutes'; data: { query: string; serverId?: string } }
+  // AI generation
+  | { type: 'aiGenerateServer'; data: { description: string; autoStart?: boolean } }
+  | { type: 'aiGenerateRoutes'; serverId: string; data: { description: string } }
+  // AI configuration
+  | { type: 'getAiConfig' }
+  | { type: 'setAiProvider'; data: { provider: string } }
+  | { type: 'setAiModel'; data: { provider: string; model: string } }
+  | { type: 'setAiApiKey'; data: { provider: string; key: string } }
+  | { type: 'clearAiApiKey'; data: { provider: string } }
+  | { type: 'testAiProvider' };
 
 export type MessageFromExtension =
   | { type: 'state'; data: AppState }
@@ -208,4 +218,48 @@ export type MessageFromExtension =
   // Export
   | { type: 'exportResult'; format: string; content: string; filename: string }
   // Search
-  | { type: 'searchResults'; query: string; results: Array<{ serverId: string; serverName: string; routes: RouteConfig[] }> };
+  | { type: 'searchResults'; query: string; results: Array<{ serverId: string; serverName: string; routes: RouteConfig[] }> }
+  // AI generation
+  | {
+      type: 'aiStatus';
+      status: 'generating' | 'done' | 'error';
+      message?: string;
+      provider?: string;
+      serverId?: string;
+      serverName?: string;
+      port?: number;
+      routeCount?: number;
+    }
+  // AI configuration
+  | { type: 'aiConfig'; provider: string; activeLabel?: string; providers: AiProviderInfo[] }
+  | { type: 'aiTestResult'; ok: boolean; message: string };
+
+export interface AiGenerationState {
+  status: 'idle' | 'generating' | 'done' | 'error';
+  message?: string;
+  provider?: string;
+  serverId?: string;
+  serverName?: string;
+  port?: number;
+  routeCount?: number;
+}
+
+export interface AiProviderInfo {
+  id: string;
+  label: string;
+  available: boolean;
+  requiresKey: boolean;
+  hasKey: boolean;
+  model?: string;
+}
+
+export interface AiConfig {
+  provider: string;
+  activeLabel?: string;
+  providers: AiProviderInfo[];
+}
+
+export interface AiTestResult {
+  ok: boolean;
+  message: string;
+}

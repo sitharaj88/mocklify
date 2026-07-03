@@ -55,7 +55,8 @@ export class CommandRegistry {
     this.register('mocklify.stopRecording', (item?: ServerTreeItem) => this.stopRecording(item));
   }
 
-  private register(command: string, callback: (...args: unknown[]) => unknown): void {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private register(command: string, callback: (...args: any[]) => unknown): void {
     const disposable = vscode.commands.registerCommand(command, callback);
     this.context.subscriptions.push(disposable);
     this.disposables.push(disposable);
@@ -673,9 +674,9 @@ export class CommandRegistry {
     try {
       const recordingManager = this.manager.getRecordingManager();
       const session = recordingManager.createSession(serverId, targetUrl, {
-        pathFilter: pathFilter ? new RegExp(pathFilter) : undefined,
+        filterPaths: pathFilter ? [pathFilter] : undefined,
       });
-      session.start();
+      recordingManager.startRecording(session.id);
 
       vscode.window.showInformationMessage(
         `Mocklify: Recording started. Requests to localhost:${server.port} will be proxied to ${targetUrl}`
@@ -692,18 +693,24 @@ export class CommandRegistry {
     if (!serverId) return;
 
     const recordingManager = this.manager.getRecordingManager();
-    const session = recordingManager.getSession(serverId);
+    // Sessions are created with the server id as their name
+    const session =
+      recordingManager
+        .getAllSessions()
+        .find((s) => s.config.name === serverId && s.state.status !== 'stopped') ??
+      recordingManager.getActiveSession();
 
     if (!session) {
       vscode.window.showWarningMessage('No active recording session for this server');
       return;
     }
 
-    session.stop();
-    const recordings = session.getRecordings();
+    await recordingManager.stopRecording(session.id);
+    const recordings = session.requests;
 
     if (recordings.length === 0) {
       vscode.window.showInformationMessage('Recording stopped. No requests were captured.');
+      await recordingManager.deleteSession(session.id);
       return;
     }
 
@@ -717,24 +724,23 @@ export class CommandRegistry {
     );
 
     if (!action || action.value === 'discard') {
-      recordingManager.deleteSession(serverId);
+      await recordingManager.deleteSession(session.id);
       return;
     }
 
     if (action.value === 'generate') {
-      const routes = session.generateRoutes();
+      const routes = session.generateRoutes({ deduplicatePaths: true, extractPathParams: true });
       for (const route of routes) {
         await this.manager.addRoute(serverId, route);
       }
       vscode.window.showInformationMessage(
         `Mocklify: Generated ${routes.length} routes from recordings`
       );
+      await recordingManager.deleteSession(session.id);
     } else {
-      await recordingManager.saveSession(serverId);
+      // stopRecording already persisted the session to .mocklify/recordings
       vscode.window.showInformationMessage('Mocklify: Recordings saved');
     }
-
-    recordingManager.deleteSession(serverId);
   }
 
   dispose(): void {

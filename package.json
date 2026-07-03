@@ -1,8 +1,8 @@
 {
   "name": "mocklify",
   "displayName": "Mocklify",
-  "description": "Mocklify - Powerful API mocking for VS Code. Create, manage, and run mock servers with ease.",
-  "version": "0.1.0",
+  "description": "AI-powered API mocking for VS Code. Design mock servers in plain English with GitHub Copilot, Claude, OpenAI, or Gemini; generate API documentation; and let Copilot agent mode drive your mocks.",
+  "version": "0.2.0",
   "publisher": "sitharaj",
   "icon": "resources/icon.png",
   "license": "MIT",
@@ -11,10 +11,12 @@
     "url": "https://github.com/sitharaj88/mocklify"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.95.0"
   },
   "categories": [
     "Testing",
+    "AI",
+    "Chat",
     "Other"
   ],
   "keywords": [
@@ -25,7 +27,13 @@
     "testing",
     "rest",
     "http",
-    "mocking"
+    "mocking",
+    "copilot",
+    "ai",
+    "openapi",
+    "swagger",
+    "documentation",
+    "chat"
   ],
   "activationEvents": [
     "workspaceContains:.mocklify"
@@ -145,6 +153,236 @@
         "title": "Open Dashboard",
         "category": "Mocklify",
         "icon": "$(dashboard)"
+      },
+      {
+        "command": "mocklify.generateDocs",
+        "title": "Generate API Documentation",
+        "category": "Mocklify",
+        "icon": "$(book)"
+      },
+      {
+        "command": "mocklify.exportOpenApi",
+        "title": "Export OpenAPI Spec",
+        "category": "Mocklify",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "mocklify.aiGenerateServer",
+        "title": "AI: Generate Mock Server from Description",
+        "category": "Mocklify",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "mocklify.aiGenerateRoute",
+        "title": "AI: Generate Routes from Description",
+        "category": "Mocklify",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "mocklify.openChat",
+        "title": "Ask Mocklify in Copilot Chat",
+        "category": "Mocklify",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "mocklify.selectAiProvider",
+        "title": "Select AI Provider",
+        "category": "Mocklify",
+        "icon": "$(hubot)"
+      },
+      {
+        "command": "mocklify.setApiKey",
+        "title": "Set AI Provider API Key",
+        "category": "Mocklify",
+        "icon": "$(key)"
+      },
+      {
+        "command": "mocklify.clearApiKey",
+        "title": "Clear AI Provider API Key",
+        "category": "Mocklify"
+      },
+      {
+        "command": "mocklify.testAiProvider",
+        "title": "Test AI Provider",
+        "category": "Mocklify",
+        "icon": "$(beaker)"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "mocklify.assistant",
+        "name": "mocklify",
+        "fullName": "Mocklify",
+        "description": "Design, document, and debug mock APIs with AI",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "create",
+            "description": "Design a complete mock API server from a description"
+          },
+          {
+            "name": "route",
+            "description": "Generate and add routes to an existing mock server"
+          },
+          {
+            "name": "docs",
+            "description": "Generate polished API documentation for a mock server"
+          },
+          {
+            "name": "test",
+            "description": "Generate curl and REST Client test requests for a server"
+          },
+          {
+            "name": "analyze",
+            "description": "Analyze request logs: errors, unmatched requests, anomalies"
+          },
+          {
+            "name": "list",
+            "description": "List all mock servers and their status"
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "mocklify_list_servers",
+        "displayName": "List Mock Servers",
+        "toolReferenceName": "mockServers",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(server)",
+        "modelDescription": "List all Mocklify mock API servers in the workspace with their id, name, port, protocol, running status, base URL, and configured routes (method, path, status code). Use this first to discover servers before using other Mocklify tools.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "mocklify_create_server",
+        "displayName": "Create Mock Server",
+        "icon": "$(add)",
+        "modelDescription": "Create a new Mocklify mock API server. Returns the new server's id and port. The server starts empty (add routes with mocklify_add_route) and stopped (start it with mocklify_start_server).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Human-readable server name, e.g. 'Payments API'"
+            },
+            "port": {
+              "type": "number",
+              "description": "Port to listen on (optional, defaults to the configured default port)"
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      },
+      {
+        "name": "mocklify_add_route",
+        "displayName": "Add Mock Route",
+        "icon": "$(add)",
+        "modelDescription": "Add a mock route to an existing Mocklify server. The route responds with the given JSON body and status code. Use Express-style paths with :param for path parameters (e.g. /api/users/:id). Provide realistic example data in responseBody.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "Server id or name to add the route to"
+            },
+            "method": {
+              "type": "string",
+              "enum": [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "HEAD",
+                "OPTIONS"
+              ],
+              "description": "HTTP method"
+            },
+            "path": {
+              "type": "string",
+              "description": "Route path, e.g. /api/users/:id"
+            },
+            "name": {
+              "type": "string",
+              "description": "Human-readable route name (optional)"
+            },
+            "statusCode": {
+              "type": "number",
+              "description": "HTTP status code to return (default 200)"
+            },
+            "responseBody": {
+              "type": "string",
+              "description": "JSON response body as a string, with realistic example data"
+            }
+          },
+          "required": [
+            "server",
+            "method",
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "mocklify_start_server",
+        "displayName": "Start Mock Server",
+        "icon": "$(play)",
+        "modelDescription": "Start a Mocklify mock server so it begins serving its routes at http://localhost:<port>.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "Server id or name"
+            }
+          },
+          "required": [
+            "server"
+          ]
+        }
+      },
+      {
+        "name": "mocklify_stop_server",
+        "displayName": "Stop Mock Server",
+        "icon": "$(debug-stop)",
+        "modelDescription": "Stop a running Mocklify mock server.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "Server id or name"
+            }
+          },
+          "required": [
+            "server"
+          ]
+        }
+      },
+      {
+        "name": "mocklify_get_request_logs",
+        "displayName": "Get Mock Request Logs",
+        "toolReferenceName": "mockLogs",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(output)",
+        "modelDescription": "Get recent requests received by Mocklify mock servers: timestamp, method, path, response status, duration, and whether a mock route matched. Useful to debug why calls fail or to see what an app under test is requesting.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "server": {
+              "type": "string",
+              "description": "Server id or name (optional, all servers when omitted)"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of log entries to return (default 25)"
+            }
+          }
+        }
       }
     ],
     "viewsContainers": {
@@ -194,6 +432,11 @@
           "command": "mocklify.refresh",
           "when": "view == mocklifyServers",
           "group": "navigation@5"
+        },
+        {
+          "command": "mocklify.aiGenerateServer",
+          "when": "view == mocklifyServers",
+          "group": "navigation@6"
         }
       ],
       "view/item/context": [
@@ -209,6 +452,11 @@
         },
         {
           "command": "mocklify.addRoute",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "1_routes"
+        },
+        {
+          "command": "mocklify.aiGenerateRoute",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
@@ -229,6 +477,16 @@
         },
         {
           "command": "mocklify.exportLogs",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "3_export"
+        },
+        {
+          "command": "mocklify.exportOpenApi",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "3_export"
+        },
+        {
+          "command": "mocklify.generateDocs",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "3_export"
         },
@@ -286,13 +544,49 @@
           "type": "boolean",
           "default": true,
           "description": "Include request/response body in logs"
+        },
+        "mocklify.ai.provider": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "copilot",
+            "claude",
+            "openai",
+            "gemini"
+          ],
+          "enumDescriptions": [
+            "Use the first available provider (Copilot → Claude → OpenAI → Gemini)",
+            "GitHub Copilot (requires the GitHub Copilot extension)",
+            "Anthropic Claude (requires an API key — run 'Mocklify: Set AI Provider API Key')",
+            "OpenAI (requires an API key)",
+            "Google Gemini (requires an API key)"
+          ],
+          "default": "auto",
+          "description": "Which AI provider Mocklify uses for mock generation, documentation, and chat"
+        },
+        "mocklify.ai.claudeModel": {
+          "type": "string",
+          "default": "claude-opus-4-8",
+          "description": "Claude model to use with the Anthropic API (e.g. claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5)"
+        },
+        "mocklify.ai.openaiModel": {
+          "type": "string",
+          "default": "gpt-4o",
+          "description": "OpenAI model to use (e.g. gpt-4o, gpt-4o-mini)"
+        },
+        "mocklify.ai.geminiModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Google Gemini model to use (e.g. gemini-2.5-flash, gemini-2.5-pro)"
         }
       }
     }
   },
   "scripts": {
     "vscode:prepublish": "npm run build",
-    "build": "node esbuild.config.js",
+    "build": "node esbuild.config.js && npm run build:webview",
+    "build:extension": "node esbuild.config.js",
+    "build:webview": "npm --prefix webview run build",
     "watch": "node esbuild.config.js --watch",
     "test": "vitest",
     "test:watch": "vitest --watch",
@@ -302,7 +596,7 @@
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@types/uuid": "^9.0.7",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.95.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
@@ -313,6 +607,7 @@
     "vitest": "^1.0.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
     "@faker-js/faker": "^8.3.0",
     "fastify": "^4.24.0",
     "handlebars": "^4.7.8",

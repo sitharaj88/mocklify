@@ -1,0 +1,11 @@
+export { CopilotService, CopilotUnavailableError } from './CopilotService.js';
+export { AiService } from './AiService.js';
+export { ApiKeyManager } from './providers/ApiKeyManager.js';
+export { AiUnavailableError } from './providers/types.js';
+export type { AiProvider, AiProviderId, AiRequestOptions } from './providers/types.js';
+export { MockGenerator } from './MockGenerator.js';
+export type { GeneratedServer } from './MockGenerator.js';
+export { DocumentationGenerator } from './DocumentationGenerator.js';
+export { MocklifyChatParticipant, PARTICIPANT_ID } from './ChatParticipant.js';
+export { registerLanguageModelTools } from './LmTools.js';
+export { registerAiCommands } from './AiCommands.js';

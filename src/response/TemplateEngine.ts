@@ -44,7 +44,7 @@ export class TemplateEngine {
 
     // Internet
     this.handlebars.registerHelper('faker.email', () => faker.internet.email());
-    this.handlebars.registerHelper('faker.userName', () => faker.internet.username());
+    this.handlebars.registerHelper('faker.userName', () => faker.internet.userName());
     this.handlebars.registerHelper('faker.url', () => faker.internet.url());
     this.handlebars.registerHelper('faker.avatar', () => faker.image.avatar());
     this.handlebars.registerHelper('faker.ip', () => faker.internet.ip());
@@ -172,7 +172,7 @@ export class TemplateEngine {
 
     // Repeat helper for generating arrays
     this.handlebars.registerHelper('repeat', function (
-      this: unknown,
+      this: object,
       count: number,
       options: Handlebars.HelperOptions
     ) {

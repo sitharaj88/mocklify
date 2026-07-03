@@ -12,3 +12,4 @@ export { SearchBar } from './SearchBar';
 export { ImportModal } from './ImportModal';
 export { RecordingPanel } from './RecordingPanel';
 export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+export { AiCreatePanel } from './AiCreatePanel';

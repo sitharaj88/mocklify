@@ -44,6 +44,9 @@ function App() {
     updateServerState,
     setIsLoading,
     setRecordingState,
+    setAiGeneration,
+    setAiConfig,
+    setAiTestResult,
   } = useStore();
 
   const { theme } = useThemeStore();
@@ -107,6 +110,30 @@ function App() {
 
         case 'success':
           console.log('Success:', message.message);
+          break;
+
+        case 'aiStatus':
+          setAiGeneration({
+            status: message.status,
+            message: message.message,
+            provider: message.provider,
+            serverId: message.serverId,
+            serverName: message.serverName,
+            port: message.port,
+            routeCount: message.routeCount,
+          });
+          break;
+
+        case 'aiConfig':
+          setAiConfig({
+            provider: message.provider,
+            activeLabel: message.activeLabel,
+            providers: message.providers,
+          });
+          break;
+
+        case 'aiTestResult':
+          setAiTestResult({ ok: message.ok, message: message.message });
           break;
 
         case 'recordingStatus':

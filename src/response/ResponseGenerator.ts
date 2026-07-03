@@ -190,9 +190,10 @@ export class ResponseGenerator {
           switch (type) {
             case 'params':
               return context.params[prop] ?? match;
-            case 'query':
+            case 'query': {
               const qVal = context.query[prop];
               return (Array.isArray(qVal) ? qVal[0] : qVal) ?? match;
+            }
             default:
               return match;
           }
@@ -316,12 +317,14 @@ export class ResponseGenerator {
       switch (type) {
         case 'params':
           return context.params[key] ?? match;
-        case 'query':
+        case 'query': {
           const queryVal = context.query[key];
           return (Array.isArray(queryVal) ? queryVal[0] : queryVal) ?? match;
-        case 'headers':
+        }
+        case 'headers': {
           const headerVal = context.headers[key.toLowerCase()];
           return (Array.isArray(headerVal) ? headerVal[0] : headerVal) ?? match;
+        }
         default:
           return match;
       }
