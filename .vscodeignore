@@ -27,3 +27,4 @@ vitest.config.ts
 dist/*.map
 .DS_Store
 sharp/**
+.github/**
