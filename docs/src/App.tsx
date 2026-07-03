@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import Layout from './components/Layout';
 import Home from './pages/Home';
 import GettingStarted from './pages/GettingStarted';
+import AiFeatures from './pages/AiFeatures';
 import Servers from './pages/Servers';
 import Routes_ from './pages/Routes';
 import Templates from './pages/Templates';
@@ -21,6 +22,7 @@ function App() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
         <Route path="getting-started" element={<GettingStarted />} />
+        <Route path="ai" element={<AiFeatures />} />
         <Route path="servers" element={<Servers />} />
         <Route path="routes" element={<Routes_ />} />
         <Route path="templates" element={<Templates />} />

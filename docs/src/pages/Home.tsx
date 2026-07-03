@@ -10,11 +10,39 @@ import {
   Database,
   Zap,
   ChevronRight,
+  Sparkles,
+  Telescope,
+  MessageSquare,
+  BookOpen,
 } from 'lucide-react';
 const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import Feature from '../components/Feature';
 
 const features = [
+  {
+    icon: Sparkles,
+    title: 'AI Mock Generation',
+    description:
+      'Describe your API in plain English and get a running mock server — with Copilot, Claude, OpenAI, or Gemini.',
+  },
+  {
+    icon: Telescope,
+    title: 'Mock Your App from Code',
+    description:
+      'Scan any Android, iOS, web, or Flutter codebase and reverse-engineer a full mock server with positive and negative flows.',
+  },
+  {
+    icon: MessageSquare,
+    title: 'Copilot Chat & Agent Mode',
+    description:
+      '@mocklify chat commands plus language-model tools so Copilot agents can build and run your mocks.',
+  },
+  {
+    icon: BookOpen,
+    title: 'AI API Documentation',
+    description:
+      'Generate polished Markdown docs and OpenAPI 3.0 specs from any mock server.',
+  },
   {
     icon: Server,
     title: 'Multiple Servers',
@@ -69,7 +97,8 @@ export default function Home() {
           <span className="gradient-text">Mocklify</span>
         </h1>
         <p className="text-xl theme-text-secondary mb-8 max-w-2xl mx-auto">
-          Powerful API Mocking for VS Code. Create, manage, and run mock servers directly from your editor.
+          AI-powered API mocking for VS Code. Describe your API — or point at your app&apos;s
+          codebase — and get a running mock server with realistic data.
         </p>
         <div className="flex flex-wrap gap-4 justify-center">
           <Link
@@ -78,6 +107,13 @@ export default function Home() {
           >
             <Zap className="w-5 h-5" />
             Get Started
+          </Link>
+          <Link
+            to="/ai"
+            className="inline-flex items-center gap-2 px-6 py-3 theme-bg-card border theme-border hover:border-purple-500/50 rounded-lg font-medium transition-colors"
+          >
+            <Sparkles className="w-5 h-5 text-purple-400" />
+            AI Features
           </Link>
           <a
             href="https://marketplace.visualstudio.com/items?itemName=sitharaj.mocklify"
@@ -106,7 +142,14 @@ export default function Home() {
         <h2 className="text-2xl font-bold mb-6">Why Mocklify?</h2>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
           <div>
-            <h3 className="font-semibold text-purple-400 mb-2">⚡ Fast Setup</h3>
+            <h3 className="font-semibold text-purple-400 mb-2">🤖 AI-First</h3>
+            <p className="theme-text-secondary text-sm">
+              Bring your own AI — Copilot, Claude, OpenAI, or Gemini — and mock APIs by
+              describing them.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-semibold text-green-400 mb-2">⚡ Fast Setup</h3>
             <p className="theme-text-secondary text-sm">
               Create a mock server in seconds. No configuration files needed.
             </p>

@@ -79,6 +79,13 @@ export default function GettingStarted() {
             </div>
           </li>
         </ol>
+
+        <InfoBox type="tip" title="Or let AI do it">
+          Open the dashboard and type a description into the <strong>Create with AI</strong>{' '}
+          panel — e.g. <em>"e-commerce API with products, carts, and orders"</em> — and Mocklify
+          generates the whole server with realistic data. Works with GitHub Copilot, Claude,
+          OpenAI, or Gemini. See <a href="#/ai" className="text-purple-400 hover:text-purple-300">AI Features</a>.
+        </InfoBox>
       </section>
 
       {/* Add Route */}

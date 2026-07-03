@@ -23,6 +23,7 @@ import {
   Coffee,
   Globe,
   Heart,
+  Sparkles,
 } from 'lucide-react';
 const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import { useState } from 'react';
@@ -31,6 +32,7 @@ import { useTheme } from '../context/ThemeContext';
 const navigation = [
   { name: 'Home', path: '/', icon: Home },
   { name: 'Getting Started', path: '/getting-started', icon: PlayCircle },
+  { name: 'AI Features', path: '/ai', icon: Sparkles },
   { name: 'UI Overview', path: '/ui-overview', icon: LayoutDashboard },
   { name: 'Servers', path: '/servers', icon: Server },
   { name: 'Routes', path: '/routes', icon: Route },
