@@ -12,6 +12,7 @@ All notable changes to the "Mocklify" extension will be documented in this file.
   - Streaming responses from every provider; the dashboard AI panel shows which provider is working
 - **Dashboard AI panel**: type a description like "ecommerce api server" in the dashboard and get a running mock server with realistic data, suggestion chips, and auto-start
 - **Dashboard AI settings tab**: choose the provider visually (with live availability — Copilot auto-detected, keys detected), save/replace/remove API keys, set models, and test the active provider without leaving the dashboard
+- **"AI: Generate Mock Server from Codebase"**: scans any client codebase (Retrofit, fetch/axios, URLSession/Alamofire, Dio, HttpClient, react-query, and more) locally, then AI reverse-engineers every endpoint into a mock server — success routes shaped like the app's models plus disabled negative-flow routes (400/401/404/500) that can be toggled on to simulate failures; works with all AI providers
 
 - **GitHub Copilot integration**
   - `@mocklify` chat participant with `/create`, `/route`, `/docs`, `/test`, `/analyze`, and `/list` commands

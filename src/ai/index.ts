@@ -4,6 +4,7 @@ export { ApiKeyManager } from './providers/ApiKeyManager.js';
 export { AiUnavailableError } from './providers/types.js';
 export type { AiProvider, AiProviderId, AiRequestOptions } from './providers/types.js';
 export { MockGenerator } from './MockGenerator.js';
+export { CodebaseMockGenerator } from './CodebaseMockGenerator.js';
 export type { GeneratedServer } from './MockGenerator.js';
 export { DocumentationGenerator } from './DocumentationGenerator.js';
 export { MocklifyChatParticipant, PARTICIPANT_ID } from './ChatParticipant.js';

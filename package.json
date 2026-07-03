@@ -179,6 +179,12 @@
         "icon": "$(sparkle)"
       },
       {
+        "command": "mocklify.aiGenerateFromCodebase",
+        "title": "AI: Generate Mock Server from Codebase",
+        "category": "Mocklify",
+        "icon": "$(telescope)"
+      },
+      {
         "command": "mocklify.openChat",
         "title": "Ask Mocklify in Copilot Chat",
         "category": "Mocklify",
@@ -437,6 +443,11 @@
           "command": "mocklify.aiGenerateServer",
           "when": "view == mocklifyServers",
           "group": "navigation@6"
+        },
+        {
+          "command": "mocklify.aiGenerateFromCodebase",
+          "when": "view == mocklifyServers",
+          "group": "1_ai"
         }
       ],
       "view/item/context": [

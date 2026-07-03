@@ -7,6 +7,7 @@ import { AiProviderId, AiUnavailableError } from './providers/types.js';
 import { ApiKeyManager } from './providers/ApiKeyManager.js';
 import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
+import { CodebaseMockGenerator } from './CodebaseMockGenerator.js';
 
 const KEY_PROVIDERS: { id: AiProviderId; label: string; hint: string }[] = [
   { id: 'claude', label: 'Claude (Anthropic)', hint: 'sk-ant-…  from console.anthropic.com' },
@@ -195,6 +196,81 @@ export function registerAiCommands(
 
   register('mocklify.openChat', async () => {
     await vscode.commands.executeCommand('workbench.action.chat.open', { query: '@mocklify ' });
+  });
+
+  register('mocklify.aiGenerateFromCodebase', async () => {
+    if (!vscode.workspace.workspaceFolders?.length) {
+      vscode.window.showWarningMessage('Mocklify: Open a folder or workspace to scan for API calls.');
+      return;
+    }
+
+    const codebaseGenerator = new CodebaseMockGenerator(ai);
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Mocklify: Generating mocks from your codebase',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        try {
+          let lastFraction = 0;
+          const summary = await codebaseGenerator.generate({
+            token,
+            onProgress: ({ message, fraction }) => {
+              progress.report({
+                message,
+                increment: Math.max(0, (fraction - lastFraction) * 100),
+              });
+              lastFraction = Math.max(lastFraction, fraction);
+            },
+          });
+          if (token.isCancellationRequested) {
+            return;
+          }
+
+          const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
+          const confirm = await vscode.window.showInformationMessage(
+            `Found API usage in ${summary.matchedFileCount} of ${summary.scannedFileCount} scanned files. ` +
+              `Create "${workspaceName} Mock API" with ${summary.routes.length} routes — ` +
+              `${summary.positiveCount} success + ${summary.negativeCount} failure routes? ` +
+              `(Failure routes are disabled; enable one to simulate that error in your app.)`,
+            { modal: true },
+            'Create',
+            'Create & Start'
+          );
+          if (!confirm) {
+            return;
+          }
+
+          const servers = await manager.getServers();
+          const usedPorts = new Set(servers.map((s) => s.port));
+          let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
+          while (usedPorts.has(port)) {
+            port++;
+          }
+
+          const server = await manager.createServer(`${workspaceName} Mock API`, port);
+          for (const route of summary.routes) {
+            await manager.addRoute(server.id, route);
+          }
+
+          if (confirm === 'Create & Start') {
+            await manager.startServer(server.id);
+            vscode.window.showInformationMessage(
+              `Mocklify: "${server.name}" running at http://localhost:${server.port} — point your app's base URL there.`
+            );
+          } else {
+            vscode.window.showInformationMessage(`Mocklify: Created "${server.name}".`);
+          }
+        } catch (error) {
+          if (error instanceof vscode.CancellationError) {
+            return;
+          }
+          showAiError(error);
+        }
+      }
+    );
   });
 
   register('mocklify.selectAiProvider', async () => {

@@ -32,6 +32,7 @@
 ### 🤖 AI Integration — Copilot, Claude, OpenAI, Gemini
 
 - **Multiple AI Providers** - Use GitHub Copilot (no key needed), or bring your own API key for **Anthropic Claude**, **OpenAI**, or **Google Gemini**; `auto` mode picks the first available
+- **Mock Your App from Code** - Scan any client codebase (Android/Retrofit, iOS/URLSession, web fetch/axios, Flutter/Dio, and more) and generate a complete mock server covering **positive and negative flows** — success responses shaped like your models, plus disabled 400/401/404/500 routes you toggle on to simulate failures
 - **AI Mock Generation** - Describe your API in plain English (in the dashboard or Copilot Chat); get a complete mock server with realistic data
 - **`@mocklify` Chat Participant** - Design, document, and debug mock APIs conversationally in Copilot Chat — answers come from your selected provider
 - **AI API Documentation** - Generate polished, developer-ready API docs for any mock server
@@ -191,10 +192,19 @@ In agent mode, Copilot can drive Mocklify end-to-end with these tools — try *"
 - `mocklify_start_server`, `mocklify_stop_server`
 - `mocklify_get_request_logs` (also `#mockLogs` in prompts)
 
+### Mock Your App from Its Codebase
+
+Run **`Mocklify: AI: Generate Mock Server from Codebase`** in any app workspace. Mocklify scans your source for API calls (Retrofit annotations, `fetch`/`axios`, `URLSession`/Alamofire, Dio, `HttpClient`, react-query/RTK Query, and more — scanning is local and free), then the AI reverse-engineers every endpoint into a mock server:
+
+- **Success routes** (enabled) with response bodies shaped exactly like your app's models
+- **Failure routes** (disabled) for negative-flow testing: 400 validation, 401 auth, 404 missing, 500 errors — toggle one on to simulate that failure in your app
+- Point your app's base URL at `http://localhost:<port>` and develop offline
+
 ### AI Commands
 
 | Command | Description |
 |---------|-------------|
+| `Mocklify: AI: Generate Mock Server from Codebase` | Scan your app's code → full mock server with positive + negative flows |
 | `Mocklify: AI: Generate Mock Server from Description` | Natural language → full mock server |
 | `Mocklify: AI: Generate Routes from Description` | Natural language → routes for an existing server |
 | `Mocklify: Generate API Documentation` | AI-written Markdown docs (deterministic fallback without Copilot) |

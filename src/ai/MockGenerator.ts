@@ -24,7 +24,7 @@ export interface GeneratedServer {
   routes: Omit<RouteConfig, 'id'>[];
 }
 
-const ROUTE_FORMAT_INSTRUCTIONS = `Each route object must follow this exact JSON shape:
+export const ROUTE_FORMAT_INSTRUCTIONS = `Each route object must follow this exact JSON shape:
 {
   "name": "Human readable route name",
   "enabled": true,
