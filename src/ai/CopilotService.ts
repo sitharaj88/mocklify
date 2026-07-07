@@ -54,18 +54,44 @@ export class CopilotService {
   }
 
   /**
-   * Select the best available Copilot chat model.
+   * All Copilot chat models the user's subscription exposes right now.
+   * Returns [] when Copilot is unavailable.
+   */
+  async listModels(): Promise<vscode.LanguageModelChat[]> {
+    try {
+      return [...(await vscode.lm.selectChatModels({ vendor: 'copilot' }))];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Select the Copilot chat model: the mocklify.ai.copilotModel family when
+   * configured and available, else the best from PREFERRED_FAMILIES, else
+   * whatever Copilot offers first.
    */
   async selectModel(): Promise<vscode.LanguageModelChat> {
-    let models: vscode.LanguageModelChat[] = [];
-    try {
-      models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
-    } catch {
-      // selectChatModels can throw when no LM extension is installed
-    }
-
+    const models = await this.listModels();
     if (models.length === 0) {
       throw new CopilotUnavailableError();
+    }
+
+    const configured = vscode.workspace
+      .getConfiguration('mocklify')
+      .get<string>('ai.copilotModel', '')
+      .trim()
+      .toLowerCase();
+    if (configured) {
+      const match =
+        models.find(
+          (m) => m.family.toLowerCase() === configured || m.id.toLowerCase() === configured
+        ) ?? models.find((m) => m.family.toLowerCase().includes(configured));
+      if (match) {
+        return match;
+      }
+      console.warn(
+        `Mocklify: configured Copilot model "${configured}" is not available — falling back to auto selection.`
+      );
     }
 
     for (const family of PREFERRED_FAMILIES) {

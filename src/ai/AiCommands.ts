@@ -594,31 +594,83 @@ export function registerAiCommands(
     vscode.window.showInformationMessage(`Mocklify: AI provider set to ${picked.label}.`);
   });
 
-  register('mocklify.selectAiModel', async (providerId?: ModelProviderId) => {
+  register('mocklify.selectAiModel', async (providerId?: ModelProviderId | 'copilot') => {
     const config = vscode.workspace.getConfiguration('mocklify');
 
+    // Copilot models are discovered live from the user's subscription — the
+    // static catalog only covers the API-key providers.
+    const pickCopilotModel = async () => {
+      const models = await ai.listCopilotModels();
+      if (models.length === 0) {
+        vscode.window.showWarningMessage(
+          'Mocklify: No GitHub Copilot models are available. Install and sign in to GitHub Copilot first.'
+        );
+        return;
+      }
+      const current = config.get<string>('ai.copilotModel', '');
+      const picked = await vscode.window.showQuickPick(
+        [
+          {
+            label: '$(zap) Auto',
+            description: current === '' ? 'current' : undefined,
+            detail: 'Best available model (recommended)',
+            family: '',
+          },
+          ...models.map((m) => ({
+            label: m.family,
+            description: m.family === current ? 'current' : undefined,
+            detail: m.name,
+            family: m.family,
+          })),
+        ],
+        { placeHolder: 'Choose the GitHub Copilot model for Mocklify' }
+      );
+      if (!picked) {
+        return;
+      }
+      await config.update('ai.copilotModel', picked.family, vscode.ConfigurationTarget.Global);
+      vscode.window.showInformationMessage(
+        `Mocklify: Copilot model set to ${picked.family || 'Auto (best available)'}.`
+      );
+    };
+
     // Resolve which provider's model to change: explicit arg → configured
-    // provider (if key-based) → ask.
-    let target = providerId && MODEL_CATALOG[providerId] ? providerId : undefined;
+    // provider → ask.
+    let target: ModelProviderId | 'copilot' | undefined =
+      providerId === 'copilot' || (providerId && MODEL_CATALOG[providerId])
+        ? providerId
+        : undefined;
     if (!target) {
       const configured = ai.getConfiguredProviderId();
-      if (configured in MODEL_CATALOG) {
-        target = configured as ModelProviderId;
+      if (configured === 'copilot' || configured in MODEL_CATALOG) {
+        target = configured as ModelProviderId | 'copilot';
       }
     }
     if (!target) {
       const picked = await vscode.window.showQuickPick(
-        (Object.keys(MODEL_CATALOG) as ModelProviderId[]).map((id) => ({
-          label: MODEL_CATALOG[id].label,
-          description: config.get<string>(MODEL_CATALOG[id].settingKey, ''),
-          id,
-        })),
-        { placeHolder: 'Change the model for which AI provider? (Copilot picks its model in chat)' }
+        [
+          {
+            label: 'GitHub Copilot',
+            description: config.get<string>('ai.copilotModel', '') || 'auto',
+            id: 'copilot' as const,
+          },
+          ...(Object.keys(MODEL_CATALOG) as ModelProviderId[]).map((id) => ({
+            label: MODEL_CATALOG[id].label,
+            description: config.get<string>(MODEL_CATALOG[id].settingKey, ''),
+            id,
+          })),
+        ],
+        { placeHolder: 'Change the model for which AI provider?' }
       );
       if (!picked) {
         return;
       }
       target = picked.id;
+    }
+
+    if (target === 'copilot') {
+      await pickCopilotModel();
+      return;
     }
 
     const catalog = MODEL_CATALOG[target];

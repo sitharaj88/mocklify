@@ -1,0 +1,24 @@
+{
+  "version": "1.0",
+  "servers": [
+    {
+      "id": "0df51d8c-799c-4665-9f09-42c12b46b9d1",
+      "name": "hello",
+      "port": 3000,
+      "protocol": "http",
+      "enabled": true,
+      "routes": [],
+      "settings": {
+        "cors": {
+          "enabled": true
+        },
+        "logging": {
+          "enabled": true,
+          "includeBody": true
+        }
+      },
+      "updatedAt": "2026-07-07T16:09:36.721Z",
+      "createdAt": "2026-07-07T16:09:36.721Z"
+    }
+  ]
+}

@@ -58,8 +58,10 @@ async function raceWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T | 
  */
 export class AiService {
   private providers: Map<AiProviderId, AiProvider>;
+  private copilot: CopilotService;
 
   constructor(copilot: CopilotService, keys: ApiKeyManager) {
+    this.copilot = copilot;
     const copilotProvider: AiProvider = {
       id: 'copilot',
       label: 'GitHub Copilot',
@@ -79,6 +81,18 @@ export class AiService {
 
   getProvider(id: AiProviderId): AiProvider {
     return this.providers.get(id)!;
+  }
+
+  /**
+   * Copilot chat models the user's subscription exposes right now
+   * (family + display name); [] when Copilot is unavailable.
+   */
+  async listCopilotModels(): Promise<{ family: string; name: string }[]> {
+    const models = await this.copilot.listModels();
+    const seen = new Set<string>();
+    return models
+      .filter((m) => (seen.has(m.family) ? false : (seen.add(m.family), true)))
+      .map((m) => ({ family: m.family, name: m.name }));
   }
 
   getAllProviders(): AiProvider[] {

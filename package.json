@@ -625,6 +625,11 @@
           "default": "auto",
           "description": "Which AI provider Mocklify uses for mock generation, documentation, and chat"
         },
+        "mocklify.ai.copilotModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "GitHub Copilot model family to use (e.g. `gpt-4o`, `claude-sonnet-4.5`) — pick from the live list with **Mocklify: Select AI Model**. Leave empty to auto-select the best available model. Available families depend on your Copilot subscription."
+        },
         "mocklify.ai.claudeModel": {
           "type": "string",
           "default": "claude-opus-4-8",

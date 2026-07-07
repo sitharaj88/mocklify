@@ -248,6 +248,51 @@ export function AiSettings() {
         {/* Per-provider key + model configuration */}
         <div className="border-t border-surface-700 pt-6 space-y-6">
           <h4 className="text-sm font-medium text-surface-200">API Keys &amp; Models</h4>
+
+          {/* Copilot: no key, model discovered live from the subscription */}
+          {(() => {
+            const copilot = aiConfig.providers.find((p) => p.id === 'copilot');
+            if (!copilot?.models?.length) return null;
+            const AUTO = '__auto__';
+            const currentIsKnown = copilot.models.some((m) => m.id === copilot.model);
+            return (
+              <div className="p-4 rounded-lg bg-surface-800/50 border border-surface-700 space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-surface-200">{copilot.label}</span>
+                  <ProviderStatus info={copilot} />
+                </div>
+                <FormGroup>
+                  <Label className="text-xs">Model</Label>
+                  <Select
+                    value={copilot.model && currentIsKnown ? copilot.model : AUTO}
+                    onValueChange={(value) =>
+                      postMessage({
+                        type: 'setAiModel',
+                        data: { provider: 'copilot', model: value === AUTO ? '' : value },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full sm:w-96">
+                      <SelectValue placeholder="Auto (best available)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={AUTO}>Auto — best available (recommended)</SelectItem>
+                      {copilot.models.map((m) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="font-medium">{m.id}</span>
+                          <span className="ml-2 text-xs text-surface-500">{m.detail}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormHint>
+                    Models offered by your Copilot subscription. Auto picks the strongest one
+                    Mocklify knows about.
+                  </FormHint>
+                </FormGroup>
+              </div>
+            );
+          })()}
           {aiConfig.providers
             .filter((p) => p.requiresKey)
             .map((p) => (

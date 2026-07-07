@@ -15,6 +15,7 @@ import type { AiService } from '../ai/AiService.js';
 import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
 
 const MODEL_SETTINGS: Record<string, string> = {
+  copilot: 'ai.copilotModel',
   claude: 'ai.claudeModel',
   openai: 'ai.openaiModel',
   gemini: 'ai.geminiModel',
@@ -250,7 +251,8 @@ export class WebViewManager {
       case 'setAiModel': {
         const { provider, model } = message.data as { provider: string; model: string };
         const setting = MODEL_SETTINGS[provider];
-        if (setting && model.trim()) {
+        // Copilot accepts '' = auto (best available); API providers need a model ID.
+        if (setting && (model.trim() || provider === 'copilot')) {
           await vscode.workspace
             .getConfiguration('mocklify')
             .update(setting, model.trim(), vscode.ConfigurationTarget.Global);
@@ -516,6 +518,10 @@ export class WebViewManager {
     }
 
     const config = vscode.workspace.getConfiguration('mocklify');
+    const copilotModels = (await this.aiService.listCopilotModels()).map((m) => ({
+      id: m.family,
+      detail: m.name,
+    }));
     const providers = await Promise.all(
       this.aiService.getAllProviders().map(async (p) => ({
         id: p.id,
@@ -526,7 +532,13 @@ export class WebViewManager {
         model: MODEL_SETTINGS[p.id] ? config.get<string>(MODEL_SETTINGS[p.id]) : undefined,
         baseUrl: BASE_URL_SETTINGS[p.id] ? config.get<string>(BASE_URL_SETTINGS[p.id], '') : undefined,
         models:
-          p.id in MODEL_CATALOG ? MODEL_CATALOG[p.id as ModelProviderId].models : undefined,
+          p.id === 'copilot'
+            ? copilotModels.length > 0
+              ? copilotModels
+              : undefined
+            : p.id in MODEL_CATALOG
+              ? MODEL_CATALOG[p.id as ModelProviderId].models
+              : undefined,
       }))
     );
 

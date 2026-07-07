@@ -441,6 +441,7 @@ Mocklify stores configuration in a `.mocklify` folder in your workspace:
 | `mocklify.logging.maxEntries` | `1000` | Maximum log entries to keep |
 | `mocklify.logging.includeBody` | `true` | Include request/response bodies in logs |
 | `mocklify.ai.provider` | `auto` | AI provider: `auto`, `copilot`, `claude`, `openai`, or `gemini` |
+| `mocklify.ai.copilotModel` | *(empty)* | Copilot model family (e.g. `gpt-4o`); empty = auto-select best available |
 | `mocklify.ai.claudeModel` | `claude-opus-4-8` | Claude model ID (Bedrock-style IDs like `anthropic.claude-opus-4-8` work with gateways) |
 | `mocklify.ai.openaiModel` | `gpt-4o` | OpenAI model ID (or an Azure-compatible deployment name) |
 | `mocklify.ai.geminiModel` | `gemini-2.5-flash` | Google Gemini model ID |
