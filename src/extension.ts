@@ -17,6 +17,8 @@ import {
   registerLanguageModelTools,
   registerAiCommands,
 } from './ai/index.js';
+import { registerScenarioCommands } from './ai/ScenarioCommands.js';
+import { activateDriftWatcher } from './ai/DriftWatcher.js';
 
 let manager: MockServerManager | undefined;
 let statusBarController: StatusBarController | undefined;
@@ -89,6 +91,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   new MocklifyChatParticipant(context, manager, aiService, mockGenerator, docsGenerator);
   registerLanguageModelTools(context, manager);
   registerAiCommands(context, manager, aiService, apiKeyManager, mockGenerator, docsGenerator);
+  registerScenarioCommands(context, manager);
+  activateDriftWatcher(context, manager);
 
   // Watch for configuration changes
   context.subscriptions.push(

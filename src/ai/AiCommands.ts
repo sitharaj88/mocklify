@@ -8,12 +8,64 @@ import { ApiKeyManager } from './providers/ApiKeyManager.js';
 import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
 import { CodebaseMockGenerator } from './CodebaseMockGenerator.js';
+import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 
 const KEY_PROVIDERS: { id: AiProviderId; label: string; hint: string }[] = [
   { id: 'claude', label: 'Claude (Anthropic)', hint: 'sk-ant-…  from console.anthropic.com' },
   { id: 'openai', label: 'OpenAI', hint: 'sk-…  from platform.openai.com' },
   { id: 'gemini', label: 'Google Gemini', hint: 'AIza…  from aistudio.google.com' },
 ];
+
+type ModelProviderId = Exclude<AiProviderId, 'copilot'>;
+
+interface ModelCatalogEntry {
+  label: string;
+  settingKey: string;
+  customHint: string;
+  models: { id: string; detail: string }[];
+}
+
+/**
+ * Known models per provider, shown by "Mocklify: Select AI Model". The list is
+ * a convenience, not a gate — "Custom model ID" covers gateway-specific IDs
+ * (e.g. Bedrock-style `anthropic.claude-opus-4-8`) and models released later.
+ */
+const MODEL_CATALOG: Record<ModelProviderId, ModelCatalogEntry> = {
+  claude: {
+    label: 'Claude (Anthropic)',
+    settingKey: 'ai.claudeModel',
+    customHint: 'e.g. anthropic.claude-opus-4-8 for a Bedrock-compatible gateway',
+    models: [
+      { id: 'claude-opus-4-8', detail: 'Most capable Opus — recommended default' },
+      { id: 'claude-sonnet-5', detail: 'Best balance of speed and intelligence' },
+      { id: 'claude-sonnet-4-6', detail: 'Previous-generation Sonnet' },
+      { id: 'claude-haiku-4-5', detail: 'Fastest and most cost-effective' },
+      { id: 'claude-opus-4-7', detail: 'Previous-generation Opus' },
+      { id: 'claude-opus-4-6', detail: 'Older Opus' },
+    ],
+  },
+  openai: {
+    label: 'OpenAI',
+    settingKey: 'ai.openaiModel',
+    customHint: 'e.g. a deployment name on an Azure OpenAI-compatible gateway',
+    models: [
+      { id: 'gpt-4o', detail: 'Flagship multimodal model' },
+      { id: 'gpt-4o-mini', detail: 'Fast and cost-effective' },
+      { id: 'gpt-4.1', detail: 'Strong coding and instruction following' },
+      { id: 'gpt-4.1-mini', detail: 'Smaller, faster 4.1' },
+    ],
+  },
+  gemini: {
+    label: 'Google Gemini',
+    settingKey: 'ai.geminiModel',
+    customHint: 'e.g. a model ID exposed by your Gemini-compatible gateway',
+    models: [
+      { id: 'gemini-2.5-flash', detail: 'Fast, cost-effective default' },
+      { id: 'gemini-2.5-pro', detail: 'Most capable Gemini' },
+      { id: 'gemini-2.0-flash', detail: 'Previous-generation Flash' },
+    ],
+  },
+};
 
 /**
  * AI-powered and documentation commands: generate docs, export OpenAPI,
@@ -154,7 +206,7 @@ export function registerAiCommands(
     );
   });
 
-  register('mocklify.aiGenerateRoute', async (item?: { serverId?: string }) => {
+  register('mocklify.aiGenerateRoute', async (item?: { serverId?: string; description?: string }) => {
     const server = await pickServer(manager, item, 'Select a server to add AI-generated routes to');
     if (!server) {
       return;
@@ -163,6 +215,7 @@ export function registerAiCommands(
     const description = await vscode.window.showInputBox({
       prompt: `Describe the route(s) to add to "${server.name}"`,
       placeHolder: 'e.g. GET /api/users/:id returning a user profile, 404 when not found',
+      value: item?.description,
       ignoreFocusOut: true,
     });
     if (!description) {
@@ -230,9 +283,85 @@ export function registerAiCommands(
           }
 
           const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
+          const verificationNote =
+            summary.repairedCount > 0 || summary.droppedCount > 0
+              ? ` Self-verification auto-repaired ${summary.repairedCount} and dropped ${summary.droppedCount} invalid route(s).`
+              : '';
           const confirm = await vscode.window.showInformationMessage(
             `Found API usage in ${summary.matchedFileCount} of ${summary.scannedFileCount} scanned files. ` +
               `Create "${workspaceName} Mock API" with ${summary.routes.length} routes — ` +
+              `${summary.positiveCount} success + ${summary.negativeCount} failure routes? ` +
+              `(Failure routes are disabled; enable one to simulate that error in your app.)` +
+              verificationNote,
+            { modal: true },
+            'Create',
+            'Create & Start'
+          );
+          if (!confirm) {
+            return;
+          }
+
+          const servers = await manager.getServers();
+          const usedPorts = new Set(servers.map((s) => s.port));
+          let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
+          while (usedPorts.has(port)) {
+            port++;
+          }
+
+          const server = await manager.createServer(`${workspaceName} Mock API`, port);
+          for (const route of summary.routes) {
+            await manager.addRoute(server.id, route);
+          }
+
+          if (confirm === 'Create & Start') {
+            await manager.startServer(server.id);
+            vscode.window.showInformationMessage(
+              `Mocklify: "${server.name}" running at http://localhost:${server.port} — point your app's base URL there.`
+            );
+          } else {
+            vscode.window.showInformationMessage(`Mocklify: Created "${server.name}".`);
+          }
+        } catch (error) {
+          if (error instanceof vscode.CancellationError) {
+            return;
+          }
+          showAiError(error);
+        }
+      }
+    );
+  });
+
+  register('mocklify.aiGenerateFromTraffic', async (item?: { serverId?: string }) => {
+    const entries = manager.getLogEntries(item?.serverId);
+    const trafficGenerator = new TrafficMockGenerator(ai);
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Mocklify: Generating mocks from recorded traffic',
+        cancellable: true,
+      },
+      async (progress, token) => {
+        try {
+          let lastFraction = 0;
+          const summary = await trafficGenerator.generate(entries, {
+            token,
+            onProgress: ({ message, fraction }) => {
+              progress.report({
+                message,
+                increment: Math.max(0, (fraction - lastFraction) * 100),
+              });
+              lastFraction = Math.max(lastFraction, fraction);
+            },
+          });
+          if (token.isCancellationRequested) {
+            return;
+          }
+
+          const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
+          const confirm = await vscode.window.showInformationMessage(
+            `Replayed ${summary.entryCount} recorded request(s) across ${summary.endpointCount} endpoint(s). ` +
+              `Create "${workspaceName} Recorded API" with ${summary.routes.length} routes — ` +
               `${summary.positiveCount} success + ${summary.negativeCount} failure routes? ` +
               `(Failure routes are disabled; enable one to simulate that error in your app.)`,
             { modal: true },
@@ -250,7 +379,7 @@ export function registerAiCommands(
             port++;
           }
 
-          const server = await manager.createServer(`${workspaceName} Mock API`, port);
+          const server = await manager.createServer(`${workspaceName} Recorded API`, port);
           for (const route of summary.routes) {
             await manager.addRoute(server.id, route);
           }
@@ -319,6 +448,76 @@ export function registerAiCommands(
       }
     }
     vscode.window.showInformationMessage(`Mocklify: AI provider set to ${picked.label}.`);
+  });
+
+  register('mocklify.selectAiModel', async (providerId?: ModelProviderId) => {
+    const config = vscode.workspace.getConfiguration('mocklify');
+
+    // Resolve which provider's model to change: explicit arg → configured
+    // provider (if key-based) → ask.
+    let target = providerId && MODEL_CATALOG[providerId] ? providerId : undefined;
+    if (!target) {
+      const configured = ai.getConfiguredProviderId();
+      if (configured in MODEL_CATALOG) {
+        target = configured as ModelProviderId;
+      }
+    }
+    if (!target) {
+      const picked = await vscode.window.showQuickPick(
+        (Object.keys(MODEL_CATALOG) as ModelProviderId[]).map((id) => ({
+          label: MODEL_CATALOG[id].label,
+          description: config.get<string>(MODEL_CATALOG[id].settingKey, ''),
+          id,
+        })),
+        { placeHolder: 'Change the model for which AI provider? (Copilot picks its model in chat)' }
+      );
+      if (!picked) {
+        return;
+      }
+      target = picked.id;
+    }
+
+    const catalog = MODEL_CATALOG[target];
+    const current = config.get<string>(catalog.settingKey, '');
+    const CUSTOM = '$(edit) Custom model ID…';
+
+    const items: (vscode.QuickPickItem & { id?: string })[] = [
+      ...catalog.models.map((m) => ({
+        label: m.id,
+        description: m.id === current ? 'current' : undefined,
+        detail: m.detail,
+        id: m.id,
+      })),
+      { label: CUSTOM, detail: catalog.customHint },
+    ];
+    if (current && !catalog.models.some((m) => m.id === current)) {
+      items.unshift({ label: current, description: 'current · custom', id: current });
+    }
+
+    const picked = await vscode.window.showQuickPick(items, {
+      placeHolder: `Choose the ${catalog.label} model for Mocklify`,
+    });
+    if (!picked) {
+      return;
+    }
+
+    let model = picked.id;
+    if (!model) {
+      model = (
+        await vscode.window.showInputBox({
+          prompt: `Enter the ${catalog.label} model ID your endpoint expects`,
+          placeHolder: catalog.customHint,
+          value: current,
+          ignoreFocusOut: true,
+        })
+      )?.trim();
+      if (!model) {
+        return;
+      }
+    }
+
+    await config.update(catalog.settingKey, model, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage(`Mocklify: ${catalog.label} model set to ${model}.`);
   });
 
   register('mocklify.setApiKey', async (providerId?: AiProviderId) => {

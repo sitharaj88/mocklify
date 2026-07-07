@@ -1,8 +1,15 @@
 import * as vscode from 'vscode';
-import { AiProvider, AiRequestOptions, AiUnavailableError, readSseJson } from './types.js';
+import {
+  AiProvider,
+  AiRequestOptions,
+  AiUnavailableError,
+  isSchemaRejection,
+  readSseJson,
+} from './types.js';
 import { ApiKeyManager } from './ApiKeyManager.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
 interface GeminiChunk {
   candidates?: { content?: { parts?: { text?: string }[] } }[];
@@ -10,7 +17,8 @@ interface GeminiChunk {
 
 /**
  * Google Gemini provider using the Generative Language API with an API key
- * from SecretStorage. Model is configurable via mocklify.ai.geminiModel.
+ * from SecretStorage. Model is configurable via mocklify.ai.geminiModel;
+ * mocklify.ai.geminiBaseUrl points at Gemini-compatible gateways/proxies.
  */
 export class GeminiProvider implements AiProvider {
   readonly id = 'gemini' as const;
@@ -24,6 +32,14 @@ export class GeminiProvider implements AiProvider {
 
   private get model(): string {
     return vscode.workspace.getConfiguration('mocklify').get<string>('ai.geminiModel', DEFAULT_MODEL);
+  }
+
+  private get baseUrl(): string {
+    const url = vscode.workspace
+      .getConfiguration('mocklify')
+      .get<string>('ai.geminiBaseUrl', '')
+      .trim();
+    return (url || DEFAULT_BASE_URL).replace(/\/+$/, '');
   }
 
   async *streamRequest(
@@ -41,37 +57,67 @@ export class GeminiProvider implements AiProvider {
     const controller = new AbortController();
     options?.token?.onCancellationRequested(() => controller.abort());
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(this.model)}:streamGenerateContent?alt=sse`;
+    const url = `${this.baseUrl}/models/${encodeURIComponent(this.model)}:streamGenerateContent?alt=sse`;
 
-    const body: Record<string, unknown> = {
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    };
-    if (options?.systemPrompt) {
-      body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
-    }
+    // Gemini's responseSchema dialect is restrictive, so only the mime type is
+    // enforced natively; gateways that reject even that get one plain retry.
+    const configs: (Record<string, unknown> | undefined)[] = options?.jsonSchema
+      ? [{ responseMimeType: 'application/json' }, undefined]
+      : [undefined];
 
-    let response: Response;
-    try {
-      response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-    } catch (error) {
-      if (controller.signal.aborted) {
-        return;
+    let response: Response | undefined;
+    for (let attempt = 0; attempt < configs.length; attempt++) {
+      const generationConfig = configs[attempt];
+      const body: Record<string, unknown> = {
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      };
+      if (options?.systemPrompt) {
+        body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
       }
-      throw new Error('Could not reach the Google Gemini API. Check your network connection.');
+      if (generationConfig) {
+        body.generationConfig = generationConfig;
+      }
+
+      try {
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        });
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        throw new Error(
+          this.baseUrl === DEFAULT_BASE_URL
+            ? 'Could not reach the Google Gemini API. Check your network connection.'
+            : `Could not reach the Gemini-compatible endpoint at ${this.baseUrl}. Check the mocklify.ai.geminiBaseUrl setting and your network.`
+        );
+      }
+
+      if (response.ok) {
+        break;
+      }
+      const error = await this.toError(response);
+      if (
+        attempt < configs.length - 1 &&
+        isSchemaRejection(response.status, error.message, [
+          'generationConfig',
+          'generation_config',
+          'mimeType',
+          'mime_type',
+        ])
+      ) {
+        continue;
+      }
+      throw error;
     }
 
-    if (!response.ok) {
-      throw await this.toError(response);
-    }
-    if (!response.body) {
+    if (!response?.body) {
       throw new Error('The Gemini API returned an empty response.');
     }
 

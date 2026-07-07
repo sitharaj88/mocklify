@@ -36,6 +36,11 @@ const STRONG_MARKERS: RegExp[] = [
   /\buseSWR\b|\buseQuery\b|\buseMutation\b/, // SWR / react-query
   /\bky\.(get|post|put|delete|patch)\b|\bgot\.(get|post|put|delete|patch)\b/,
   /\bcurl_init\b|\bGuzzle\b/, // php
+  /\bApolloClient\b|\bInMemoryCache\b|\buseLazyQuery\b/, // Apollo GraphQL
+  /\bgql\s*(?:`|\()/, // gql template tag
+  /\bGraphQLClient\b|['"`]graphql-request['"`]/, // graphql-request
+  /['"`]@?urql(?:\/[\w-]+)?['"`]/, // urql
+  /["'`][^"'`\s]*\/graphql\b/, // generic POST-to-/graphql endpoint
 ];
 
 /** Weak signals — only meaningful alongside strong ones or in bulk. */
@@ -165,6 +170,324 @@ export function chunkScoredFiles(
  * when method, path, and response status match (so a 200 and a 404 for the
  * same endpoint both survive). First occurrence wins.
  */
+/** Built-in / SDK types that are never app data models. */
+const NON_MODEL_TYPES = new Set([
+  'String',
+  'Int',
+  'Integer',
+  'Long',
+  'Short',
+  'Byte',
+  'Char',
+  'Boolean',
+  'Bool',
+  'Double',
+  'Float',
+  'Number',
+  'Void',
+  'Unit',
+  'Any',
+  'AnyObject',
+  'Nothing',
+  'Object',
+  'Date',
+  'Data',
+  'Url',
+  'Uri',
+  'List',
+  'MutableList',
+  'ArrayList',
+  'Array',
+  'Set',
+  'HashSet',
+  'Map',
+  'HashMap',
+  'MutableMap',
+  'Dictionary',
+  'Optional',
+  'Result',
+  'Error',
+  'Exception',
+  'Throwable',
+  'Call',
+  'Response',
+  'Request',
+  'Flow',
+  'StateFlow',
+  'SharedFlow',
+  'LiveData',
+  'MutableLiveData',
+  'Single',
+  'Observable',
+  'Maybe',
+  'Completable',
+  'Deferred',
+  'Promise',
+  'Task',
+  'Codable',
+  'Decodable',
+  'Encodable',
+  'JsonDecoder',
+  'JsonEncoder',
+  'Json',
+]);
+
+function isModelTypeName(name: string): boolean {
+  return (
+    /^[A-Z][A-Za-z0-9]*$/.test(name) &&
+    /[a-z]/.test(name) &&
+    !NON_MODEL_TYPES.has(name) &&
+    !NON_MODEL_TYPES.has(name.replace(/^JSON/, 'Json'))
+  );
+}
+
+/** Resolve a relative import specifier against the importing file's directory. */
+function resolveRelative(fromFile: string, spec: string): string {
+  const stack = fromFile.split('/').slice(0, -1);
+  for (const part of spec.split('/')) {
+    if (part === '' || part === '.') {
+      continue;
+    }
+    if (part === '..') {
+      stack.pop();
+    } else {
+      stack.push(part);
+    }
+  }
+  return stack.join('/');
+}
+
+/** Candidate on-disk paths for a resolved import (compilers hide extensions). */
+function importPathCandidates(resolved: string): string[] {
+  if (/\.(dart|ts|tsx)$/i.test(resolved)) {
+    return [resolved];
+  }
+  const jsExt = resolved.match(/\.(js|jsx|mjs|cjs)$/i);
+  if (jsExt) {
+    // ESM-style .js suffix usually points at a TS source
+    const base = resolved.slice(0, -jsExt[0].length);
+    return [`${base}.ts`, `${base}.tsx`, resolved];
+  }
+  return [
+    `${resolved}.ts`,
+    `${resolved}.tsx`,
+    `${resolved}.js`,
+    `${resolved}.dart`,
+    `${resolved}/index.ts`,
+    `${resolved}/index.tsx`,
+    `${resolved}/index.js`,
+  ];
+}
+
+/** Imported identifiers from a TS/JS import clause (named, default, aliased). */
+function parseImportClause(clause: string): string[] {
+  const names: string[] = [];
+  const braces = clause.match(/\{([\s\S]*?)\}/);
+  if (braces) {
+    for (const part of braces[1].split(',')) {
+      const name = part.replace(/\btype\b/g, '').trim().split(/\s+as\s+/)[0].trim();
+      if (/^[\w$]+$/.test(name)) {
+        names.push(name);
+      }
+    }
+  }
+  const outside = clause.replace(/\{[\s\S]*?\}/, '').replace(/\*\s+as\s+[\w$]+/, '');
+  for (const part of outside.split(',')) {
+    const name = part.trim();
+    if (/^[\w$]+$/.test(name)) {
+      names.push(name);
+    }
+  }
+  return names;
+}
+
+/**
+ * Find references to data-model types in an API file so the scanner can pull
+ * their definitions into the AI context. For TS/JS/Dart the model usually
+ * lives behind a relative import; for Kotlin/Java/Swift (package/module
+ * imports, no useful paths) only type names used in API-call positions are
+ * harvested (Call<User>, fun …: User, decode(User.self), -> User).
+ */
+export function extractModelReferences(
+  content: string,
+  filePath: string
+): { importPaths: string[]; typeNames: string[] } {
+  const ext = (filePath.match(/\.([A-Za-z]+)$/)?.[1] ?? '').toLowerCase();
+  const importPaths: string[] = [];
+  const typeNames: string[] = [];
+  const addType = (name: string): void => {
+    if (isModelTypeName(name) && !typeNames.includes(name)) {
+      typeNames.push(name);
+    }
+  };
+  const addPaths = (candidates: string[]): void => {
+    for (const candidate of candidates) {
+      if (!importPaths.includes(candidate)) {
+        importPaths.push(candidate);
+      }
+    }
+  };
+
+  if (['ts', 'tsx', 'js', 'jsx', 'mts', 'mjs', 'cts', 'cjs'].includes(ext)) {
+    const importRe = /import\s+(type\s+)?([\s\S]*?)\s*from\s*['"]([^'"]+)['"]/g;
+    for (const match of content.matchAll(importRe)) {
+      const spec = match[3];
+      if (!spec.startsWith('./') && !spec.startsWith('../')) {
+        continue;
+      }
+      const names = parseImportClause(match[2]);
+      const modelNames = names.filter(isModelTypeName);
+      modelNames.forEach(addType);
+      if (modelNames.length > 0 || match[1]) {
+        addPaths(importPathCandidates(resolveRelative(filePath, spec)));
+      }
+    }
+  } else if (ext === 'dart') {
+    for (const match of content.matchAll(/import\s+['"]([^'"]+)['"]([^;]*);/g)) {
+      const spec = match[1];
+      if (spec.startsWith('package:') || spec.startsWith('dart:')) {
+        continue;
+      }
+      addPaths(importPathCandidates(resolveRelative(filePath, spec)));
+      const show = match[2].match(/\bshow\s+([\w,\s]+)/);
+      if (show) {
+        show[1]
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+          .forEach(addType);
+      }
+    }
+  } else if (['kt', 'kts', 'java', 'swift'].includes(ext)) {
+    const genericRe =
+      /\b(?:Call|Response|List|MutableList|ArrayList|Set|Flow|StateFlow|SharedFlow|LiveData|MutableLiveData|Single|Observable|Maybe|Deferred|Result|Page|PagingData|ApiResponse|NetworkResponse|Task)<([^<>]*(?:<[^<>]*>)?[^<>]*)>/g;
+    for (const match of content.matchAll(genericRe)) {
+      for (const id of match[1].match(/[A-Z][A-Za-z0-9]*/g) ?? []) {
+        addType(id);
+      }
+    }
+    for (const match of content.matchAll(/\bfun\s+[\w`]+\s*\([^)]*\)\s*:\s*([A-Z][A-Za-z0-9]*)/g)) {
+      addType(match[1]);
+    }
+    for (const match of content.matchAll(/\bdecode\(\s*\[?\s*([A-Z][A-Za-z0-9]*)\s*\]?\s*\.self/g)) {
+      addType(match[1]);
+    }
+    if (ext === 'swift') {
+      for (const match of content.matchAll(/->\s*\[?\s*([A-Z][A-Za-z0-9]*)/g)) {
+        addType(match[1]);
+      }
+    }
+  }
+
+  return { importPaths, typeNames };
+}
+
+/** Slice a brace/paren-balanced region starting at an opening delimiter. */
+function balanceDelimiters(content: string, openIndex: number): number {
+  const open = content[openIndex];
+  const close = open === '{' ? '}' : ')';
+  let depth = 0;
+  let inString: string | null = null;
+  for (let i = openIndex; i < content.length; i++) {
+    const ch = content[i];
+    if (inString) {
+      if (ch === '\\') {
+        i++;
+      } else if (ch === inString) {
+        inString = null;
+      }
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === '`') {
+      inString = ch;
+    } else if (ch === '/' && content[i + 1] === '/') {
+      while (i < content.length && content[i] !== '\n') {
+        i++;
+      }
+    } else if (ch === open) {
+      depth++;
+    } else if (ch === close) {
+      depth--;
+      if (depth === 0) {
+        return i + 1;
+      }
+    }
+  }
+  return content.length;
+}
+
+/** Capture one definition block starting at the keyword match. */
+function captureDefinition(content: string, startIndex: number): string {
+  let i = startIndex;
+  while (i < content.length) {
+    const ch = content[i];
+    if (ch === '{' || ch === '(') {
+      break;
+    }
+    if (ch === ';') {
+      return content.slice(startIndex, i + 1);
+    }
+    if (ch === '\n') {
+      // allow an opening brace on the next line, otherwise the definition
+      // (e.g. a one-line type alias) ends here
+      const rest = content.slice(i);
+      const brace = rest.match(/^\s*\{/);
+      if (!brace) {
+        return content.slice(startIndex, i);
+      }
+      i += brace[0].length - 1;
+      break;
+    }
+    i++;
+  }
+  if (i >= content.length) {
+    return content.slice(startIndex);
+  }
+
+  let end = balanceDelimiters(content, i);
+  if (content[i] === '(') {
+    // Kotlin data class: optional supertype list and/or class body after the
+    // constructor parentheses
+    const body = content.slice(end).match(/^\s*(?::\s*[\w.<>,\s()]*)?\{/);
+    if (body) {
+      end = balanceDelimiters(content, end + body[0].length - 1);
+    }
+  } else if (content[end] === ';') {
+    end++;
+  }
+  return content.slice(startIndex, end);
+}
+
+/**
+ * Extract the definition blocks (brace-balanced) for the requested type names
+ * from a candidate model file. Returns '' when none of the names are defined.
+ */
+export function extractTypeDefinitions(
+  content: string,
+  typeNames: string[],
+  maxChars = 4000
+): string {
+  const blocks: string[] = [];
+  const seen = new Set<string>();
+  for (const name of typeNames) {
+    if (seen.has(name) || !/^[A-Za-z_$][\w$]*$/.test(name)) {
+      continue;
+    }
+    seen.add(name);
+    const defRe = new RegExp(
+      '^[ \\t]*(?:export\\s+)?(?:public\\s+|internal\\s+|open\\s+|final\\s+|abstract\\s+|sealed\\s+|declare\\s+)*' +
+        `(?:data\\s+class|enum\\s+class|sealed\\s+class|interface|class|struct|enum|type)\\s+${name}\\b`,
+      'm'
+    );
+    const match = defRe.exec(content);
+    if (match) {
+      blocks.push(captureDefinition(content, match.index).trim());
+    }
+  }
+  const result = blocks.join('\n\n');
+  return result.length > maxChars ? result.slice(0, maxChars) : result;
+}
+
 export function dedupeRoutes<T extends Omit<RouteConfig, 'id'>>(routes: T[]): T[] {
   const seen = new Set<string>();
   const result: T[] = [];

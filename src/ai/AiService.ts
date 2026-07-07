@@ -131,9 +131,23 @@ export class AiService {
    * Send a prompt that must return JSON; extracts and parses the first JSON
    * value in the response (tolerates markdown code fences and prose).
    * Retries once with a corrective prompt when the response isn't valid JSON.
+   *
+   * When a JSON Schema is given (argument or options.jsonSchema), it is
+   * forwarded so providers with native structured outputs enforce it; the
+   * extract-and-retry path stays as the universal fallback (Copilot ignores
+   * the schema entirely).
    */
-  async sendJsonRequest<T = unknown>(prompt: string, options?: AiRequestOptions): Promise<T> {
-    const text = await this.sendRequest(prompt, options);
+  async sendJsonRequest<T = unknown>(
+    prompt: string,
+    options?: AiRequestOptions,
+    schema?: Record<string, unknown>
+  ): Promise<T> {
+    const jsonSchema = schema ?? options?.jsonSchema;
+    const requestOptions: AiRequestOptions | undefined = jsonSchema
+      ? { ...options, jsonSchema }
+      : options;
+
+    const text = await this.sendRequest(prompt, requestOptions);
     try {
       return extractJson<T>(text);
     } catch (firstError) {
@@ -143,7 +157,7 @@ export class AiService {
       const reason = firstError instanceof Error ? firstError.message : 'invalid JSON';
       const retryText = await this.sendRequest(
         `${prompt}\n\nYour previous response could not be used (${reason}). Respond again with ONLY the valid JSON value — no prose, no markdown code fences, no trailing commentary.`,
-        options
+        requestOptions
       );
       return extractJson<T>(retryText);
     }

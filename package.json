@@ -185,6 +185,18 @@
         "icon": "$(telescope)"
       },
       {
+        "command": "mocklify.aiGenerateFromTraffic",
+        "title": "AI: Generate Mock Server from Recorded Traffic",
+        "category": "Mocklify",
+        "icon": "$(history)"
+      },
+      {
+        "command": "mocklify.simulateScenario",
+        "title": "Simulate Scenario (Happy Path / Failures)",
+        "category": "Mocklify",
+        "icon": "$(debug-alt)"
+      },
+      {
         "command": "mocklify.openChat",
         "title": "Ask Mocklify in Copilot Chat",
         "category": "Mocklify",
@@ -212,6 +224,12 @@
         "title": "Test AI Provider",
         "category": "Mocklify",
         "icon": "$(beaker)"
+      },
+      {
+        "command": "mocklify.selectAiModel",
+        "title": "Select AI Model",
+        "category": "Mocklify",
+        "icon": "$(circuit-board)"
       }
     ],
     "chatParticipants": [
@@ -448,6 +466,11 @@
           "command": "mocklify.aiGenerateFromCodebase",
           "when": "view == mocklifyServers",
           "group": "1_ai"
+        },
+        {
+          "command": "mocklify.aiGenerateFromTraffic",
+          "when": "view == mocklifyServers",
+          "group": "1_ai"
         }
       ],
       "view/item/context": [
@@ -500,6 +523,11 @@
           "command": "mocklify.generateDocs",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "3_export"
+        },
+        {
+          "command": "mocklify.simulateScenario",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "2_scenario"
         },
         {
           "command": "mocklify.startRecording",
@@ -578,17 +606,37 @@
         "mocklify.ai.claudeModel": {
           "type": "string",
           "default": "claude-opus-4-8",
-          "description": "Claude model to use with the Anthropic API (e.g. claude-opus-4-8, claude-sonnet-5, claude-haiku-4-5)"
+          "markdownDescription": "Claude model ID (pick from a list with **Mocklify: Select AI Model**). Anthropic API: `claude-opus-4-8`, `claude-sonnet-5`, `claude-sonnet-4-6`, `claude-haiku-4-5`. Bedrock-compatible gateways use an `anthropic.` prefix, e.g. `anthropic.claude-opus-4-8`."
+        },
+        "mocklify.ai.claudeBaseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Custom base URL for the Anthropic-compatible endpoint. Leave empty for the official Anthropic API. Set this when your company routes Claude through a gateway or proxy (e.g. a Bedrock-backed or LiteLLM gateway that speaks the Anthropic Messages API), e.g. `https://ai-gateway.mycompany.com`."
         },
         "mocklify.ai.openaiModel": {
           "type": "string",
           "default": "gpt-4o",
-          "description": "OpenAI model to use (e.g. gpt-4o, gpt-4o-mini)"
+          "markdownDescription": "OpenAI model ID (pick from a list with **Mocklify: Select AI Model**), e.g. `gpt-4o`, `gpt-4o-mini`, `gpt-4.1`."
+        },
+        "mocklify.ai.openaiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Custom base URL for the OpenAI-compatible endpoint. Leave empty for `https://api.openai.com/v1`. Set this for Azure OpenAI-compatible gateways, LiteLLM proxies, or other OpenAI-compatible servers, e.g. `https://ai-gateway.mycompany.com/v1`."
         },
         "mocklify.ai.geminiModel": {
           "type": "string",
           "default": "gemini-2.5-flash",
-          "description": "Google Gemini model to use (e.g. gemini-2.5-flash, gemini-2.5-pro)"
+          "markdownDescription": "Google Gemini model ID (pick from a list with **Mocklify: Select AI Model**), e.g. `gemini-2.5-flash`, `gemini-2.5-pro`."
+        },
+        "mocklify.ai.geminiBaseUrl": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Custom base URL for the Gemini-compatible endpoint. Leave empty for `https://generativelanguage.googleapis.com/v1beta`. Set this when routing Gemini through a corporate proxy or gateway."
+        },
+        "mocklify.ai.driftWatch": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Watch saved source files for new API calls that no mock server covers and offer to generate routes (uses local scanning only — no AI calls until you accept)."
         }
       }
     }

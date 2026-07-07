@@ -3,6 +3,7 @@ import { z } from 'zod';
 import {
   RouteConfig,
   RouteConfigSchema,
+  HttpMethodSchema,
   MockServerConfig,
 } from '../types/core.js';
 import type { AiService, AiRequestOptions } from './AiService.js';
@@ -43,11 +44,94 @@ For dynamic/randomized responses use "type": "dynamic" and add a Handlebars temp
   "template": { "engine": "handlebars", "template": "{ \\"id\\": \\"{{faker 'string.uuid'}}\\", \\"name\\": \\"{{faker 'person.fullName'}}\\" }" }
 Available template helpers: {{faker 'namespace.method'}} (faker.js v8 API), {{request.params.name}}, {{request.query.name}}, {{request.body.field}}, {{now}}, {{uuid}}.
 
+To simulate a slow response add an optional top-level delay field (milliseconds):
+  "delay": { "type": "fixed", "value": 10000 }
+
 Rules:
 - Response bodies must contain realistic, domain-appropriate example data (never "string", "example", or lorem ipsum).
 - Cover the full CRUD lifecycle when the request implies a resource (list, get by id, create with 201, update, delete with 204).
 - Include sensible error routes (404 for missing ids, 400 for validation) when useful.
+- When asked for multiple routes, either a bare JSON array or an object of the form {"routes": [...]} is accepted.
 - Return ONLY a JSON value, no explanation.`;
+
+/**
+ * JSON Schema for generated routes, forwarded to providers with native
+ * structured outputs. Written to the strict dialect both Anthropic structured
+ * outputs and OpenAI json_schema accept: object root, additionalProperties:
+ * false on every object, no minLength/minimum/maximum (validateRoutes and
+ * verifyRoutes enforce those), and no string-map `headers` (strict dialects
+ * can't express maps). validateRoutes unwraps the {"routes": [...]} root.
+ */
+export const ROUTES_JSON_SCHEMA: Record<string, unknown> = (() => {
+  const method = { type: 'string', enum: HttpMethodSchema.options };
+  const route = {
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      enabled: { type: 'boolean' },
+      method: { anyOf: [method, { type: 'array', items: method }] },
+      path: { type: 'string' },
+      response: {
+        type: 'object',
+        properties: {
+          type: {
+            type: 'string',
+            enum: ['static', 'dynamic', 'proxy', 'database', 'sequence'],
+          },
+          statusCode: { type: 'integer' },
+          body: {
+            type: 'object',
+            properties: { contentType: { type: 'string' }, content: {} },
+            required: ['contentType', 'content'],
+            additionalProperties: false,
+          },
+          template: {
+            type: 'object',
+            properties: {
+              engine: { type: 'string', enum: ['handlebars'] },
+              template: { type: 'string' },
+            },
+            required: ['engine', 'template'],
+            additionalProperties: false,
+          },
+        },
+        required: ['type', 'statusCode'],
+        additionalProperties: false,
+      },
+      delay: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['fixed', 'random'] },
+          value: { type: 'number' },
+          min: { type: 'number' },
+          max: { type: 'number' },
+        },
+        required: ['type'],
+        additionalProperties: false,
+      },
+      priority: { type: 'number' },
+      tags: { type: 'array', items: { type: 'string' } },
+    },
+    required: ['name', 'method', 'path', 'response'],
+    additionalProperties: false,
+  };
+  return {
+    type: 'object',
+    properties: { routes: { type: 'array', items: route } },
+    required: ['routes'],
+    additionalProperties: false,
+  };
+})();
+
+export interface RejectedRoute {
+  route: Omit<RouteConfig, 'id'>;
+  reasons: string[];
+}
+
+export interface RouteVerification {
+  accepted: Omit<RouteConfig, 'id'>[];
+  rejected: RejectedRoute[];
+}
 
 /**
  * Generates mock servers and routes from natural language descriptions using
@@ -106,7 +190,7 @@ Return a JSON array of route objects.
 
 ${ROUTE_FORMAT_INSTRUCTIONS}`;
 
-    const raw = await this.ai.sendJsonRequest(prompt, options);
+    const raw = await this.ai.sendJsonRequest(prompt, options, ROUTES_JSON_SCHEMA);
     return MockGenerator.validateRoutes(raw);
   }
 
@@ -139,11 +223,23 @@ Use realistic, domain-appropriate example data. Return ONLY the JSON body, no ex
   }
 
   /**
-   * Validate model output as an array of routes. Accepts a bare route object
-   * or an array; drops invalid entries only if at least one valid route remains.
+   * Validate model output as an array of routes. Accepts a bare route object,
+   * an array, or an object wrapping the array (structured outputs and OpenAI
+   * json_object mode produce {"routes": [...]}); drops invalid entries only
+   * if at least one valid route remains.
    */
   static validateRoutes(raw: unknown): Omit<RouteConfig, 'id'>[] {
-    const items = Array.isArray(raw) ? raw : [raw];
+    let value = raw;
+    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+      const record = value as Record<string, unknown>;
+      const keys = Object.keys(record);
+      if (Array.isArray(record.routes)) {
+        value = record.routes;
+      } else if (keys.length === 1 && Array.isArray(record[keys[0]])) {
+        value = record[keys[0]];
+      }
+    }
+    const items = Array.isArray(value) ? value : [value];
     const valid: Omit<RouteConfig, 'id'>[] = [];
     const errors: string[] = [];
 
@@ -163,6 +259,67 @@ Use realistic, domain-appropriate example data. Return ONLY the JSON body, no ex
     }
 
     return valid;
+  }
+
+  /**
+   * Programmatic sanity checks on schema-valid routes that Zod alone can't
+   * express: path shape, :param syntax, plausible status codes, serializable
+   * bodies, and negative routes being disabled. Rejections carry reasons so a
+   * repair prompt can quote them back to the model.
+   */
+  static verifyRoutes(routes: Omit<RouteConfig, 'id'>[]): RouteVerification {
+    const accepted: Omit<RouteConfig, 'id'>[] = [];
+    const rejected: RejectedRoute[] = [];
+
+    for (const route of routes) {
+      const reasons: string[] = [];
+
+      if (!route.path.startsWith('/')) {
+        reasons.push(`path must start with "/" (got "${route.path}")`);
+      }
+      if (/\s/.test(route.path)) {
+        reasons.push('path must not contain whitespace');
+      }
+      if (/[{}<>]/.test(route.path)) {
+        reasons.push(
+          `path parameters must use :name form, not {name} or <name> (got "${route.path}")`
+        );
+      }
+      for (const segment of route.path.split('/')) {
+        if (segment.startsWith(':') && !/^:[A-Za-z_][A-Za-z0-9_]*$/.test(segment)) {
+          reasons.push(`invalid path parameter "${segment}" — use :paramName`);
+        }
+      }
+
+      const status = route.response.statusCode;
+      if (!Number.isInteger(status) || status < 200 || status > 599) {
+        reasons.push(`implausible response status code ${status} (expected 200-599)`);
+      }
+
+      if (route.response.body !== undefined) {
+        if (route.response.body.content === undefined) {
+          reasons.push('response body is present but has no content');
+        } else {
+          try {
+            JSON.stringify(route.response.body.content);
+          } catch {
+            reasons.push('response body content is not JSON-serializable');
+          }
+        }
+      }
+
+      if (route.tags?.includes('negative') && route.enabled) {
+        reasons.push('negative-flow routes must have "enabled": false');
+      }
+
+      if (reasons.length === 0) {
+        accepted.push(route);
+      } else {
+        rejected.push({ route, reasons });
+      }
+    }
+
+    return { accepted, rejected };
   }
 
   /** Attach fresh ids so generated routes can be stored. */

@@ -7,6 +7,12 @@ export interface AiRequestOptions {
   systemPrompt?: string;
   /** Shown to the user when a provider needs consent (Copilot). */
   justification?: string;
+  /**
+   * A JSON Schema the response must satisfy. Providers that can enforce it
+   * natively do so; others ignore it (prompt-based JSON instructions still
+   * apply upstream).
+   */
+  jsonSchema?: Record<string, unknown>;
   token?: vscode.CancellationToken;
 }
 
@@ -36,6 +42,23 @@ export class AiUnavailableError extends Error {
     super(message);
     this.name = 'AiUnavailableError';
   }
+}
+
+/**
+ * Whether an HTTP 400 rejection points at a structured-output field. Gateways
+ * and models that don't support native JSON schemas reject the whole request,
+ * so providers retry once without the structured-output config.
+ */
+export function isSchemaRejection(
+  status: number | undefined,
+  message: string | undefined,
+  fields: readonly string[]
+): boolean {
+  if (status !== 400 || !message) {
+    return false;
+  }
+  const lower = message.toLowerCase();
+  return fields.some((field) => lower.includes(field.toLowerCase()));
 }
 
 /** Read a fetch/SSE stream of `data: {...}` lines, yielding each JSON payload. */

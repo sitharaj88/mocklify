@@ -66,9 +66,23 @@ export default function AiFeatures() {
   "mocklify.ai.provider": "auto",          // auto | copilot | claude | openai | gemini
   "mocklify.ai.claudeModel": "claude-opus-4-8",
   "mocklify.ai.openaiModel": "gpt-4o",
-  "mocklify.ai.geminiModel": "gemini-2.5-flash"
+  "mocklify.ai.geminiModel": "gemini-2.5-flash",
+
+  // Enterprise gateways: route requests through your company's endpoint
+  // (e.g. a Bedrock-backed Anthropic gateway or a LiteLLM proxy).
+  // Leave empty to use the provider's official API.
+  "mocklify.ai.claudeBaseUrl": "https://ai-gateway.mycompany.com",
+  "mocklify.ai.openaiBaseUrl": "",
+  "mocklify.ai.geminiBaseUrl": ""
 }`}
         />
+        <p className="theme-text-secondary mt-4">
+          Pick a model from the current list with{' '}
+          <code className="text-purple-400">Mocklify: Select AI Model</code> — or enter a custom
+          model ID for gateway-specific names (Bedrock-style Claude IDs use an{' '}
+          <code className="text-purple-400">anthropic.</code> prefix, e.g.{' '}
+          <code className="text-purple-400">anthropic.claude-opus-4-8</code>).
+        </p>
       </section>
 
       {/* Create with AI */}
@@ -131,6 +145,20 @@ export default function AiFeatures() {
           Point your app&apos;s base URL (env var or config constant) at{' '}
           <code>http://localhost:&lt;port&gt;</code> and the whole app runs against the mocks.
         </InfoBox>
+        <h3 className="text-lg font-medium mb-3 mt-6">Record &amp; replay, scenarios, and drift watch</h3>
+        <p className="theme-text-secondary mb-4">
+          <code className="text-purple-400">Mocklify: AI: Generate Mock Server from Recorded Traffic</code>{' '}
+          turns real requests captured in the Request Log into a clean mock server — paths are
+          parameterized deterministically and the AI only generalizes payloads it actually saw,
+          never inventing endpoints.{' '}
+          <code className="text-purple-400">Mocklify: Simulate Scenario (Happy Path / Failures)</code>{' '}
+          flips a whole server between the happy path and a chosen failure (401, 500, …) in one
+          step, using the <code className="text-purple-400">negative</code>-tagged routes the
+          generators create. And with the{' '}
+          <code className="text-purple-400">mocklify.ai.driftWatch</code> setting enabled,
+          Mocklify watches saved source files for new API calls no mock covers and offers to
+          generate the missing routes.
+        </p>
       </section>
 
       {/* Copilot Chat */}
@@ -203,6 +231,8 @@ export default function AiFeatures() {
             <tbody className="theme-text-secondary">
               {[
                 ['AI: Generate Mock Server from Codebase', 'Scan app code → full mock server with positive + negative flows'],
+                ['AI: Generate Mock Server from Recorded Traffic', 'Record & replay — captured request logs → clean mock server'],
+                ['Simulate Scenario (Happy Path / Failures)', 'One-click switch between happy path and failure scenarios'],
                 ['AI: Generate Mock Server from Description', 'Plain English → complete mock server'],
                 ['AI: Generate Routes from Description', 'Plain English → routes for an existing server'],
                 ['Generate API Documentation', 'AI-written Markdown docs (deterministic fallback)'],
