@@ -65,8 +65,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-card rounded-xl shadow-xl border border-border p-6 z-50">
-          <Dialog.Title className="text-xl font-semibold text-foreground mb-4">
+        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-surface-800 rounded-xl shadow-xl border border-surface-700 p-6 z-50">
+          <Dialog.Title className="text-xl font-semibold text-surface-100 mb-4">
             Import Routes
           </Dialog.Title>
 
@@ -77,8 +77,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
                 onClick={() => setImportType('openapi')}
                 className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
                   importType === 'openapi'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-secondary text-secondary-foreground border-border hover:bg-secondary/80'
+                    ? 'bg-brand-600 text-white border-brand-500'
+                    : 'bg-surface-700 text-surface-200 border-surface-700 hover:bg-surface-600'
                 }`}
               >
                 <div className="font-medium">OpenAPI / Swagger</div>
@@ -88,8 +88,8 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
                 onClick={() => setImportType('postman')}
                 className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
                   importType === 'postman'
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'bg-secondary text-secondary-foreground border-border hover:bg-secondary/80'
+                    ? 'bg-brand-600 text-white border-brand-500'
+                    : 'bg-surface-700 text-surface-200 border-surface-700 hover:bg-surface-600'
                 }`}
               >
                 <div className="font-medium">Postman Collection</div>
@@ -99,13 +99,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
 
             {/* Target Server */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
+              <label className="block text-sm font-medium text-surface-100 mb-1">
                 Target Server
               </label>
               <select
                 value={targetServerId}
                 onChange={(e) => setTargetServerId(e.target.value)}
-                className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
               >
                 <option value="">Select a server...</option>
                 {servers.map((server) => (
@@ -118,23 +118,23 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
 
             {/* File Upload */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
+              <label className="block text-sm font-medium text-surface-100 mb-1">
                 Upload File
               </label>
               <input
                 type="file"
                 accept={importType === 'openapi' ? '.json,.yaml,.yml' : '.json'}
                 onChange={handleFileUpload}
-                className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer"
+                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-brand-600 file:text-white file:cursor-pointer"
               />
             </div>
 
             {/* Or paste content */}
             <div className="relative">
               <div className="absolute inset-x-0 top-0 flex items-center">
-                <div className="flex-1 border-t border-border" />
-                <span className="px-2 text-sm text-muted-foreground bg-card">or paste content</span>
-                <div className="flex-1 border-t border-border" />
+                <div className="flex-1 border-t border-surface-700" />
+                <span className="px-2 text-sm text-surface-400 bg-surface-800">or paste content</span>
+                <div className="flex-1 border-t border-surface-700" />
               </div>
             </div>
 
@@ -149,13 +149,13 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
                     : 'Paste your Postman Collection JSON here...'
                 }
                 rows={10}
-                className="w-full px-3 py-2 bg-input border border-border rounded-lg text-foreground font-mono text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 font-mono text-sm placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 resize-none"
               />
             </div>
 
             {/* Error */}
             {error && (
-              <div className="px-3 py-2 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <div className="px-3 py-2 bg-red-500/10 border border-destructive/20 rounded-lg text-red-400 text-sm">
                 {error}
               </div>
             )}
@@ -163,14 +163,14 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
             {/* Actions */}
             <div className="flex justify-end gap-2 pt-2">
               <Dialog.Close asChild>
-                <button className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:bg-secondary/80 transition-colors">
+                <button className="px-4 py-2 bg-surface-700 text-surface-200 rounded-lg hover:bg-surface-600 transition-colors">
                   Cancel
                 </button>
               </Dialog.Close>
               <button
                 onClick={handleImport}
                 disabled={isLoading || !content.trim() || !targetServerId}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? 'Importing...' : 'Import Routes'}
               </button>

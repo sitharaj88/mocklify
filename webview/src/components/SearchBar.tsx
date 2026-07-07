@@ -42,11 +42,11 @@ export const SearchBar: React.FC = () => {
   if (!showFilters) return null;
 
   return (
-    <div className="flex flex-col gap-3 p-4 border-b border-border bg-background/50">
+    <div className="flex flex-col gap-3 p-4 border-b border-surface-700 bg-surface-900/50">
       {/* Search Input */}
       <div className="relative">
         <svg
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-surface-500"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -64,12 +64,12 @@ export const SearchBar: React.FC = () => {
           placeholder="Search... (⌘K)"
           value={searchFilters.query}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-10 py-2 bg-input border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="w-full pl-10 pr-10 py-2 bg-surface-800/80 border border-surface-600 rounded-lg text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500"
         />
         {searchFilters.query && (
           <button
             onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-200"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -84,7 +84,7 @@ export const SearchBar: React.FC = () => {
         <select
           value={searchFilters.method || ''}
           onChange={(e) => setMethodFilter(e.target.value || null)}
-          className="px-3 py-1.5 bg-input border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          className="px-3 py-1.5 bg-surface-800/80 border border-surface-600 rounded-lg text-sm text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 [&>option]:bg-surface-900 [&>option]:text-surface-100"
         >
           <option value="">All Methods</option>
           {HTTP_METHODS.map((method) => (
@@ -99,7 +99,7 @@ export const SearchBar: React.FC = () => {
           <select
             value={searchFilters.status || ''}
             onChange={(e) => setStatusFilter(e.target.value || null)}
-            className="px-3 py-1.5 bg-input border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="px-3 py-1.5 bg-surface-800/80 border border-surface-600 rounded-lg text-sm text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500 [&>option]:bg-surface-900 [&>option]:text-surface-100"
           >
             <option value="">All Status</option>
             {STATUS_CODES.map((status) => (
@@ -124,10 +124,10 @@ export const SearchBar: React.FC = () => {
                       : [...searchFilters.tags, tag]
                   );
                 }}
-                className={`px-2 py-1 text-xs rounded-full transition-colors ${
+                className={`px-2 py-1 text-xs rounded-full border transition-colors ${
                   searchFilters.tags.includes(tag)
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    ? 'bg-brand-500/20 border-brand-500/60 text-brand-300'
+                    : 'bg-surface-800/80 border-surface-700 text-surface-300 hover:border-brand-500/50 hover:text-brand-300'
                 }`}
               >
                 {tag}
@@ -143,7 +143,7 @@ export const SearchBar: React.FC = () => {
           searchFilters.tags.length > 0) && (
           <button
             onClick={clearFilters}
-            className="ml-auto px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            className="ml-auto px-3 py-1.5 text-sm text-surface-400 hover:text-surface-100 transition-colors"
           >
             Clear Filters
           </button>
