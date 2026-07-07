@@ -13,6 +13,12 @@ const MODEL_SETTINGS: Record<string, string> = {
   gemini: 'ai.geminiModel',
 };
 
+const BASE_URL_SETTINGS: Record<string, string> = {
+  claude: 'ai.claudeBaseUrl',
+  openai: 'ai.openaiBaseUrl',
+  gemini: 'ai.geminiBaseUrl',
+};
+
 interface MessageToExtension {
   type: string;
   data?: unknown;
@@ -238,6 +244,19 @@ export class WebViewManager {
           await vscode.workspace
             .getConfiguration('mocklify')
             .update(setting, model.trim(), vscode.ConfigurationTarget.Global);
+        }
+        await this.sendAiConfig();
+        break;
+      }
+
+      case 'setAiBaseUrl': {
+        // Empty string is a valid value: it resets to the provider's official API.
+        const { provider, baseUrl } = message.data as { provider: string; baseUrl: string };
+        const setting = BASE_URL_SETTINGS[provider];
+        if (setting) {
+          await vscode.workspace
+            .getConfiguration('mocklify')
+            .update(setting, baseUrl.trim(), vscode.ConfigurationTarget.Global);
         }
         await this.sendAiConfig();
         break;
@@ -487,6 +506,7 @@ export class WebViewManager {
         requiresKey: p.id !== 'copilot',
         hasKey: p.id !== 'copilot' ? ((await this.apiKeys?.hasKey(p.id)) ?? false) : false,
         model: MODEL_SETTINGS[p.id] ? config.get<string>(MODEL_SETTINGS[p.id]) : undefined,
+        baseUrl: BASE_URL_SETTINGS[p.id] ? config.get<string>(BASE_URL_SETTINGS[p.id], '') : undefined,
       }))
     );
 

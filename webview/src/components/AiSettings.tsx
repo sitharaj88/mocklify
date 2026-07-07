@@ -31,6 +31,12 @@ const PROVIDER_HINTS: Record<string, string> = {
   gemini: 'AIza…  from aistudio.google.com',
 };
 
+const ENDPOINT_HINTS: Record<string, string> = {
+  claude: 'https://ai-gateway.mycompany.com  (Bedrock-compatible / LiteLLM gateway)',
+  openai: 'https://ai-gateway.mycompany.com/v1  (Azure-compatible / LiteLLM gateway)',
+  gemini: 'https://ai-gateway.mycompany.com  (Gemini-compatible gateway)',
+};
+
 function ProviderStatus({ info }: { info: AiProviderInfo }) {
   if (info.available) {
     return (
@@ -56,6 +62,7 @@ export function AiSettings() {
   const { aiConfig, aiTestResult, setAiTestResult } = useStore();
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [modelDrafts, setModelDrafts] = useState<Record<string, string>>({});
+  const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({});
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
@@ -97,6 +104,13 @@ export function AiSettings() {
     const model = (modelDrafts[provider] ?? fallback ?? '').trim();
     if (!model || model === fallback) return;
     postMessage({ type: 'setAiModel', data: { provider, model } });
+  };
+
+  const saveBaseUrl = (provider: string, fallback?: string) => {
+    // Unlike model, empty is meaningful: it resets to the official API.
+    const baseUrl = (baseUrlDrafts[provider] ?? fallback ?? '').trim();
+    if (baseUrl === (fallback ?? '')) return;
+    postMessage({ type: 'setAiBaseUrl', data: { provider, baseUrl } });
   };
 
   const runTest = () => {
@@ -270,6 +284,24 @@ export function AiSettings() {
                     onBlur={() => saveModel(p.id, p.model)}
                     onKeyDown={(e) => e.key === 'Enter' && saveModel(p.id, p.model)}
                   />
+                </FormGroup>
+
+                <FormGroup>
+                  <Label className="text-xs">Endpoint (base URL)</Label>
+                  <Input
+                    className="w-full"
+                    placeholder={ENDPOINT_HINTS[p.id]}
+                    value={baseUrlDrafts[p.id] ?? p.baseUrl ?? ''}
+                    onChange={(e) => setBaseUrlDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                    onBlur={() => saveBaseUrl(p.id, p.baseUrl)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveBaseUrl(p.id, p.baseUrl)}
+                  />
+                  <FormHint>
+                    For company gateways: AWS Bedrock-compatible, Azure-compatible, or LiteLLM
+                    proxies. Leave empty to use the official API. Set the model above to the ID
+                    your gateway expects (e.g. Bedrock&apos;s{' '}
+                    <code className="text-violet-400">anthropic.claude-opus-4-8</code>).
+                  </FormHint>
                 </FormGroup>
               </div>
             ))}

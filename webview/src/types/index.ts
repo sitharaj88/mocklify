@@ -251,6 +251,7 @@ export interface AiProviderInfo {
   requiresKey: boolean;
   hasKey: boolean;
   model?: string;
+  baseUrl?: string;
 }
 
 export interface AiConfig {
