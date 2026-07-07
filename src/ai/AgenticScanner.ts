@@ -322,6 +322,7 @@ export class AgenticScanner {
     onProgress?: (progress: CodebaseScanProgress) => void;
   }): Promise<CodebaseScanSummary> {
     // Lazy so the pure exports above stay importable outside the extension host.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
     const vs: typeof import('vscode') = require('vscode');
     const report = (message: string, fraction: number) =>
       options?.onProgress?.({ message, fraction });

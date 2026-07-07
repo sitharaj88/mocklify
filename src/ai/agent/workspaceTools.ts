@@ -454,7 +454,8 @@ export function createWorkspaceTools(
   workspaceRoot: vscode.Uri,
   budgetBytes: number = DEFAULT_READ_BUDGET_BYTES
 ): WorkspaceTools {
-  // Lazy so the pure exports above stay importable outside the extension host.
+    // Lazy so the pure exports above stay importable outside the extension host.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const vs: typeof import('vscode') = require('vscode');
   const budget = new ReadBudget(budgetBytes);
   const filesRead = new Set<string>();

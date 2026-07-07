@@ -6,6 +6,9 @@ All notable changes to the "Mocklify" extension will be documented in this file.
 
 ### Added
 
+- **Export Server As…** (`mocklify.exportServerAs`, also in the dashboard's export dialog): OpenAPI 3.0 JSON/YAML, **Postman Collection v2.1** (deterministic collection id, folders per tag, mock responses as saved examples, failure-scenario subfolders), **REST Client `.http`**, **API docs web page** (self-contained single HTML file with search, curl examples, light/dark), **Confluence Storage Format** (paste via Insert → Markup or push via REST API), and Markdown. Generating docs now offers "Also export as Web Page / Confluence"
+- **Dashboard UI overhaul**: consistent method-badge and status color system, retuned light theme with WCAG-AA contrast, auto-collapsing sidebar rail, route tables collapse to cards on narrow panes, responsive stat grid and modals, unified focus rings and motion
+
 - **Agentic codebase scanning** (`mocklify.ai.scanMode`: `fast` | `agentic`): in agentic mode the AI explores the workspace itself through read-only tools (`list_files` / `read_file` / `search_code`) — following imports to data models, auth, and error conventions — then submits routes validated against the route schema. Hardened confinement: path-traversal and symlink protection, secrets denylist (`.env`, keys, credentials), 512KB read budget, 30-tool-call cap, 8-minute wall clock. Falls back to the fast scan (with a notice) when the active provider lacks tool support
 - **Dashboard codebase generation**: a "From Codebase" button in the Create with AI panel with live stage messages, a progress bar, and a Cancel button
 - **Copilot model selection** (`mocklify.ai.copilotModel`): pick from the live model list your Copilot subscription exposes — in the dashboard or via `Mocklify: Select AI Model`; empty = auto-select best
@@ -16,6 +19,8 @@ All notable changes to the "Mocklify" extension will be documented in this file.
 
 - AI requests can no longer hang forever: a stall watchdog (120s first data / 90s mid-stream gap) aborts dead requests with an error naming the provider and the base-URL setting to check; the codebase scan shows live streaming progress
 - Dashboard sidebar/About and HAR exports showed a hardcoded version 0.1.0 — the real extension version is now injected at runtime
+- Search bar, filters, and three dialogs rendered as unstyled native (white) controls in both themes — undefined Tailwind token classes mapped onto the theme palette
+- Generated curl commands (docs exports and the log cURL export) used invalid shell quoting for single quotes in bodies/headers — now properly escaped and round-trip through `sh`
 
 ## [0.3.0] - 2026-07-07 (pre-release)
 
