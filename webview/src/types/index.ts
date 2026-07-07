@@ -197,6 +197,8 @@ export type MessageToExtension =
   | { type: 'searchRoutes'; data: { query: string; serverId?: string } }
   // AI generation
   | { type: 'aiGenerateServer'; data: { description: string; autoStart?: boolean } }
+  | { type: 'aiGenerateFromCodebase'; data: { autoStart?: boolean } }
+  | { type: 'aiCancelGeneration' }
   | { type: 'aiGenerateRoutes'; serverId: string; data: { description: string } }
   // AI configuration
   | { type: 'getAiConfig' }
@@ -223,8 +225,9 @@ export type MessageFromExtension =
   // AI generation
   | {
       type: 'aiStatus';
-      status: 'generating' | 'done' | 'error';
+      status: 'idle' | 'generating' | 'done' | 'error';
       message?: string;
+      fraction?: number;
       provider?: string;
       serverId?: string;
       serverName?: string;
@@ -238,6 +241,8 @@ export type MessageFromExtension =
 export interface AiGenerationState {
   status: 'idle' | 'generating' | 'done' | 'error';
   message?: string;
+  /** 0..1 pipeline progress while generating. */
+  fraction?: number;
   provider?: string;
   serverId?: string;
   serverName?: string;

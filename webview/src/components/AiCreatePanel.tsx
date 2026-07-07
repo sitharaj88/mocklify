@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Loader2, CheckCircle2, AlertCircle, ArrowRight, X } from 'lucide-react';
+import {
+  Sparkles,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  ArrowRight,
+  X,
+  FolderSearch,
+} from 'lucide-react';
 import { useStore, postMessage } from '../store';
 import { Button } from './ui';
 import { cn } from '../lib/utils';
@@ -95,6 +103,15 @@ export function AiCreatePanel() {
             </>
           )}
         </Button>
+        <Button
+          variant="secondary"
+          onClick={() => postMessage({ type: 'aiGenerateFromCodebase', data: { autoStart } })}
+          disabled={isGenerating}
+          title="Scan this workspace's source code for API calls and generate a mock server covering them"
+        >
+          <FolderSearch size={16} />
+          From Codebase
+        </Button>
       </div>
 
       <label className="flex items-center gap-2 mt-2 text-xs text-surface-400 cursor-pointer select-none w-fit">
@@ -134,11 +151,29 @@ export function AiCreatePanel() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-3 flex items-center gap-2 text-sm text-violet-300"
+            className="mt-3 space-y-2"
           >
-            <Loader2 size={14} className="animate-spin" />
-            {aiGeneration.provider ?? 'AI'} is designing your API — routes, realistic data, and
-            error cases…
+            <div className="flex items-center gap-2 text-sm text-violet-300">
+              <Loader2 size={14} className="animate-spin shrink-0" />
+              <span className="flex-1 min-w-0 truncate">
+                {aiGeneration.message ??
+                  `${aiGeneration.provider ?? 'AI'} is designing your API — routes, realistic data, and error cases…`}
+              </span>
+              <button
+                onClick={() => postMessage({ type: 'aiCancelGeneration' })}
+                className="shrink-0 px-2 py-0.5 rounded text-xs border border-surface-600 text-surface-300 hover:border-red-500/50 hover:text-red-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+            {typeof aiGeneration.fraction === 'number' && (
+              <div className="h-1 rounded-full bg-surface-800 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-violet-500 transition-all duration-300"
+                  style={{ width: `${Math.round(Math.min(1, aiGeneration.fraction) * 100)}%` }}
+                />
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -158,6 +193,11 @@ export function AiCreatePanel() {
                   {' '}
                   at <span className="font-mono">localhost:{aiGeneration.port}</span>
                 </>
+              ) : null}
+              {aiGeneration.message ? (
+                <span className="block text-xs text-emerald-400/80 mt-1">
+                  {aiGeneration.message}
+                </span>
               ) : null}
             </span>
             <Button variant="secondary" size="sm" onClick={handleViewServer}>

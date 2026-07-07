@@ -2,8 +2,14 @@ import * as vscode from 'vscode';
 import { MockServerManager } from '../core/MockServerManager.js';
 import { MockServerConfig, RouteConfig, DatabaseConnection } from '../types/core.js';
 import { v4 as uuidv4 } from 'uuid';
-import { AiUnavailableError, AiProviderId } from '../ai/providers/types.js';
+import { AiUnavailableError, AiProviderId, AgenticScanUnavailableError } from '../ai/providers/types.js';
 import { MODEL_CATALOG, ModelProviderId } from '../ai/modelCatalog.js';
+import {
+  CodebaseMockGenerator,
+  CodebaseScanProgress,
+  CodebaseScanSummary,
+} from '../ai/CodebaseMockGenerator.js';
+import { AgenticScanner } from '../ai/AgenticScanner.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
 import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
@@ -32,6 +38,7 @@ export class WebViewManager {
   private panel: vscode.WebviewPanel | undefined;
   private disposables: vscode.Disposable[] = [];
   private databases: DatabaseConnection[] = [];
+  private aiGenerationCts: vscode.CancellationTokenSource | undefined;
 
   constructor(
     private context: vscode.ExtensionContext,
@@ -291,6 +298,14 @@ export class WebViewManager {
         await this.aiGenerateServer(
           message.data as { description: string; autoStart?: boolean }
         );
+        break;
+
+      case 'aiGenerateFromCodebase':
+        await this.aiGenerateFromCodebase(message.data as { autoStart?: boolean } | undefined);
+        break;
+
+      case 'aiCancelGeneration':
+        this.aiGenerationCts?.cancel();
         break;
 
       case 'aiGenerateRoutes':
@@ -609,6 +624,118 @@ export class WebViewManager {
       });
     } catch (error) {
       this.sendAiStatus('error', this.describeAiError(error));
+    }
+  }
+
+  /**
+   * Dashboard-driven codebase scan with live progress: streams scan/analyze
+   * progress into the AI panel (message + fraction), honors the scanMode
+   * setting with agentic → fast fallback, and creates the server directly
+   * (the panel's result card replaces the command flow's modal confirm).
+   */
+  private async aiGenerateFromCodebase(data?: { autoStart?: boolean }): Promise<void> {
+    if (!this.aiService) {
+      this.sendAiStatus('error', 'AI features are not available in this session.');
+      return;
+    }
+    if (!vscode.workspace.workspaceFolders?.length) {
+      this.sendAiStatus('error', 'Open a folder or workspace to scan for API calls.');
+      return;
+    }
+    if (this.aiGenerationCts) {
+      this.sendAiStatus('error', 'A generation is already running — cancel it first.');
+      return;
+    }
+
+    const provider = await this.aiService.getActiveProviderLabel();
+    this.sendAiStatus('generating', 'Scanning workspace for API calls…', provider);
+
+    this.aiGenerationCts = new vscode.CancellationTokenSource();
+    const token = this.aiGenerationCts.token;
+
+    try {
+      const onProgress = ({ message, fraction }: CodebaseScanProgress) => {
+        this.panel?.webview.postMessage({
+          type: 'aiStatus',
+          status: 'generating',
+          message,
+          fraction,
+          provider,
+        });
+      };
+
+      const scanMode = vscode.workspace
+        .getConfiguration('mocklify')
+        .get<'fast' | 'agentic'>('ai.scanMode', 'fast');
+
+      let summary: CodebaseScanSummary;
+      if (scanMode === 'agentic') {
+        try {
+          summary = await new AgenticScanner(this.aiService).generate({ token, onProgress });
+        } catch (error) {
+          const unavailable =
+            error instanceof AgenticScanUnavailableError ||
+            (error instanceof Error && error.name === 'AgenticScanUnavailableError');
+          if (!unavailable) {
+            throw error;
+          }
+          onProgress({
+            message: `${provider ?? 'The provider'} does not support agentic scanning — using fast scan.`,
+            fraction: 0.02,
+          });
+          summary = await new CodebaseMockGenerator(this.aiService).generate({
+            token,
+            onProgress,
+          });
+        }
+      } else {
+        summary = await new CodebaseMockGenerator(this.aiService).generate({ token, onProgress });
+      }
+      if (token.isCancellationRequested) {
+        this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
+        return;
+      }
+
+      const servers = await this.manager.getServers();
+      const usedPorts = new Set(servers.map((s) => s.port));
+      let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
+      while (usedPorts.has(port)) {
+        port++;
+      }
+
+      const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
+      const server = await this.manager.createServer(`${workspaceName} Mock API`, port);
+      await this.manager.addRoutes(server.id, summary.routes);
+
+      if (data?.autoStart) {
+        try {
+          await this.manager.startServer(server.id);
+        } catch (error) {
+          this.sendError(
+            `Server created, but failed to start: ${error instanceof Error ? error.message : 'unknown error'}`
+          );
+        }
+      }
+
+      await this.sendState();
+      this.panel?.webview.postMessage({
+        type: 'aiStatus',
+        status: 'done',
+        serverId: server.id,
+        serverName: server.name,
+        port: server.port,
+        routeCount: summary.routes.length,
+        message: `${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
+      });
+    } catch (error) {
+      if (error instanceof vscode.CancellationError || token.isCancellationRequested) {
+        this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
+        return;
+      }
+      this.sendAiStatus('error', this.describeAiError(error));
+    } finally {
+      this.aiGenerationCts?.dispose();
+      this.aiGenerationCts = undefined;
     }
   }
 

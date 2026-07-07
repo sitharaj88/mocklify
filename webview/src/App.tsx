@@ -116,6 +116,7 @@ function App() {
           setAiGeneration({
             status: message.status,
             message: message.message,
+            fraction: message.fraction,
             provider: message.provider,
             serverId: message.serverId,
             serverName: message.serverName,
