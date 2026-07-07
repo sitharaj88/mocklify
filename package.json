@@ -5,7 +5,7 @@
   "version": "0.3.0",
   "publisher": "sitharaj",
   "icon": "resources/icon.png",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/sitharaj88/mocklify"

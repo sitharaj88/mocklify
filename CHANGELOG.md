@@ -2,6 +2,27 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
+## [0.3.0] - 2026-07-07 (pre-release)
+
+### Added
+
+- **OpenAPI / Swagger import** (`Mocklify: Import OpenAPI / Swagger Spec`): OpenAPI 3.0/3.1 and Swagger 2.0, JSON or YAML, with local `$ref` resolution (cycle-safe) and deterministic seeded example data — the same spec always imports identically, no AI required. Documented 4xx/5xx responses become disabled negative routes. Optional **AI enrichment** rewrites example data to be coherent across routes and adds failure routes for endpoints that don't document them (with the exact AI request count disclosed up front); falls back to the deterministic import if AI is unavailable
+- **Record & replay** (`Mocklify: AI: Generate Mock Server from Recorded Traffic`): turns captured request logs into a mock server — endpoints grouped and parameterized deterministically (`/users/42` → `/users/:userId`), real payloads generalized by AI, captured errors preserved as disabled negative routes; never invents endpoints that weren't observed
+- **Stateful mocks**: routes with a `stateful` block (`{ collection, idParam?, seed? }`) share a live in-memory collection per server — GET lists (`?limit=`/`?offset=`), GET `/:id`, POST (201), PUT/PATCH, DELETE (204), 404 on missing ids. Seeds from `stateful.seed` or the route's example body; resets on restart or via `Mocklify: Reset Stateful Mock Data`. All AI generators emit stateful CRUD families automatically
+- **Chaos simulation** (`Mocklify: Configure Chaos (Latency & Failures)`): per-server random failures and latency jitter with presets (Flaky 10% / Unstable 30% + jitter) or custom rate, status, and delay range; hot-reloads onto running servers
+- **Scenario simulation** (`Mocklify: Simulate Scenario (Happy Path / Failures)`): one-command switch between happy path and failure scenarios (401, 404, 429, 500, slow responses, GraphQL errors) — scenarios reset to baseline first so they never stack
+- **Drift watch** (`mocklify.ai.driftWatch` setting): notifies when saved source files contain API calls no mock covers, with one-click route generation carrying the missing endpoints
+- **Enterprise AI gateways**: `mocklify.ai.claudeBaseUrl` / `openaiBaseUrl` / `geminiBaseUrl` settings route AI traffic through Bedrock-backed, LiteLLM, Azure-compatible, or other corporate gateways; `Mocklify: Select AI Model` picker with current model catalogs plus custom IDs (e.g. Bedrock-style `anthropic.claude-opus-4-8`)
+- **Structured AI outputs**: Claude, OpenAI, and Gemini requests use native JSON-schema enforcement with graceful fallback for gateways that don't support it
+- **Codebase scanning upgrades**: GraphQL client detection (Apollo, urql, graphql-request), data-model import following so mocked responses match your app's types, and expanded negative flows (403, 429 with `Retry-After`, slow-response routes)
+- **Generation self-verification**: every AI-generated route batch is programmatically checked and invalid routes get one AI repair round before anything is saved
+
+### Changed
+
+- Negative routes now carry a matching priority so *enabling* a failure route reliably wins over the success route on the same method + path
+- Bulk route insertion (imports, generators) persists in a single write instead of one write per route
+- License changed from MIT to Apache-2.0
+
 ## [0.2.0] - 2026-07-03
 
 ### Added

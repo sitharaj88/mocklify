@@ -32,14 +32,19 @@
 ### 🤖 AI Integration — Copilot, Claude, OpenAI, Gemini
 
 - **Multiple AI Providers** - Use GitHub Copilot (no key needed), or bring your own API key for **Anthropic Claude**, **OpenAI**, or **Google Gemini**; `auto` mode picks the first available
-- **Mock Your App from Code** - Scan any client codebase (Android/Retrofit, iOS/URLSession, web fetch/axios, Flutter/Dio, and more) and generate a complete mock server covering **positive and negative flows** — success responses shaped like your models, plus disabled 400/401/404/500 routes you toggle on to simulate failures
+- **Enterprise Gateways & Bedrock** - Point any provider at your company's endpoint (Bedrock-backed Anthropic gateways, LiteLLM, Azure-compatible proxies) with per-provider base-URL settings and custom model IDs
+- **Mock Your App from Code** - Scan any client codebase (Android/Retrofit, iOS/URLSession, web fetch/axios, Flutter/Dio, GraphQL clients, and more) and generate a complete mock server covering **positive and negative flows** — success responses shaped like your models, plus disabled 400/401/403/404/429/500 and slow-response routes you toggle on to simulate failures
+- **Record & Replay** - Turn captured request logs into a clean mock server: real payloads, parameterized paths (`/users/42` → `/users/:userId`), observed errors as toggleable failure routes
+- **OpenAPI Import + AI Enrichment** - Import OpenAPI 3.x / Swagger 2.0 specs deterministically (no AI required), optionally letting the AI make example data coherent across routes and fill in undocumented failure cases
 - **AI Mock Generation** - Describe your API in plain English (in the dashboard or Copilot Chat); get a complete mock server with realistic data
+- **Scenario Simulation** - One command flips a server between happy path and failure scenarios (401, 404, 500, slow responses) — and back
+- **Drift Watch** - Get notified when your app gains API calls that no mock covers, with one-click route generation
 - **`@mocklify` Chat Participant** - Design, document, and debug mock APIs conversationally in Copilot Chat — answers come from your selected provider
 - **AI API Documentation** - Generate polished, developer-ready API docs for any mock server
 - **Copilot Agent Tools** - Copilot agent mode can list, create, populate, start, and inspect your mock servers autonomously
 - **Traffic Analysis** - Analyze request logs, spot errors, and get suggested routes for unmatched requests
 - **Secure Key Storage** - API keys live in VS Code's encrypted secret storage, never in settings files
-- **Graceful Fallback** - Documentation and OpenAPI export work fully without any AI configured
+- **Graceful Fallback** - Documentation, OpenAPI import/export, and stateful mocking work fully without any AI configured
 
 ### 📚 API Documentation
 
@@ -49,6 +54,8 @@
 ### 🚀 Core Features
 
 - **Multiple Mock Servers** - Run multiple servers on different ports simultaneously
+- **Stateful Mocks** - CRUD route families share a live in-memory collection: POST creates, GET reflects it, DELETE removes it — create-then-fetch flows just work
+- **Chaos Simulation** - Inject random failures and latency jitter per server to test how your app handles a flaky backend
 - **Dynamic Responses** - Use Handlebars templates with 80+ Faker.js helpers
 - **Request Matching** - Match by headers, query params, and body content
 - **Response Delays** - Simulate network latency with fixed or random delays
@@ -62,7 +69,7 @@
 
 ### 📥 Import & Export
 
-- **OpenAPI/Swagger** - Import from OpenAPI 3.0 or Swagger 2.0 specs
+- **OpenAPI/Swagger** - Import from OpenAPI 3.0/3.1 or Swagger 2.0 specs — deterministic, with optional AI enrichment
 - **OpenAPI Export** - Export any server as an OpenAPI 3.0 spec
 - **Postman Collections** - Import from Postman Collection v2.1
 - **HAR Export** - Export request logs in HTTP Archive format
@@ -431,6 +438,13 @@ Mocklify stores configuration in a `.mocklify` folder in your workspace:
 | `mocklify.configPath` | `.mocklify` | Configuration directory path |
 | `mocklify.logging.maxEntries` | `1000` | Maximum log entries to keep |
 | `mocklify.logging.includeBody` | `true` | Include request/response bodies in logs |
+| `mocklify.ai.provider` | `auto` | AI provider: `auto`, `copilot`, `claude`, `openai`, or `gemini` |
+| `mocklify.ai.claudeModel` | `claude-opus-4-8` | Claude model ID (Bedrock-style IDs like `anthropic.claude-opus-4-8` work with gateways) |
+| `mocklify.ai.openaiModel` | `gpt-4o` | OpenAI model ID (or an Azure-compatible deployment name) |
+| `mocklify.ai.geminiModel` | `gemini-2.5-flash` | Google Gemini model ID |
+| `mocklify.ai.claudeBaseUrl` | *(empty)* | Anthropic-compatible gateway/proxy endpoint; empty = official API |
+| `mocklify.ai.openaiBaseUrl` | *(empty)* | OpenAI-compatible gateway/proxy endpoint; empty = official API |
+| `mocklify.ai.geminiBaseUrl` | *(empty)* | Gemini-compatible gateway/proxy endpoint; empty = official API |
 | `mocklify.ai.driftWatch` | `false` | Watch saved files for uncovered API calls and offer to generate routes |
 
 ---
@@ -447,12 +461,6 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
 ## 🙏 Acknowledgments
 
 - [Fastify](https://fastify.dev/) - Fast and low overhead web framework
@@ -462,6 +470,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-<p align="center">
-  Made with ❤️ by <a href="https://github.com/sitharaj88">Sitharaj</a>
-</p>
+## 👤 Author
+
+**Sitharaj Seenivasan**
+
+- 🌐 Website: [sitharaj.in](https://sitharaj.in)
+- 💼 LinkedIn: [sitharaj08](https://www.linkedin.com/in/sitharaj08)
+- 💻 GitHub: [sitharaj88](https://github.com/sitharaj88)
+
+## ☕ Support
+
+If this project helps you, consider buying me a coffee — it keeps the work going.
+
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-FFDD00?logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/sitharaj88)
+
+## 📄 License
+
+Licensed under the [Apache License 2.0](LICENSE). © 2026 Sitharaj Seenivasan.
