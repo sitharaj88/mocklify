@@ -212,13 +212,28 @@ Run **`Mocklify: AI: Generate Mock Server from Recorded Traffic`** to turn reque
 
 Run **`Mocklify: Simulate Scenario (Happy Path / Failures)`** on any server with negative-tagged routes (the codebase and traffic generators create them automatically). Pick "Happy path" or a failure like "Simulate 401" — Mocklify flips the right routes on and off so the failure wins the match while unrelated endpoints keep succeeding, and hot-reloads running servers. Scenarios never stack; each one resets to the happy-path baseline first.
 
+### Import OpenAPI / Swagger Specs
+
+Run **`Mocklify: Import OpenAPI / Swagger Spec`** to turn an OpenAPI 3.0/3.1 or Swagger 2.0 spec (JSON or YAML) into a mock server. Mocklify finds spec files in your workspace (or lets you browse), resolves `$ref` pointers, prefers the spec's own examples, and deterministically generates realistic bodies from schemas — no AI required. Optionally choose **Import + AI enrich** to have the AI rewrite example data so it is coherent across routes and add disabled failure routes (400/401/404/429/500) for endpoints that don't document them; if AI is unavailable the deterministic import is used as-is. Documented 4xx/5xx responses become disabled negative routes ready for scenario simulation.
+
+### Stateful Mocks
+
+Give a route a `stateful` block (`{ "collection": "users", "seed": [...] }`) and its CRUD family shares an in-memory collection: GET lists (with `?limit=`/`?offset=`), GET `/:id` fetches, POST inserts (201), PUT/PATCH update, DELETE removes (204), and missing ids return 404 — so create-then-fetch flows actually work. Collections seed lazily from `stateful.seed` (or the route's static example body) and reset on server restart or via **`Mocklify: Reset Stateful Mock Data`**. The AI generators emit `stateful` blocks automatically for CRUD endpoint families.
+
+### Chaos Simulation
+
+Run **`Mocklify: Configure Chaos (Latency & Failures)`** on a server to test how your app handles a flaky backend: pick a preset (Flaky — 10% 503s; Unstable — 30% failures + 500-2000ms jitter) or configure a custom failure rate, status code, and latency range. Chaos applies to **all** routes on the server, hot-reloads without a restart, and is persisted in `servers.json` under the server's `chaos` block.
+
 ### AI Commands
 
 | Command | Description |
 |---------|-------------|
 | `Mocklify: AI: Generate Mock Server from Codebase` | Scan your app's code → full mock server with positive + negative flows |
 | `Mocklify: AI: Generate Mock Server from Recorded Traffic` | Record & replay — captured request logs → clean mock server |
+| `Mocklify: Import OpenAPI / Swagger Spec` | OpenAPI/Swagger spec → mock server, with optional AI enrichment |
 | `Mocklify: Simulate Scenario (Happy Path / Failures)` | One-click switch between happy path and failure scenarios (401, 500, …) |
+| `Mocklify: Configure Chaos (Latency & Failures)` | Random failures and latency jitter across a whole server |
+| `Mocklify: Reset Stateful Mock Data` | Clear a server's in-memory stateful collections (re-seed on next request) |
 | `Mocklify: AI: Generate Mock Server from Description` | Natural language → full mock server |
 | `Mocklify: AI: Generate Routes from Description` | Natural language → routes for an existing server |
 | `Mocklify: Generate API Documentation` | AI-written Markdown docs (deterministic fallback without Copilot) |

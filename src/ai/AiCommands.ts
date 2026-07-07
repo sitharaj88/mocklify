@@ -9,6 +9,8 @@ import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
 import { CodebaseMockGenerator } from './CodebaseMockGenerator.js';
 import { TrafficMockGenerator } from './TrafficMockGenerator.js';
+import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
+import { SpecEnricher, EnrichedImportResult, formatImportBlocks } from './SpecEnricher.js';
 
 const KEY_PROVIDERS: { id: AiProviderId; label: string; hint: string }[] = [
   { id: 'claude', label: 'Claude (Anthropic)', hint: 'sk-ant-…  from console.anthropic.com' },
@@ -188,9 +190,7 @@ export function registerAiCommands(
           }
 
           const server = await manager.createServer(generated.name, generated.port);
-          for (const route of generated.routes) {
-            await manager.addRoute(server.id, route);
-          }
+          await manager.addRoutes(server.id, generated.routes);
           if (confirm === 'Create & Start') {
             await manager.startServer(server.id);
             vscode.window.showInformationMessage(
@@ -234,9 +234,7 @@ export function registerAiCommands(
           if (token.isCancellationRequested) {
             return;
           }
-          for (const route of routes) {
-            await manager.addRoute(server.id, route);
-          }
+          await manager.addRoutes(server.id, routes);
           vscode.window.showInformationMessage(
             `Mocklify: Added ${routes.length} route(s) to "${server.name}".`
           );
@@ -249,6 +247,184 @@ export function registerAiCommands(
 
   register('mocklify.openChat', async () => {
     await vscode.commands.executeCommand('workbench.action.chat.open', { query: '@mocklify ' });
+  });
+
+  // Warnings from spec imports (per-path $ref / non-JSON issues) go to an
+  // output channel so they don't flood notifications.
+  let importChannel: vscode.OutputChannel | undefined;
+  const getImportChannel = (): vscode.OutputChannel => {
+    if (!importChannel) {
+      importChannel = vscode.window.createOutputChannel('Mocklify Import');
+      context.subscriptions.push(importChannel);
+    }
+    return importChannel;
+  };
+
+  register('mocklify.importOpenApi', async () => {
+    const specUri = await pickSpecFile();
+    if (!specUri) {
+      return;
+    }
+
+    let importResult: OpenApiImportResult;
+    try {
+      const bytes = await vscode.workspace.fs.readFile(specUri);
+      const text = Buffer.from(bytes).toString('utf-8');
+      // Parsing a large spec is synchronous CPU work — surface progress first
+      // and yield once so the notification paints before the parse blocks.
+      importResult = await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `Mocklify: Parsing "${vscode.workspace.asRelativePath(specUri)}"…`,
+        },
+        async () => {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          return new OpenApiImportService().importSpec(text);
+        }
+      );
+    } catch (error) {
+      vscode.window.showErrorMessage(
+        `Mocklify: Could not import spec: ${error instanceof Error ? error.message : String(error)}`
+      );
+      return;
+    }
+
+    if (importResult.warnings.length > 0) {
+      const channel = getImportChannel();
+      channel.appendLine(
+        `[${new Date().toISOString()}] ${importResult.warnings.length} warning(s) importing ${vscode.workspace.asRelativePath(specUri)}:`
+      );
+      for (const warning of importResult.warnings) {
+        channel.appendLine(`  - ${warning}`);
+      }
+    }
+
+    if (importResult.routes.length === 0) {
+      vscode.window.showWarningMessage(
+        'Mocklify: The spec contains no importable JSON routes' +
+          (importResult.warnings.length > 0
+            ? ' — see the "Mocklify Import" output channel for details.'
+            : '.')
+      );
+      if (importResult.warnings.length > 0) {
+        getImportChannel().show(true);
+      }
+      return;
+    }
+
+    if (importResult.warnings.length > 0) {
+      vscode.window
+        .showInformationMessage(
+          `Mocklify: Spec parsed with ${importResult.warnings.length} warning(s).`,
+          'Show Warnings'
+        )
+        .then((action) => {
+          if (action === 'Show Warnings') {
+            getImportChannel().show(true);
+          }
+        });
+    }
+
+    // Disclose the cost of enrichment up front: one AI request per chunk.
+    const enrichRequestCount = formatImportBlocks(importResult).length;
+    const mode = await vscode.window.showQuickPick<vscode.QuickPickItem & { enrich: boolean }>(
+      [
+        {
+          label: '$(file-code) Import as-is',
+          detail: 'Deterministic: spec examples + schema-generated data. No AI calls.',
+          enrich: false,
+        },
+        {
+          label: '$(sparkle) Import + AI enrich',
+          detail:
+            `AI rewrites example data to be coherent across routes and adds disabled failure routes (400/401/404/429/500) — about ${enrichRequestCount} AI request${enrichRequestCount === 1 ? '' : 's'}. Falls back to as-is if AI is unavailable.`,
+          enrich: true,
+        },
+      ],
+      {
+        placeHolder: `"${importResult.name}" — ${importResult.routes.length} route(s) parsed. How should Mocklify import it?`,
+      }
+    );
+    if (!mode) {
+      return;
+    }
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Mocklify: Importing "${importResult.name}"…`,
+        cancellable: true,
+      },
+      async (progress, token) => {
+        try {
+          let result: EnrichedImportResult = { ...importResult, enriched: false };
+          if (mode.enrich) {
+            let lastFraction = 0;
+            result = await new SpecEnricher().enrich(importResult, ai, {
+              token,
+              onProgress: ({ message, fraction }) => {
+                progress.report({
+                  message,
+                  increment: Math.max(0, (fraction - lastFraction) * 100),
+                });
+                lastFraction = Math.max(lastFraction, fraction);
+              },
+            });
+          }
+          if (token.isCancellationRequested) {
+            return;
+          }
+          if (mode.enrich && !result.enriched) {
+            vscode.window.showInformationMessage(
+              'Mocklify: AI enrichment was unavailable — using the deterministic import.'
+            );
+          } else if (mode.enrich && (result.chunksFailed ?? 0) > 0) {
+            vscode.window.showWarningMessage(
+              `Mocklify: AI enrichment succeeded for ${(result.chunksTotal ?? 0) - (result.chunksFailed ?? 0)} of ${result.chunksTotal} part(s) — the rest keep deterministic data.`
+            );
+          }
+
+          const negativeCount = result.routes.filter((r) => !r.enabled).length;
+          const positiveCount = result.routes.length - negativeCount;
+          const confirm = await vscode.window.showInformationMessage(
+            `Create "${result.name}" with ${result.routes.length} routes — ` +
+              `${positiveCount} success + ${negativeCount} failure routes? ` +
+              `(Failure routes are disabled; enable one to simulate that error in your app.)`,
+            { modal: true },
+            'Create',
+            'Create & Start'
+          );
+          if (!confirm) {
+            return;
+          }
+
+          const servers = await manager.getServers();
+          const usedPorts = new Set(servers.map((s) => s.port));
+          let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
+          while (usedPorts.has(port)) {
+            port++;
+          }
+
+          const server = await manager.createServer(result.name, port);
+          progress.report({ message: `Adding ${result.routes.length} route(s)…` });
+          await manager.addRoutes(server.id, result.routes);
+
+          if (confirm === 'Create & Start') {
+            await manager.startServer(server.id);
+            vscode.window.showInformationMessage(
+              `Mocklify: "${server.name}" running at http://localhost:${server.port}`
+            );
+          } else {
+            vscode.window.showInformationMessage(`Mocklify: Created "${server.name}".`);
+          }
+        } catch (error) {
+          if (error instanceof vscode.CancellationError) {
+            return;
+          }
+          showAiError(error);
+        }
+      }
+    );
   });
 
   register('mocklify.aiGenerateFromCodebase', async () => {
@@ -309,9 +485,7 @@ export function registerAiCommands(
           }
 
           const server = await manager.createServer(`${workspaceName} Mock API`, port);
-          for (const route of summary.routes) {
-            await manager.addRoute(server.id, route);
-          }
+          await manager.addRoutes(server.id, summary.routes);
 
           if (confirm === 'Create & Start') {
             await manager.startServer(server.id);
@@ -380,9 +554,7 @@ export function registerAiCommands(
           }
 
           const server = await manager.createServer(`${workspaceName} Recorded API`, port);
-          for (const route of summary.routes) {
-            await manager.addRoute(server.id, route);
-          }
+          await manager.addRoutes(server.id, summary.routes);
 
           if (confirm === 'Create & Start') {
             await manager.startServer(server.id);
@@ -597,6 +769,47 @@ export function registerAiCommands(
     await keys.deleteKey(picked.id);
     vscode.window.showInformationMessage(`Mocklify: ${picked.label} API key removed.`);
   });
+}
+
+const SPEC_FILE_FILTERS: Record<string, string[]> = { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] };
+
+async function browseForSpecFile(): Promise<vscode.Uri | undefined> {
+  const picked = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    filters: SPEC_FILE_FILTERS,
+    title: 'Select an OpenAPI / Swagger spec',
+    openLabel: 'Import',
+  });
+  return picked?.[0];
+}
+
+/** Offer spec-looking workspace files in a QuickPick, with a Browse… escape hatch. */
+async function pickSpecFile(): Promise<vscode.Uri | undefined> {
+  const exclude = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/.git/**}';
+  const candidates = new Map<string, vscode.Uri>();
+  for (const pattern of ['**/*{openapi,swagger}*.{json,yaml,yml}', '**/openapi.{json,yaml,yml}']) {
+    for (const uri of await vscode.workspace.findFiles(pattern, exclude, 50)) {
+      candidates.set(uri.fsPath, uri);
+    }
+  }
+  if (candidates.size === 0) {
+    return browseForSpecFile();
+  }
+
+  const items: (vscode.QuickPickItem & { uri?: vscode.Uri })[] = [
+    ...[...candidates.values()].map((uri) => ({
+      label: `$(file-code) ${vscode.workspace.asRelativePath(uri)}`,
+      uri,
+    })),
+    { label: '$(folder-opened) Browse…', detail: 'Pick a spec file anywhere on disk' },
+  ];
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Select an OpenAPI / Swagger spec to import',
+  });
+  if (!picked) {
+    return undefined;
+  }
+  return picked.uri ?? browseForSpecFile();
 }
 
 async function pickServer(

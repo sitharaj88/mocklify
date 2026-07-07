@@ -14,7 +14,8 @@ export default function Import() {
       <section>
         <h2 className="text-2xl font-semibold mb-4">OpenAPI / Swagger Import</h2>
         <p className="theme-text-secondary mb-4">
-          Import mock routes from OpenAPI 3.0 or Swagger 2.0 specifications:
+          Import a complete mock server from an OpenAPI 3.0/3.1 or Swagger 2.0 specification
+          (JSON or YAML):
         </p>
 
         <h3 className="text-lg font-medium mb-3">How to Import</h3>
@@ -25,29 +26,37 @@ export default function Import() {
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="theme-text">Type "Mocklify: Import from OpenAPI"</span>
+            <span className="theme-text">Run "Mocklify: Import OpenAPI / Swagger Spec"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
-            <span className="theme-text">Select your OpenAPI JSON or YAML file</span>
+            <span className="theme-text">Pick a spec found in your workspace, or browse to one</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">4</span>
-            <span className="theme-text">Routes are automatically created</span>
+            <span className="theme-text">Choose "Import as-is" (deterministic, no AI) or "Import + AI enrich"</span>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">5</span>
+            <span className="theme-text">Confirm the route summary, then Create (or Create &amp; Start) the server</span>
           </li>
         </ol>
 
         <h3 className="text-lg font-medium mb-3">Supported Features</h3>
         <ul className="space-y-2 theme-text-secondary mb-4">
-          <li>• Path parameters → Dynamic path segments</li>
-          <li>• Response schemas → Mock response bodies</li>
-          <li>• Example values → Used in responses</li>
-          <li>• Operation tags → Route tags</li>
-          <li>• Multiple response codes → Separate routes</li>
+          <li>• Local <code className="text-purple-400">$ref</code> pointers → Resolved inline (cycles handled safely)</li>
+          <li>• Path parameters (<code className="text-purple-400">{'{id}'}</code>) → Dynamic <code className="text-purple-400">:id</code> segments</li>
+          <li>• Response schemas → Deterministic, realistic mock bodies (formats, enums, nesting)</li>
+          <li>• Example values → Preferred over generated data</li>
+          <li>• Operation tags &amp; summaries → Route tags and names</li>
+          <li>• Documented 4xx/5xx responses → Disabled negative routes for scenario simulation</li>
         </ul>
 
         <InfoBox type="tip">
-          Mocklify uses example values from your OpenAPI spec when available. Otherwise, it generates fake data based on schema types.
+          The deterministic import needs no AI at all. "Import + AI enrich" additionally rewrites
+          example data to be coherent across routes and adds disabled failure routes
+          (400/401/404/429/500) where the spec documents none — and quietly falls back to the
+          deterministic result if no AI provider is available.
         </InfoBox>
       </section>
 

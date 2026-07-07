@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { v4 as uuidv4 } from 'uuid';
 import {
+  ChaosConfig,
   MockServerConfig,
   RouteConfig,
   ServerRuntimeState,
@@ -256,6 +257,30 @@ export class MockServerManager {
   }
 
   /**
+   * Add many routes in one configuration write: one saveServer, one
+   * updateConfig, one change event. Large imports must use this instead of
+   * per-route addRoute, which rewrites the whole config file per route.
+   */
+  async addRoutes(serverId: string, routes: Omit<RouteConfig, 'id'>[]): Promise<RouteConfig[]> {
+    const config = await this.configStore.getServer(serverId);
+    if (!config) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    const routeConfigs: RouteConfig[] = routes.map((route) => ({ ...route, id: uuidv4() }));
+    config.routes.push(...routeConfigs);
+    await this.configStore.saveServer(config);
+
+    const server = this.servers.get(serverId);
+    if (server) {
+      await server.updateConfig(config);
+    }
+
+    this._onDidChangeServers.fire();
+    return routeConfigs;
+  }
+
+  /**
    * Update a route
    */
   async updateRoute(serverId: string, routeId: string, updates: Partial<RouteConfig>): Promise<void> {
@@ -326,6 +351,43 @@ export class MockServerManager {
     }
 
     this._onDidChangeServers.fire();
+  }
+
+  /**
+   * Set or clear a server's chaos simulation config. Persisted, and pushed to
+   * a running server instance via updateConfig so it applies without restart.
+   */
+  async setServerChaos(serverId: string, chaos: ChaosConfig | undefined): Promise<void> {
+    const config = await this.configStore.getServer(serverId);
+    if (!config) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (chaos) {
+      config.chaos = chaos;
+    } else {
+      delete config.chaos;
+    }
+    await this.configStore.saveServer(config);
+
+    const server = this.servers.get(serverId);
+    if (server) {
+      await server.updateConfig(config);
+    }
+
+    this._onDidChangeServers.fire();
+  }
+
+  /**
+   * Reset a server's stateful in-memory data (collections re-seed on next request).
+   * Only meaningful while the server is running; safe no-op otherwise.
+   */
+  resetStatefulData(serverId: string): void {
+    const server = this.servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+    server.resetState?.();
   }
 
   /**

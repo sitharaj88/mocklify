@@ -292,7 +292,7 @@ export class ResponseGenerator {
   /**
    * Apply configured delay
    */
-  private async applyDelay(delay: DelayConfig): Promise<void> {
+  async applyDelay(delay: DelayConfig): Promise<void> {
     let ms: number;
 
     if (delay.type === 'fixed') {

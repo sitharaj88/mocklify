@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { RouteConfig } from '../types/core.js';
+import { NEGATIVE_ROUTE_PRIORITY, RouteConfig } from '../types/core.js';
 import type { AiService, AiRequestOptions } from './AiService.js';
 import {
   MockGenerator,
@@ -211,6 +211,15 @@ export class CodebaseMockGenerator {
     }
 
     report('Assembling mock server…', 0.95);
+
+    // An enabled negative route must outscore the success route sharing its
+    // method+path (the matcher keeps the first route on a score tie).
+    for (const route of routes) {
+      if (route.tags?.includes('negative') && route.priority === undefined) {
+        route.priority = NEGATIVE_ROUTE_PRIORITY;
+      }
+    }
+
     const negativeCount = routes.filter((r) => r.tags?.includes('negative')).length;
 
     return {
@@ -364,7 +373,8 @@ For EVERY endpoint you find, create:
 Rules:
 - ONLY include endpoints this code actually calls — never invent endpoints.
 - Strip the host/base URL; keep only the path. Convert path variables to :param form.
-- Tag positive routes with a short domain tag (e.g. "users", "orders").${graphQlInstructions}
+- Tag positive routes with a short domain tag (e.g. "users", "orders").
+- When the success routes for one resource form a CRUD family (GET list + GET by :id + POST/PUT/PATCH/DELETE), give every route in the family the SAME "stateful" field (collection = resource name, idParam = the path's :param name, seed of 3-5 coherent items — each including the id field — on the GET list route only). Never add "stateful" to negative-flow routes or to endpoints outside a CRUD family.${graphQlInstructions}
 
 Return a JSON array of route objects.
 

@@ -45,7 +45,7 @@ export class CommandRegistry {
     this.register('mocklify.showQuickPick', () => this.showQuickPick());
 
     // New import/export commands
-    this.register('mocklify.importOpenApi', () => this.importOpenApi());
+    // (mocklify.importOpenApi is registered in AiCommands — spec import with optional AI enrichment)
     this.register('mocklify.importPostman', () => this.importPostman());
     this.register('mocklify.exportServer', (item?: ServerTreeItem) => this.exportServer(item));
     this.register('mocklify.exportLogs', (item?: ServerTreeItem) => this.exportLogs(item));
@@ -471,55 +471,6 @@ export class CommandRegistry {
     });
 
     return selection?.serverId;
-  }
-
-  private async importOpenApi(): Promise<void> {
-    const fileUri = await vscode.window.showOpenDialog({
-      canSelectFiles: true,
-      canSelectFolders: false,
-      canSelectMany: false,
-      filters: {
-        'OpenAPI/Swagger': ['json', 'yaml', 'yml'],
-      },
-      title: 'Select OpenAPI/Swagger file',
-    });
-
-    if (!fileUri || fileUri.length === 0) {
-      return;
-    }
-
-    const serverId = await this.selectServer();
-    if (!serverId) {
-      // Create new server for imported routes
-      const name = await vscode.window.showInputBox({
-        prompt: 'Enter server name for imported routes',
-        placeHolder: 'Imported API',
-      });
-      if (!name) return;
-
-      try {
-        const server = await this.manager.createServer(name);
-        const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, server.id);
-        vscode.window.showInformationMessage(
-          `Mocklify: Imported ${routes.length} routes from OpenAPI spec`
-        );
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    } else {
-      try {
-        const routes = await this.manager.importFromOpenApi(fileUri[0].fsPath, serverId);
-        vscode.window.showInformationMessage(
-          `Mocklify: Imported ${routes.length} routes from OpenAPI spec`
-        );
-      } catch (error) {
-        vscode.window.showErrorMessage(
-          `Failed to import: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-      }
-    }
   }
 
   private async importPostman(): Promise<void> {

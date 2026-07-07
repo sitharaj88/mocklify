@@ -1,5 +1,5 @@
 import type * as vscode from 'vscode';
-import { HttpMethod, RequestLogEntry, RouteConfig } from '../types/core.js';
+import { HttpMethod, NEGATIVE_ROUTE_PRIORITY, RequestLogEntry, RouteConfig } from '../types/core.js';
 import type { AiService, AiRequestOptions } from './AiService.js';
 import { MockGenerator, ROUTE_FORMAT_INSTRUCTIONS } from './MockGenerator.js';
 import { dedupeRoutes } from './scan/heuristics.js';
@@ -377,6 +377,8 @@ export class TrafficMockGenerator {
     }
 
     // Enforce negative-route convention regardless of what the model returned.
+    // Priority makes an enabled negative route outscore the success route
+    // sharing its method+path (the matcher keeps the first route on a tie).
     for (const route of routes) {
       const status = route.response.statusCode;
       if (status < 200 || status >= 300) {
@@ -385,15 +387,27 @@ export class TrafficMockGenerator {
         tags.add('negative');
         tags.add(String(status));
         route.tags = [...tags];
+        if (route.priority === undefined) {
+          route.priority = NEGATIVE_ROUTE_PRIORITY;
+        }
       }
     }
 
-    const negativeCount = routes.filter((r) => r.tags?.includes('negative')).length;
+    // Programmatic sanity checks (stateful coherence, path shape, …). There
+    // is no repair loop here, so drop what fails rather than persist it.
+    const verifiedRoutes = MockGenerator.verifyRoutes(routes).accepted;
+    if (verifiedRoutes.length === 0) {
+      throw new Error(
+        'The AI did not produce any valid mock routes matching the recorded traffic. Try again, or use "AI: Generate Mock Server from Description" instead.'
+      );
+    }
+
+    const negativeCount = verifiedRoutes.filter((r) => r.tags?.includes('negative')).length;
     return {
       entryCount: usableEntryCount,
       endpointCount: endpoints.length,
-      routes,
-      positiveCount: routes.length - negativeCount,
+      routes: verifiedRoutes,
+      positiveCount: verifiedRoutes.length - negativeCount,
       negativeCount,
     };
   }
@@ -413,6 +427,7 @@ Rules:
 - Use the parameterized paths exactly as given (:param form).
 - Keep response structure identical to the capture (same keys, same nesting, arrays stay arrays); only values may be cleaned or generalized.
 - Tag positive routes with a short domain tag (e.g. "users", "orders").
+- When the captured endpoints for one resource form a CRUD family (GET list + GET by :id + POST/PUT/PATCH/DELETE), give every success route in the family the SAME "stateful" field (collection = resource name, idParam = the path's :param name, seed of 3-5 items shaped like the captured payloads — each carrying its identifier in an "id" field — on the GET list route only). Never add "stateful" to negative routes or to endpoints outside a CRUD family.
 
 Return a JSON array of route objects.
 

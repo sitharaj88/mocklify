@@ -47,6 +47,15 @@ Available template helpers: {{faker 'namespace.method'}} (faker.js v8 API), {{re
 To simulate a slow response add an optional top-level delay field (milliseconds):
   "delay": { "type": "fixed", "value": 10000 }
 
+When routes form a CRUD family over one resource (GET list + GET by :id + POST/PUT/PATCH/DELETE), make the family stateful by adding the same top-level stateful field to EVERY route in it:
+  "stateful": { "collection": "users", "idParam": "userId", "seed": [ /* 3-5 realistic items */ ] }
+Stateful rules:
+- "collection" is the resource name and must be IDENTICAL across every route of the family.
+- "idParam" must exactly match the :param name used in the family's paths (omit it only when the param is literally :id).
+- Put "seed" — 3-5 coherent, realistic items that all include the id field — ONLY on the GET list route; omit seed on every other route.
+- Routes that are not part of a CRUD family stay static: no stateful field.
+- Negative-flow routes (tagged "negative") must NEVER have a stateful field.
+
 Rules:
 - Response bodies must contain realistic, domain-appropriate example data (never "string", "example", or lorem ipsum).
 - Cover the full CRUD lifecycle when the request implies a resource (list, get by id, create with 201, update, delete with 204).
@@ -107,6 +116,16 @@ export const ROUTES_JSON_SCHEMA: Record<string, unknown> = (() => {
           max: { type: 'number' },
         },
         required: ['type'],
+        additionalProperties: false,
+      },
+      stateful: {
+        type: 'object',
+        properties: {
+          collection: { type: 'string' },
+          idParam: { type: 'string' },
+          seed: { type: 'array', items: {} },
+        },
+        required: ['collection'],
         additionalProperties: false,
       },
       priority: { type: 'number' },
@@ -191,7 +210,7 @@ Return a JSON array of route objects.
 ${ROUTE_FORMAT_INSTRUCTIONS}`;
 
     const raw = await this.ai.sendJsonRequest(prompt, options, ROUTES_JSON_SCHEMA);
-    return MockGenerator.validateRoutes(raw);
+    return MockGenerator.verifiedOrThrow(MockGenerator.validateRoutes(raw));
   }
 
   /**
@@ -218,8 +237,23 @@ Use realistic, domain-appropriate example data. Return ONLY the JSON body, no ex
     return {
       name: parsed.name,
       port: parsed.port,
-      routes: parsed.routes as Omit<RouteConfig, 'id'>[],
+      routes: MockGenerator.verifiedOrThrow(parsed.routes as Omit<RouteConfig, 'id'>[]),
     };
+  }
+
+  /**
+   * verifyRoutes for flows without an AI repair loop: keep the routes that
+   * pass the programmatic checks, drop the rest, and fail only when nothing
+   * survives (quoting the first rejection so the user sees why).
+   */
+  static verifiedOrThrow(routes: Omit<RouteConfig, 'id'>[]): Omit<RouteConfig, 'id'>[] {
+    const { accepted, rejected } = MockGenerator.verifyRoutes(routes);
+    if (accepted.length === 0) {
+      throw new Error(
+        `The generated routes failed validation: ${rejected[0]?.reasons.join('; ') ?? 'empty result'}`
+      );
+    }
+    return accepted;
   }
 
   /**
@@ -264,12 +298,25 @@ Use realistic, domain-appropriate example data. Return ONLY the JSON body, no ex
   /**
    * Programmatic sanity checks on schema-valid routes that Zod alone can't
    * express: path shape, :param syntax, plausible status codes, serializable
-   * bodies, and negative routes being disabled. Rejections carry reasons so a
-   * repair prompt can quote them back to the model.
+   * bodies, negative routes being disabled, and stateful CRUD coherence
+   * (idParam agreement per collection, idParam matching the path :param,
+   * object-shaped seed items). Rejections carry reasons so a repair prompt
+   * can quote them back to the model.
    */
   static verifyRoutes(routes: Omit<RouteConfig, 'id'>[]): RouteVerification {
     const accepted: Omit<RouteConfig, 'id'>[] = [];
     const rejected: RejectedRoute[] = [];
+
+    // Effective idParam per stateful collection across the whole batch — CRUD
+    // families must agree or the engine would key items inconsistently.
+    const idParamsByCollection = new Map<string, Set<string>>();
+    for (const route of routes) {
+      if (route.stateful) {
+        const set = idParamsByCollection.get(route.stateful.collection) ?? new Set<string>();
+        set.add(route.stateful.idParam ?? 'id');
+        idParamsByCollection.set(route.stateful.collection, set);
+      }
+    }
 
     for (const route of routes) {
       const reasons: string[] = [];
@@ -310,6 +357,38 @@ Use realistic, domain-appropriate example data. Return ONLY the JSON body, no ex
 
       if (route.tags?.includes('negative') && route.enabled) {
         reasons.push('negative-flow routes must have "enabled": false');
+      }
+
+      if (route.stateful) {
+        const idParam = route.stateful.idParam ?? 'id';
+        // Only a TRAILING :param binds the item id; intermediate params
+        // (e.g. /groups/:groupId/members list routes) are parent scoping and
+        // must not be forced to match idParam.
+        const segments = route.path.split('/').filter(Boolean);
+        const lastSegment = segments[segments.length - 1];
+        if (lastSegment?.startsWith(':') && lastSegment.slice(1) !== idParam) {
+          reasons.push(
+            `stateful idParam "${idParam}" does not match the path parameter ":${lastSegment.slice(1)}"`
+          );
+        }
+        const agreed = idParamsByCollection.get(route.stateful.collection);
+        if (agreed && agreed.size > 1) {
+          reasons.push(
+            `stateful routes for collection "${route.stateful.collection}" disagree on idParam (${[...agreed].join(', ')})`
+          );
+        }
+        if (route.stateful.seed?.some((item) => item === null || typeof item !== 'object' || Array.isArray(item))) {
+          reasons.push('stateful seed items must be JSON objects');
+        } else if (
+          route.stateful.seed?.some((item) => {
+            const record = item as Record<string, unknown>;
+            return record[idParam] === undefined && record.id === undefined;
+          })
+        ) {
+          reasons.push(
+            `stateful seed items must carry their identifier in an "id" field (or "${idParam}")`
+          );
+        }
       }
 
       if (reasons.length === 0) {

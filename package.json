@@ -1,8 +1,8 @@
 {
   "name": "mocklify",
   "displayName": "Mocklify",
-  "description": "AI-powered API mocking for VS Code. Design mock servers in plain English with GitHub Copilot, Claude, OpenAI, or Gemini; generate API documentation; and let Copilot agent mode drive your mocks.",
-  "version": "0.2.0",
+  "description": "AI-powered API mocking for VS Code. Design mock servers in plain English with GitHub Copilot, Claude, OpenAI, or Gemini; import OpenAPI/Swagger specs; simulate chaos and stateful CRUD flows; generate API documentation; and let Copilot agent mode drive your mocks.",
+  "version": "0.3.0",
   "publisher": "sitharaj",
   "icon": "resources/icon.png",
   "license": "MIT",
@@ -102,7 +102,7 @@
       },
       {
         "command": "mocklify.importOpenApi",
-        "title": "Import OpenAPI/Swagger",
+        "title": "Import OpenAPI / Swagger Spec",
         "category": "Mocklify",
         "icon": "$(cloud-download)"
       },
@@ -195,6 +195,18 @@
         "title": "Simulate Scenario (Happy Path / Failures)",
         "category": "Mocklify",
         "icon": "$(debug-alt)"
+      },
+      {
+        "command": "mocklify.configureChaos",
+        "title": "Configure Chaos (Latency & Failures)",
+        "category": "Mocklify",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "mocklify.resetStatefulData",
+        "title": "Reset Stateful Mock Data",
+        "category": "Mocklify",
+        "icon": "$(clear-all)"
       },
       {
         "command": "mocklify.openChat",
@@ -471,6 +483,11 @@
           "command": "mocklify.aiGenerateFromTraffic",
           "when": "view == mocklifyServers",
           "group": "1_ai"
+        },
+        {
+          "command": "mocklify.importOpenApi",
+          "when": "view == mocklifyServers",
+          "group": "1_ai"
         }
       ],
       "view/item/context": [
@@ -491,11 +508,6 @@
         },
         {
           "command": "mocklify.aiGenerateRoute",
-          "when": "view == mocklifyServers && viewItem =~ /^server/",
-          "group": "1_routes"
-        },
-        {
-          "command": "mocklify.importOpenApi",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "1_routes"
         },
@@ -527,6 +539,16 @@
         {
           "command": "mocklify.simulateScenario",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "2_scenario"
+        },
+        {
+          "command": "mocklify.configureChaos",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "2_scenario"
+        },
+        {
+          "command": "mocklify.resetStatefulData",
+          "when": "view == mocklifyServers && viewItem == server-running",
           "group": "2_scenario"
         },
         {

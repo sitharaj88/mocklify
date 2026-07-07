@@ -217,6 +217,38 @@ export default function AiFeatures() {
         </InfoBox>
       </section>
 
+      {/* Spec import, stateful mocks, chaos */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Spec Import, Stateful Mocks &amp; Chaos</h2>
+        <ul className="space-y-3 theme-text-secondary mb-4">
+          <li>
+            • <strong>Import OpenAPI / Swagger Spec</strong> — turn an OpenAPI 3.0/3.1 or Swagger
+            2.0 file (JSON or YAML) into a mock server. The import is deterministic and works
+            fully offline: <code className="text-purple-400">$ref</code> pointers are resolved,
+            spec examples are preferred, and realistic bodies are generated from schemas.
+            Optionally pick <strong>Import + AI enrich</strong> to have the AI rewrite example
+            data coherently across routes and add disabled failure routes
+            (400/401/404/429/500) — falling back to the deterministic import if AI is
+            unavailable.
+          </li>
+          <li>
+            • <strong>Stateful mocks</strong> — routes with a{' '}
+            <code className="text-purple-400">stateful</code> block share an in-memory
+            collection, so POST-then-GET flows actually work: list, fetch by id, insert (201),
+            update, delete (204), 404 for missing ids. Collections seed from{' '}
+            <code className="text-purple-400">stateful.seed</code> and reset on restart or with{' '}
+            <strong>Reset Stateful Mock Data</strong>. The AI generators emit stateful blocks
+            for CRUD endpoint families automatically.
+          </li>
+          <li>
+            • <strong>Chaos simulation</strong> — <strong>Configure Chaos</strong> adds random
+            failures (e.g. 10% 503s) and latency jitter across every route on a server, with
+            presets or custom rate/status/delay. Hot-reloads while the server runs; great for
+            testing retries, timeouts, and error UI.
+          </li>
+        </ul>
+      </section>
+
       {/* Commands reference */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Command Reference</h2>
@@ -232,7 +264,10 @@ export default function AiFeatures() {
               {[
                 ['AI: Generate Mock Server from Codebase', 'Scan app code → full mock server with positive + negative flows'],
                 ['AI: Generate Mock Server from Recorded Traffic', 'Record & replay — captured request logs → clean mock server'],
+                ['Import OpenAPI / Swagger Spec', 'OpenAPI/Swagger spec → mock server, with optional AI enrichment'],
                 ['Simulate Scenario (Happy Path / Failures)', 'One-click switch between happy path and failure scenarios'],
+                ['Configure Chaos (Latency & Failures)', 'Random failures and latency jitter across a whole server'],
+                ['Reset Stateful Mock Data', 'Clear in-memory stateful collections (re-seed on next request)'],
                 ['AI: Generate Mock Server from Description', 'Plain English → complete mock server'],
                 ['AI: Generate Routes from Description', 'Plain English → routes for an existing server'],
                 ['Generate API Documentation', 'AI-written Markdown docs (deterministic fallback)'],

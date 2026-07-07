@@ -1,6 +1,8 @@
 import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import {
+  ChaosConfig,
   MockServerConfig,
+  RouteConfig,
   ServerRuntimeState,
   IMockServer,
   RequestLogEntry,
@@ -8,7 +10,52 @@ import {
   ServerEvent,
 } from '../types/core.js';
 import { RequestMatcher, RequestInfo } from '../matching/RequestMatcher.js';
-import { ResponseGenerator, ResponseContext } from '../response/ResponseGenerator.js';
+import { ResponseGenerator, ResponseContext, GeneratedResponse } from '../response/ResponseGenerator.js';
+import { StatefulStore, executeStateful } from '../core/StatefulStore.js';
+import { responseStateManager } from '../state/ResponseStateManager.js';
+
+export const CHAOS_DEFAULT_FAILURE_STATUS = 503;
+
+export interface ChaosDecision {
+  delayMs: number;
+  failure: { statusCode: number; body: { error: string; chaos: true } } | null;
+}
+
+/**
+ * Decide the chaos outcome for one request. Pure and seedable: `random` is
+ * drawn at most twice — first for the delay (only when a delay bound is set),
+ * then for the failure roll (only when failureRate > 0). Disabled or absent
+ * config always yields { delayMs: 0, failure: null } without consuming random.
+ */
+export function decideChaos(
+  chaos: ChaosConfig | undefined,
+  random: () => number = Math.random
+): ChaosDecision {
+  if (!chaos?.enabled) {
+    return { delayMs: 0, failure: null };
+  }
+
+  let delayMs = 0;
+  if (chaos.minDelayMs !== undefined || chaos.maxDelayMs !== undefined) {
+    const lo = Math.max(0, chaos.minDelayMs ?? 0);
+    const hi = Math.max(lo, chaos.maxDelayMs ?? lo); // inverted bounds clamp to lo
+    delayMs = Math.round(lo + random() * (hi - lo));
+  }
+
+  const rate = Math.min(1, Math.max(0, chaos.failureRate ?? 0));
+  // random() ∈ [0, 1), so rate 1 always fails and rate 0 never rolls
+  const failed = rate > 0 && random() < rate;
+
+  return {
+    delayMs,
+    failure: failed
+      ? {
+          statusCode: chaos.failureStatus ?? CHAOS_DEFAULT_FAILURE_STATUS,
+          body: { error: 'Simulated failure (Mocklify chaos)', chaos: true },
+        }
+      : null,
+  };
+}
 
 export class HttpMockServer implements IMockServer {
   private server: FastifyInstance | null = null;
@@ -16,6 +63,7 @@ export class HttpMockServer implements IMockServer {
   private _state: ServerRuntimeState;
   private requestMatcher: RequestMatcher;
   private responseGenerator: ResponseGenerator;
+  private statefulStore: StatefulStore = new StatefulStore();
   private eventHandlers: Set<EventHandler> = new Set();
 
   constructor(config: MockServerConfig) {
@@ -69,6 +117,9 @@ export class HttpMockServer implements IMockServer {
     }
 
     this._state.status = 'starting';
+
+    // Stateful collections live for one server run
+    this.statefulStore.clear();
 
     try {
       this.server = Fastify({
@@ -150,6 +201,13 @@ export class HttpMockServer implements IMockServer {
   }
 
   /**
+   * Clear stateful collections (re-seeds lazily on next access)
+   */
+  resetState(): void {
+    this.statefulStore.clear();
+  }
+
+  /**
    * Configure CORS headers
    */
   private async configureCors(): Promise<void> {
@@ -200,6 +258,41 @@ export class HttpMockServer implements IMockServer {
       body: request.body,
     };
 
+    // Chaos simulation: optional extra latency, then a possible short-circuit
+    // failure before any route handling. No-op unless chaos.enabled.
+    const chaos = decideChaos(this._config.chaos);
+    if (chaos.delayMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, chaos.delayMs));
+    }
+    if (chaos.failure) {
+      const chaosHeaders = { 'Content-Type': 'application/json' };
+      reply.status(chaos.failure.statusCode);
+      reply.header('Content-Type', 'application/json');
+      reply.send(chaos.failure.body);
+
+      const chaosEntry: Omit<RequestLogEntry, 'id'> = {
+        serverId: this.id,
+        timestamp: new Date(),
+        request: {
+          method: requestInfo.method,
+          path: requestInfo.path,
+          url: request.url,
+          headers: requestInfo.headers,
+          query: requestInfo.query,
+          body: this.shouldLogBody() ? requestInfo.body : undefined,
+        },
+        response: {
+          statusCode: chaos.failure.statusCode,
+          headers: chaosHeaders,
+          body: chaos.failure.body,
+          duration: Date.now() - startTime,
+        },
+        matched: false,
+      };
+      this.emit({ type: 'request:received', serverId: this.id, entry: chaosEntry as RequestLogEntry });
+      return;
+    }
+
     // Match request against routes
     const matchResult = this.requestMatcher.match(requestInfo, this._config.routes);
 
@@ -218,7 +311,9 @@ export class HttpMockServer implements IMockServer {
       };
 
       try {
-        const response = await this.responseGenerator.generate(matchResult.route, context);
+        const response =
+          (await this.generateStatefulResponse(matchResult.route, context)) ??
+          (await this.responseGenerator.generate(matchResult.route, context));
 
         // Apply default headers
         const allHeaders = {
@@ -324,6 +419,97 @@ export class HttpMockServer implements IMockServer {
 
     // Emit request event
     this.emit({ type: 'request:received', serverId: this.id, entry: logEntry as RequestLogEntry });
+  }
+
+  /**
+   * Handle a stateful CRUD route via the in-memory store.
+   * Returns null when the route has no stateful config, an active response
+   * sequence should win, or no operation can be derived — the caller then
+   * falls back to normal response generation (pre-existing behavior).
+   */
+  private async generateStatefulResponse(
+    route: RouteConfig,
+    context: ResponseContext
+  ): Promise<GeneratedResponse | null> {
+    if (!route.stateful) {
+      return null;
+    }
+
+    // Response sequences (scenario overrides) take precedence over stateful data
+    if (responseStateManager.hasSequence(this.id, route.id)) {
+      return null;
+    }
+
+    // Models sometimes emit an idParam that matches no :param in the path
+    // (e.g. the default "id" on /users/:userId). When the path ends in a
+    // parameter the config doesn't reference, key the request by that
+    // parameter so detail routes don't silently degrade to list responses.
+    let stateful = route.stateful;
+    const idKey = stateful.idParam ?? 'id';
+    const lastSegment = route.path.split('/').filter(Boolean).pop();
+    if (
+      lastSegment?.startsWith(':') &&
+      lastSegment.slice(1) !== idKey &&
+      context.params[idKey] === undefined
+    ) {
+      stateful = { ...stateful, idParam: lastSegment.slice(1) };
+    }
+
+    const result = executeStateful(
+      this.statefulStore,
+      stateful,
+      {
+        method: context.method,
+        params: context.params,
+        query: context.query,
+        body: context.body,
+      },
+      this.resolveStatefulFallbackSeed(route)
+    );
+
+    if (!result) {
+      return null;
+    }
+
+    responseStateManager.recordCall(this.id, route.id);
+
+    if (route.delay) {
+      await this.responseGenerator.applyDelay(route.delay);
+    }
+
+    const headers: Record<string, string> = { ...route.response.headers };
+    if (result.body !== null) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    return {
+      statusCode: result.statusCode,
+      headers,
+      body: result.body,
+    };
+  }
+
+  /**
+   * Seed used when a stateful collection is first touched and the matched
+   * route declares no seed of its own. The generation convention keeps the
+   * seed ONLY on the GET-list route, so whichever family route happens to be
+   * hit first must seed from the family's configured seed (or, failing that,
+   * the list route's static example) — never from its own example body, which
+   * would inject a phantom item and permanently shadow the real seed.
+   */
+  private resolveStatefulFallbackSeed(route: RouteConfig): unknown {
+    const collection = route.stateful?.collection;
+    const family = this._config.routes.filter((r) => r.stateful?.collection === collection);
+    const explicit = family.find((r) => r.stateful?.seed !== undefined);
+    if (explicit) {
+      return explicit.stateful?.seed;
+    }
+    const listRoute = family.find((r) => {
+      const last = r.path.split('/').filter(Boolean).pop();
+      const methods = Array.isArray(r.method) ? r.method : [r.method];
+      return !last?.startsWith(':') && methods.includes('GET') && r.response.body?.content !== undefined;
+    });
+    return listRoute?.response.body?.content;
   }
 
   /**

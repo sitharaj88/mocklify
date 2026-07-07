@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { MockGenerator, ROUTES_JSON_SCHEMA } from '../src/ai/MockGenerator';
+import {
+  MockGenerator,
+  ROUTES_JSON_SCHEMA,
+  ROUTE_FORMAT_INSTRUCTIONS,
+} from '../src/ai/MockGenerator';
 import { HttpMethodSchema } from '../src/types/core';
 
 const validRoute = {
@@ -57,6 +61,47 @@ describe('MockGenerator.validateRoutes', () => {
     const { enabled: _omitted, ...withoutEnabled } = validRoute;
     const routes = MockGenerator.validateRoutes([withoutEnabled]);
     expect(routes[0].enabled).toBe(true);
+  });
+
+  it('preserves the optional stateful field', () => {
+    const routes = MockGenerator.validateRoutes([
+      {
+        ...validRoute,
+        stateful: {
+          collection: 'products',
+          idParam: 'productId',
+          seed: [{ id: 1, title: 'Desk' }, { id: 2, title: 'Lamp' }],
+        },
+      },
+    ]);
+    expect(routes[0].stateful).toEqual({
+      collection: 'products',
+      idParam: 'productId',
+      seed: [{ id: 1, title: 'Desk' }, { id: 2, title: 'Lamp' }],
+    });
+  });
+
+  it('accepts stateful with only a collection (idParam and seed optional)', () => {
+    const routes = MockGenerator.validateRoutes([
+      { ...validRoute, stateful: { collection: 'products' } },
+    ]);
+    expect(routes[0].stateful?.collection).toBe('products');
+  });
+
+  it('rejects stateful with an empty collection', () => {
+    expect(() =>
+      MockGenerator.validateRoutes([{ ...validRoute, stateful: { collection: '' } }])
+    ).toThrow(/did not match the expected format/);
+  });
+
+  it('rejects stateful with a non-string idParam or non-array seed', () => {
+    const routes = MockGenerator.validateRoutes([
+      validRoute,
+      { ...validRoute, stateful: { collection: 'products', idParam: 7 } },
+      { ...validRoute, stateful: { collection: 'products', seed: { id: 1 } } },
+    ]);
+    expect(routes).toHaveLength(1);
+    expect(routes[0].stateful).toBeUndefined();
   });
 });
 
@@ -144,6 +189,119 @@ describe('MockGenerator.verifyRoutes', () => {
     expect(accepted).toHaveLength(1);
   });
 
+  it('accepts a coherent stateful CRUD family', () => {
+    const { accepted, rejected } = MockGenerator.verifyRoutes([
+      route({
+        path: '/api/products',
+        stateful: {
+          collection: 'products',
+          seed: [{ id: 1, title: 'Desk' }, { id: 2, title: 'Lamp' }, { id: 3, title: 'Chair' }],
+        },
+      }),
+      route({ path: '/api/products/:id', stateful: { collection: 'products' } }),
+      route({ method: 'DELETE', path: '/api/products/:id', stateful: { collection: 'products' } }),
+    ]);
+    expect(accepted).toHaveLength(3);
+    expect(rejected).toHaveLength(0);
+  });
+
+  it('rejects a stateful route whose path parameter does not match idParam', () => {
+    const { rejected } = MockGenerator.verifyRoutes([
+      route({ path: '/api/products/:productId', stateful: { collection: 'products' } }),
+    ]);
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].reasons[0]).toMatch(/idParam "id" does not match the path parameter ":productId"/);
+  });
+
+  it('checks idParam against the last path parameter of nested paths', () => {
+    const { accepted } = MockGenerator.verifyRoutes([
+      route({
+        path: '/api/users/:userId/orders/:orderId',
+        stateful: { collection: 'orders', idParam: 'orderId' },
+      }),
+    ]);
+    expect(accepted).toHaveLength(1);
+  });
+
+  it('accepts nested list/create routes whose parent param differs from idParam', () => {
+    // The family convention gives EVERY route the same idParam; the list and
+    // create routes end in a literal segment, so :userId must not be checked.
+    const { accepted, rejected } = MockGenerator.verifyRoutes([
+      route({
+        path: '/api/users/:userId/orders',
+        stateful: {
+          collection: 'orders',
+          idParam: 'orderId',
+          seed: [{ id: 'o-1', total: 10 }, { id: 'o-2', total: 20 }],
+        },
+      }),
+      route({
+        method: 'POST',
+        path: '/api/users/:userId/orders',
+        stateful: { collection: 'orders', idParam: 'orderId' },
+      }),
+      route({
+        path: '/api/users/:userId/orders/:orderId',
+        stateful: { collection: 'orders', idParam: 'orderId' },
+      }),
+    ]);
+    expect(rejected).toEqual([]);
+    expect(accepted).toHaveLength(3);
+  });
+
+  it('accepts seeds keyed by "id" under a custom idParam, rejects seeds with no identifier', () => {
+    const ok = MockGenerator.verifyRoutes([
+      route({
+        path: '/api/products',
+        stateful: { collection: 'products', idParam: 'productId', seed: [{ id: 1, title: 'Desk' }] },
+      }),
+    ]);
+    expect(ok.accepted).toHaveLength(1);
+
+    const bad = MockGenerator.verifyRoutes([
+      route({
+        path: '/api/products',
+        stateful: { collection: 'products', idParam: 'productId', seed: [{ title: 'No id here' }] },
+      }),
+    ]);
+    expect(bad.rejected).toHaveLength(1);
+    expect(bad.rejected[0].reasons[0]).toMatch(/seed items must carry their identifier/);
+  });
+
+  it('rejects stateful routes of one collection that disagree on idParam', () => {
+    const { accepted, rejected } = MockGenerator.verifyRoutes([
+      route({ path: '/api/products', stateful: { collection: 'products' } }),
+      route({
+        path: '/api/products/:productId',
+        stateful: { collection: 'products', idParam: 'productId' },
+      }),
+    ]);
+    expect(accepted).toHaveLength(0);
+    expect(rejected).toHaveLength(2);
+    expect(rejected[0].reasons.join(' ')).toMatch(/disagree on idParam/);
+    expect(rejected[1].reasons.join(' ')).toMatch(/disagree on idParam/);
+  });
+
+  it('does not conflate idParams across different collections', () => {
+    const { accepted } = MockGenerator.verifyRoutes([
+      route({ path: '/api/products/:productId', stateful: { collection: 'products', idParam: 'productId' } }),
+      route({ path: '/api/users/:userId', stateful: { collection: 'users', idParam: 'userId' } }),
+    ]);
+    expect(accepted).toHaveLength(2);
+  });
+
+  it('rejects stateful seed entries that are not objects', () => {
+    const { rejected } = MockGenerator.verifyRoutes([
+      route({ path: '/api/products', stateful: { collection: 'products', seed: [{ id: 1 }, 'Desk'] } }),
+      route({ path: '/api/tags', stateful: { collection: 'tags', seed: [[1, 2]] } }),
+      route({ path: '/api/labels', stateful: { collection: 'labels', seed: [null] } }),
+    ]);
+    expect(rejected).toHaveLength(3);
+    for (const r of rejected) {
+      expect(r.reasons[0]).toMatch(/seed items must be JSON objects/);
+    }
+  });
+
   it('collects every reason for a multiply-broken route', () => {
     const { rejected } = MockGenerator.verifyRoutes([
       route({
@@ -182,6 +340,28 @@ describe('ROUTES_JSON_SCHEMA', () => {
     expect(method[0].enum).toEqual(HttpMethodSchema.options);
   });
 
+  it('declares the optional stateful field consistently with validateRoutes', () => {
+    const stateful = (items.properties as Record<string, Record<string, unknown>>).stateful;
+    expect(stateful.type).toBe('object');
+    expect(stateful.required).toEqual(['collection']);
+    expect(stateful.additionalProperties).toBe(false);
+    const props = stateful.properties as Record<string, Record<string, unknown>>;
+    expect(props.collection.type).toBe('string');
+    expect(props.idParam.type).toBe('string');
+    expect(props.seed.type).toBe('array');
+
+    // A schema-minimal stateful route must pass Zod validation
+    const minimalStateful = {
+      name: 'List pings',
+      method: 'GET',
+      path: '/api/pings',
+      response: { type: 'static', statusCode: 200 },
+      stateful: { collection: 'pings' },
+    };
+    const routes = MockGenerator.validateRoutes({ routes: [minimalStateful] });
+    expect(routes[0].stateful?.collection).toBe('pings');
+  });
+
   it('conforms to the strict structured-output dialect (Anthropic + OpenAI)', () => {
     const violations: string[] = [];
     const walk = (node: unknown, at: string): void => {
@@ -212,6 +392,15 @@ describe('ROUTES_JSON_SCHEMA', () => {
     };
     walk(ROUTES_JSON_SCHEMA, '$');
     expect(violations).toEqual([]);
+  });
+});
+
+describe('ROUTE_FORMAT_INSTRUCTIONS', () => {
+  it('teaches the model the stateful CRUD-family convention', () => {
+    expect(ROUTE_FORMAT_INSTRUCTIONS).toContain('"stateful"');
+    expect(ROUTE_FORMAT_INSTRUCTIONS).toMatch(/same top-level stateful field to EVERY route/);
+    expect(ROUTE_FORMAT_INSTRUCTIONS).toMatch(/ONLY on the GET list route/);
+    expect(ROUTE_FORMAT_INSTRUCTIONS).toMatch(/NEVER have a stateful field/);
   });
 });
 

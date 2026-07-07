@@ -107,6 +107,21 @@ export const ResponseConfigSchema: z.ZodType<ResponseConfig> = z.object({
   sequence: ResponseSequenceConfigSchema.optional(),
 });
 
+/**
+ * Priority stamped on disabled negative-flow routes. RequestMatcher keeps the
+ * FIRST route on a score tie, so a negative route sharing method+path with its
+ * success route would never win once enabled unless it outscores it.
+ */
+export const NEGATIVE_ROUTE_PRIORITY = 10;
+
+// Stateful Configuration - CRUD route families sharing a live in-memory collection
+export const StatefulConfigSchema = z.object({
+  collection: z.string().min(1),
+  idParam: z.string().min(1).optional(), // default 'id'
+  seed: z.array(z.unknown()).optional(),
+});
+export type StatefulConfig = z.infer<typeof StatefulConfigSchema>;
+
 // Route Configuration
 export const RouteConfigSchema = z.object({
   id: z.string().uuid(),
@@ -119,6 +134,7 @@ export const RouteConfigSchema = z.object({
   delay: DelayConfigSchema.optional(),
   priority: z.number().optional(),
   tags: z.array(z.string()).optional(),
+  stateful: StatefulConfigSchema.optional(),
 });
 export type RouteConfig = z.infer<typeof RouteConfigSchema>;
 
@@ -153,6 +169,16 @@ export type ServerSettings = z.infer<typeof ServerSettingsSchema>;
 export const ServerProtocolSchema = z.enum(['http', 'graphql', 'websocket']);
 export type ServerProtocol = z.infer<typeof ServerProtocolSchema>;
 
+// Chaos Configuration - server-wide random latency and failure injection
+export const ChaosConfigSchema = z.object({
+  enabled: z.boolean(),
+  failureRate: z.number().min(0).max(1).optional(), // probability per request
+  failureStatus: z.number().min(100).max(599).optional(), // default 503
+  minDelayMs: z.number().min(0).optional(),
+  maxDelayMs: z.number().min(0).optional(),
+});
+export type ChaosConfig = z.infer<typeof ChaosConfigSchema>;
+
 // Mock Server Configuration
 export const MockServerConfigSchema = z.object({
   id: z.string().uuid(),
@@ -162,6 +188,7 @@ export const MockServerConfigSchema = z.object({
   enabled: z.boolean(),
   routes: z.array(RouteConfigSchema),
   settings: ServerSettingsSchema.optional(),
+  chaos: ChaosConfigSchema.optional(),
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -231,6 +258,8 @@ export interface IMockServer {
   stop(): Promise<void>;
   updateConfig(config: MockServerConfig): Promise<void>;
   onEvent(handler: EventHandler): () => void;
+  /** Clear runtime request state (e.g. stateful collections); optional per protocol */
+  resetState?(): void;
 }
 
 // Configuration Store Interface

@@ -19,6 +19,7 @@ import {
 } from './ai/index.js';
 import { registerScenarioCommands } from './ai/ScenarioCommands.js';
 import { activateDriftWatcher } from './ai/DriftWatcher.js';
+import { registerChaosCommands } from './core/ChaosCommands.js';
 
 let manager: MockServerManager | undefined;
 let statusBarController: StatusBarController | undefined;
@@ -92,7 +93,59 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerLanguageModelTools(context, manager);
   registerAiCommands(context, manager, aiService, apiKeyManager, mockGenerator, docsGenerator);
   registerScenarioCommands(context, manager);
+  registerChaosCommands(context, manager);
   activateDriftWatcher(context, manager);
+
+  // Stateful mocks: reset the in-memory collections (they re-seed lazily on
+  // the next request, so no restart is needed).
+  const mgr = manager;
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'mocklify.resetStatefulData',
+      async (item?: { serverId?: string }) => {
+        const allServers = await mgr.getServers();
+        const statefulServers = allServers.filter((s) => s.routes.some((r) => r.stateful));
+        const pool = statefulServers.length > 0 ? statefulServers : allServers;
+        if (pool.length === 0) {
+          vscode.window.showWarningMessage('Mocklify: No servers configured.');
+          return;
+        }
+
+        let serverId = item?.serverId;
+        if (!serverId) {
+          if (pool.length === 1) {
+            serverId = pool[0].id;
+          } else {
+            const states = mgr.getAllServerStates();
+            const picked = await vscode.window.showQuickPick(
+              pool.map((s) => ({
+                label: s.name,
+                description: `port ${s.port}${states.get(s.id)?.status === 'running' ? ' · running' : ''}`,
+                id: s.id,
+              })),
+              { placeHolder: 'Reset stateful mock data for which server?' }
+            );
+            if (!picked) {
+              return;
+            }
+            serverId = picked.id;
+          }
+        }
+
+        try {
+          mgr.resetStatefulData(serverId);
+          const name = allServers.find((s) => s.id === serverId)?.name ?? serverId;
+          vscode.window.showInformationMessage(
+            `Mocklify: Stateful mock data reset for "${name}" — collections re-seed on the next request.`
+          );
+        } catch (error) {
+          vscode.window.showErrorMessage(
+            `Mocklify: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+    )
+  );
 
   // Watch for configuration changes
   context.subscriptions.push(
