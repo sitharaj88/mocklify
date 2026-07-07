@@ -119,6 +119,12 @@
         "icon": "$(cloud-upload)"
       },
       {
+        "command": "mocklify.exportServerAs",
+        "title": "Export Server As…",
+        "category": "Mocklify",
+        "icon": "$(export)"
+      },
+      {
         "command": "mocklify.exportLogs",
         "title": "Export Request Logs",
         "category": "Mocklify",
@@ -518,6 +524,11 @@
         },
         {
           "command": "mocklify.exportServer",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "3_export"
+        },
+        {
+          "command": "mocklify.exportServerAs",
           "when": "view == mocklifyServers && viewItem =~ /^server/",
           "group": "3_export"
         },

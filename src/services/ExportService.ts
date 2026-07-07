@@ -6,6 +6,11 @@ export interface ExportFormat {
   type: 'json' | 'yaml' | 'har' | 'curl';
 }
 
+/** POSIX-safe single quoting: close the string, emit an escaped quote, reopen. */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
 export interface HarLog {
   version: string;
   creator: { name: string; version: string };
@@ -155,7 +160,7 @@ export class ExportService {
     for (const [name, value] of Object.entries(log.request.headers)) {
       if (value && !['host', 'content-length'].includes(name.toLowerCase())) {
         const headerValue = Array.isArray(value) ? value.join(', ') : value;
-        parts.push(`-H '${name}: ${headerValue}'`);
+        parts.push(`-H ${shellQuote(`${name}: ${headerValue}`)}`);
       }
     }
 
@@ -164,11 +169,11 @@ export class ExportService {
       const body = typeof log.request.body === 'string'
         ? log.request.body
         : JSON.stringify(log.request.body);
-      parts.push(`-d '${body.replace(/'/g, "\\'")}'`);
+      parts.push(`-d ${shellQuote(body)}`);
     }
 
     // URL
-    parts.push(`'http://localhost:${serverPort}${log.request.url}'`);
+    parts.push(shellQuote(`http://localhost:${serverPort}${log.request.url}`));
 
     return parts.join(' \\\n  ');
   }

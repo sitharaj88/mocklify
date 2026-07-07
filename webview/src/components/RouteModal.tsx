@@ -22,12 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
   Badge,
+  getMethodVariant,
   Tabs,
   TabsList,
   TabsTrigger,
   TabsContent,
 } from './ui';
-import { cn } from '../lib/utils';
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'];
 const STATUS_CODES = [
@@ -47,19 +47,6 @@ const tabs = [
   { id: 'matching', label: 'Matching', icon: Filter },
   { id: 'advanced', label: 'Advanced', icon: Settings2 },
 ];
-
-function getMethodColor(method: HttpMethod): string {
-  const colors: Record<HttpMethod, string> = {
-    GET: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-    POST: 'bg-amber-500/15 text-amber-400 border-amber-500/30',
-    PUT: 'bg-blue-500/15 text-blue-400 border-blue-500/30',
-    DELETE: 'bg-red-500/15 text-red-400 border-red-500/30',
-    PATCH: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
-    HEAD: 'bg-surface-500/15 text-surface-400 border-surface-500/30',
-    OPTIONS: 'bg-surface-500/15 text-surface-400 border-surface-500/30',
-  };
-  return colors[method] || colors.GET;
-}
 
 export function RouteModal() {
   const { editingRoute, selectedServerId, showRouteModal, setShowRouteModal, setEditingRoute } = useStore();
@@ -259,7 +246,7 @@ export function RouteModal() {
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-brand-500/15">
-              <Route className="w-5 h-5 text-brand-400" />
+              <Route className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             </div>
             <div>
               <DialogTitle>{isEditing ? 'Edit Route' : 'Create New Route'}</DialogTitle>
@@ -303,7 +290,7 @@ export function RouteModal() {
                       />
                     </FormGroup>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormGroup>
                         <Label required>Method</Label>
                         <Select value={method} onValueChange={(v) => setMethod(v as HttpMethod)}>
@@ -313,14 +300,7 @@ export function RouteModal() {
                           <SelectContent>
                             {HTTP_METHODS.map((m) => (
                               <SelectItem key={m} value={m}>
-                                <div className="flex items-center gap-2">
-                                  <span className={cn(
-                                    'px-1.5 py-0.5 rounded text-xs font-mono font-bold',
-                                    getMethodColor(m)
-                                  )}>
-                                    {m}
-                                  </span>
-                                </div>
+                                <Badge variant={getMethodVariant(m)}>{m}</Badge>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -364,7 +344,7 @@ export function RouteModal() {
 
                   {/* Response Tab */}
                   <TabsContent value="response" className="space-y-5 mt-0">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormGroup>
                         <Label>Response Type</Label>
                         <Select value={responseType} onValueChange={(v) => setResponseType(v as any)}>
@@ -446,7 +426,7 @@ export function RouteModal() {
                               size="icon"
                               onClick={() => removeHeader(index)}
                             >
-                              <Trash2 size={14} className="text-red-400" />
+                              <Trash2 size={14} className="text-red-600 dark:text-red-400" />
                             </Button>
                           </div>
                         ))}
@@ -500,7 +480,7 @@ export function RouteModal() {
                                 size="icon"
                                 onClick={() => removeMatchHeader(index)}
                               >
-                                <Trash2 size={14} className="text-red-400" />
+                                <Trash2 size={14} className="text-red-600 dark:text-red-400" />
                               </Button>
                             </div>
                           ))}
@@ -548,7 +528,7 @@ export function RouteModal() {
                                 size="icon"
                                 onClick={() => removeMatchQuery(index)}
                               >
-                                <Trash2 size={14} className="text-red-400" />
+                                <Trash2 size={14} className="text-red-600 dark:text-red-400" />
                               </Button>
                             </div>
                           ))}
@@ -600,7 +580,7 @@ export function RouteModal() {
                             exit={{ opacity: 0, height: 0 }}
                             className="mt-3"
                           >
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm text-surface-400">Min:</span>
                                 <Input

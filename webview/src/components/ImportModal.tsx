@@ -1,6 +1,26 @@
 import React, { useState } from 'react';
-import * as Dialog from '@radix-ui/react-dialog';
+import { AlertCircle, Import } from 'lucide-react';
 import { useStore, postMessage } from '../store';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+  Button,
+  Textarea,
+  FormGroup,
+  Label,
+  FormHint,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from './ui';
+import { cn } from '../lib/utils';
 
 interface ImportModalProps {
   open: boolean;
@@ -61,123 +81,129 @@ export const ImportModal: React.FC<ImportModalProps> = ({ open, onOpenChange }) 
     reader.readAsText(file);
   };
 
+  const importTypes: { value: ImportType; title: string; detail: string }[] = [
+    {
+      value: 'openapi',
+      title: 'OpenAPI / Swagger',
+      detail: 'OpenAPI 3.0 or Swagger 2.0 spec',
+    },
+    {
+      value: 'postman',
+      title: 'Postman Collection',
+      detail: 'Postman Collection v2.1',
+    },
+  ];
+
   return (
-    <Dialog.Root open={open} onOpenChange={onOpenChange}>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50" />
-        <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] overflow-y-auto bg-surface-800 rounded-xl shadow-xl border border-surface-700 p-6 z-50">
-          <Dialog.Title className="text-xl font-semibold text-surface-100 mb-4">
-            Import Routes
-          </Dialog.Title>
-
-          <div className="space-y-4">
-            {/* Import Type Selection */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setImportType('openapi')}
-                className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                  importType === 'openapi'
-                    ? 'bg-brand-600 text-white border-brand-500'
-                    : 'bg-surface-700 text-surface-200 border-surface-700 hover:bg-surface-600'
-                }`}
-              >
-                <div className="font-medium">OpenAPI / Swagger</div>
-                <div className="text-sm opacity-80">Import from OpenAPI 3.0 or Swagger 2.0 spec</div>
-              </button>
-              <button
-                onClick={() => setImportType('postman')}
-                className={`flex-1 px-4 py-3 rounded-lg border transition-colors ${
-                  importType === 'postman'
-                    ? 'bg-brand-600 text-white border-brand-500'
-                    : 'bg-surface-700 text-surface-200 border-surface-700 hover:bg-surface-600'
-                }`}
-              >
-                <div className="font-medium">Postman Collection</div>
-                <div className="text-sm opacity-80">Import from Postman Collection v2.1</div>
-              </button>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-brand-500/10">
+              <Import className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             </div>
-
-            {/* Target Server */}
             <div>
-              <label className="block text-sm font-medium text-surface-100 mb-1">
-                Target Server
-              </label>
-              <select
-                value={targetServerId}
-                onChange={(e) => setTargetServerId(e.target.value)}
-                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
-              >
-                <option value="">Select a server...</option>
-                {servers.map((server) => (
-                  <option key={server.id} value={server.id}>
-                    {server.name} (:{server.port})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* File Upload */}
-            <div>
-              <label className="block text-sm font-medium text-surface-100 mb-1">
-                Upload File
-              </label>
-              <input
-                type="file"
-                accept={importType === 'openapi' ? '.json,.yaml,.yml' : '.json'}
-                onChange={handleFileUpload}
-                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-brand-600 file:text-white file:cursor-pointer"
-              />
-            </div>
-
-            {/* Or paste content */}
-            <div className="relative">
-              <div className="absolute inset-x-0 top-0 flex items-center">
-                <div className="flex-1 border-t border-surface-700" />
-                <span className="px-2 text-sm text-surface-400 bg-surface-800">or paste content</span>
-                <div className="flex-1 border-t border-surface-700" />
-              </div>
-            </div>
-
-            {/* Content Textarea */}
-            <div className="pt-4">
-              <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
-                placeholder={
-                  importType === 'openapi'
-                    ? 'Paste your OpenAPI/Swagger JSON or YAML here...'
-                    : 'Paste your Postman Collection JSON here...'
-                }
-                rows={10}
-                className="w-full px-3 py-2 bg-surface-900/60 border border-surface-700 rounded-lg text-surface-100 font-mono text-sm placeholder:text-surface-400 focus:outline-none focus:ring-2 focus:ring-brand-500/50 resize-none"
-              />
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="px-3 py-2 bg-red-500/10 border border-destructive/20 rounded-lg text-red-400 text-sm">
-                {error}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Dialog.Close asChild>
-                <button className="px-4 py-2 bg-surface-700 text-surface-200 rounded-lg hover:bg-surface-600 transition-colors">
-                  Cancel
-                </button>
-              </Dialog.Close>
-              <button
-                onClick={handleImport}
-                disabled={isLoading || !content.trim() || !targetServerId}
-                className="px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'Importing...' : 'Import Routes'}
-              </button>
+              <DialogTitle>Import Routes</DialogTitle>
+              <DialogDescription>
+                Bring existing API definitions into a server
+              </DialogDescription>
             </div>
           </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </DialogHeader>
+
+        <DialogBody className="space-y-5">
+          {/* Import Type Selection */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {importTypes.map((t) => {
+              const isSelected = importType === t.value;
+              return (
+                <button
+                  key={t.value}
+                  type="button"
+                  onClick={() => setImportType(t.value)}
+                  className={cn(
+                    'focus-ring flex flex-col items-start gap-0.5 px-4 py-3 rounded-lg border-2 text-left transition-colors duration-150',
+                    isSelected
+                      ? 'border-brand-500 bg-brand-500/10'
+                      : 'border-surface-700 hover:border-surface-600 hover:bg-surface-800/50'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'text-sm font-medium',
+                      isSelected ? 'text-brand-700 dark:text-brand-400' : 'text-surface-200'
+                    )}
+                  >
+                    {t.title}
+                  </span>
+                  <span className="text-xs text-surface-500">{t.detail}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <FormGroup>
+            <Label required>Target Server</Label>
+            <Select value={targetServerId} onValueChange={setTargetServerId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a server..." />
+              </SelectTrigger>
+              <SelectContent>
+                {servers.map((server) => (
+                  <SelectItem key={server.id} value={server.id}>
+                    {server.name} (:{server.port})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Upload File</Label>
+            <input
+              type="file"
+              accept={importType === 'openapi' ? '.json,.yaml,.yml' : '.json'}
+              onChange={handleFileUpload}
+              className="focus-ring w-full px-3 py-2 rounded-md border border-surface-600 bg-surface-800/80 text-sm text-surface-100 transition-colors duration-150 file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:bg-brand-500 file:text-white file:cursor-pointer"
+            />
+            <FormHint>Or paste the content below</FormHint>
+          </FormGroup>
+
+          <FormGroup>
+            <Label>Content</Label>
+            <Textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={
+                importType === 'openapi'
+                  ? 'Paste your OpenAPI/Swagger JSON or YAML here...'
+                  : 'Paste your Postman Collection JSON here...'
+              }
+              rows={10}
+              className="font-mono text-sm resize-none"
+            />
+          </FormGroup>
+
+          {error && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-red-500/10 border border-red-500/25 text-sm text-red-700 dark:text-red-400">
+              <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </DialogBody>
+
+        <DialogFooter>
+          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleImport}
+            disabled={isLoading || !content.trim() || !targetServerId}
+          >
+            {isLoading ? 'Importing...' : 'Import Routes'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

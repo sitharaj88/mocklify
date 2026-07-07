@@ -31,7 +31,7 @@ function EmptyState({
     >
       <div className="relative mb-6">
         <div className="absolute inset-0 bg-brand-500/20 blur-xl rounded-full" />
-        <div className="relative flex items-center justify-center w-16 h-16 rounded-2xl bg-surface-800 border border-surface-700">
+        <div className="relative flex items-center justify-center w-16 h-16 rounded-lg bg-surface-800 border border-surface-700">
           <Icon className="w-8 h-8 text-surface-400" />
         </div>
       </div>

@@ -11,8 +11,6 @@ import {
   Zap,
   ChevronLeft,
   ChevronRight,
-  Menu,
-  X,
   Import,
   Keyboard,
 } from 'lucide-react';
@@ -33,39 +31,36 @@ interface SidebarProps {
   onShortcutsClick?: () => void;
 }
 
-// Custom hook to detect if we're on mobile
-function useIsMobile() {
-  const [isMobile, setIsMobile] = useState(false);
+const NARROW_BREAKPOINT = 768;
+
+// The webview can live in a narrow split-editor pane: below the breakpoint
+// the sidebar automatically becomes an icon rail (manual toggle still works).
+function useIsNarrow() {
+  const [isNarrow, setIsNarrow] = useState(
+    () => window.innerWidth < NARROW_BREAKPOINT
+  );
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const check = () => setIsNarrow(window.innerWidth < NARROW_BREAKPOINT);
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
   }, []);
 
-  return isMobile;
+  return isNarrow;
 }
 
 export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
   const { activeView, setActiveView, servers, serverStates } = useStore();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const isMobile = useIsMobile();
+  const isNarrow = useIsNarrow();
+  // null = follow the automatic width-based behavior
+  const [userCollapsed, setUserCollapsed] = useState<boolean | null>(null);
 
-  // Close mobile menu when view changes
+  // Crossing the breakpoint resets any manual override so auto-collapse resumes
   useEffect(() => {
-    setMobileOpen(false);
-  }, [activeView]);
+    setUserCollapsed(null);
+  }, [isNarrow]);
 
-  // Handle escape key to close mobile menu
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileOpen(false);
-    };
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, []);
+  const collapsed = userCollapsed ?? isNarrow;
 
   const runningCount = Object.values(serverStates).filter(
     (s) => s.status === 'running'
@@ -80,76 +75,44 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  const actionButtonClass = cn(
+    'focus-ring w-full flex items-center gap-2 px-3 py-2 rounded-md text-surface-400 hover:bg-surface-800/50 hover:text-surface-200 transition-colors duration-150',
+    collapsed && 'justify-center px-0'
+  );
+
   return (
     <TooltipProvider delayDuration={0}>
-      {/* Mobile Header Bar */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-surface-900 border-b border-surface-800 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <div className="relative w-8 h-8">
-            <div className="absolute inset-0 bg-brand-500/30 blur-lg rounded-full" />
-            <div className="relative w-full h-full rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
-              <Zap size={16} className="text-white" />
-            </div>
-          </div>
-          <h1 className="font-bold text-surface-50">Mocklify</h1>
-        </div>
-        <button
-          onClick={() => setMobileOpen(!mobileOpen)}
-          className="p-2 rounded-lg text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors"
-        >
-          {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-      </div>
-
-      {/* Mobile Overlay */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setMobileOpen(false)}
-            className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Sidebar */}
       <motion.aside
         initial={false}
-        animate={{ 
-          width: collapsed && !isMobile ? 72 : 240,
-        }}
+        animate={{ width: collapsed ? 64 : 240 }}
         transition={{ duration: 0.2, ease: 'easeInOut' }}
-        className={cn(
-          "h-screen flex flex-col bg-surface-900 border-r border-surface-800",
-          // Mobile: fixed positioning with slide animation
-          "max-lg:fixed max-lg:z-50 max-lg:top-14 max-lg:left-0 max-lg:h-[calc(100vh-3.5rem)]",
-          "max-lg:transition-transform max-lg:duration-200",
-          mobileOpen ? "max-lg:translate-x-0" : "max-lg:-translate-x-full",
-          // Desktop: relative positioning, always visible
-          "lg:relative lg:z-auto lg:translate-x-0 lg:top-0 lg:h-screen"
-        )}
+        className="h-screen flex flex-col flex-shrink-0 bg-surface-900 border-r border-surface-700 overflow-hidden"
       >
-        {/* Logo - Hidden on mobile since we have the mobile header */}
-        <div className="h-16 hidden lg:flex items-center px-4 border-b border-surface-800">
-          <div className="relative flex items-center gap-3">
-            <div className="relative w-10 h-10 flex-shrink-0">
+        {/* Logo */}
+        <div
+          className={cn(
+            'h-16 flex items-center border-b border-surface-700 flex-shrink-0',
+            collapsed ? 'justify-center px-2' : 'px-4'
+          )}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-9 h-9 flex-shrink-0">
               <div className="absolute inset-0 bg-brand-500/30 blur-lg rounded-full" />
-              <div className="relative w-full h-full rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
-                <Zap size={20} className="text-white" />
+              <div className="relative w-full h-full rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/25">
+                <Zap size={18} className="text-white" />
               </div>
             </div>
             <AnimatePresence>
               {!collapsed && (
                 <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -10 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
+                  className="min-w-0"
                 >
                   <h1 className="font-bold text-surface-50 whitespace-nowrap">Mocklify</h1>
-                  <p className="text-xs text-surface-500">
+                  <p className="text-xs text-surface-500 whitespace-nowrap">
                     {extensionVersion() ? `v${extensionVersion()}` : ''}
                   </p>
                 </motion.div>
@@ -159,62 +122,57 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 overflow-y-auto">
+        <nav className="flex-1 py-4 px-3 overflow-y-auto overflow-x-hidden">
           <ul className="space-y-1">
             {navItems.map((item) => {
               const isActive = activeView === item.id;
               const Icon = item.icon;
-              const showLabels = isMobile || !collapsed;
 
               const button = (
-                <motion.button
-                  key={item.id}
-                  whileHover={{ x: 2 }}
-                  whileTap={{ scale: 0.98 }}
+                <button
                   onClick={() => setActiveView(item.id)}
+                  aria-label={item.label}
+                  aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'w-full relative flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                    'focus-ring w-full relative flex items-center gap-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150',
+                    collapsed ? 'justify-center px-0' : 'px-3',
                     isActive
-                      ? 'text-brand-400'
+                      ? 'text-brand-700 dark:text-brand-400'
                       : 'text-surface-400 hover:bg-surface-800/50 hover:text-surface-200'
                   )}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="activeNav"
-                      className="absolute inset-0 bg-brand-500/10 rounded-lg border border-brand-500/20"
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                      className="absolute inset-0 bg-brand-500/10 rounded-md border border-brand-500/20"
+                      transition={{ duration: 0.15, ease: 'easeOut' }}
                     />
                   )}
-                  <div className="relative flex items-center gap-3">
-                    <Icon size={18} />
-                    <AnimatePresence>
-                      {showLabels && (
-                        <motion.span
-                          initial={{ opacity: 0, width: 0 }}
-                          animate={{ opacity: 1, width: 'auto' }}
-                          exit={{ opacity: 0, width: 0 }}
-                          className="whitespace-nowrap overflow-hidden"
-                        >
-                          {item.label}
-                        </motion.span>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                  {item.badge && showLabels && (
-                    <Badge variant="default" className="ml-auto">
+                  <span className="relative flex items-center gap-3 min-w-0">
+                    <Icon size={18} className="flex-shrink-0" />
+                    {!collapsed && (
+                      <span className="whitespace-nowrap overflow-hidden">{item.label}</span>
+                    )}
+                  </span>
+                  {item.badge != null && !collapsed && (
+                    <Badge variant="default" className="relative ml-auto">
                       {item.badge}
                     </Badge>
                   )}
                   {item.id === 'servers' && runningCount > 0 && (
-                    <div className={cn('ml-auto', !showLabels && 'absolute -top-1 -right-1')}>
+                    <span
+                      className={cn(
+                        'relative',
+                        collapsed ? 'absolute top-1 right-1.5' : 'ml-1'
+                      )}
+                    >
                       <StatusDot status="running" size="sm" />
-                    </div>
+                    </span>
                   )}
-                </motion.button>
+                </button>
               );
 
-              if (collapsed && !isMobile) {
+              if (collapsed) {
                 return (
                   <li key={item.id}>
                     <Tooltip>
@@ -232,21 +190,14 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
           </ul>
         </nav>
 
-        {/* Collapse Toggle - Desktop only */}
-        <div className="hidden lg:block border-t border-surface-800">
-          {/* Quick Actions */}
+        {/* Quick actions + collapse toggle */}
+        <div className="border-t border-surface-700 flex-shrink-0">
           <div className="p-3 space-y-1">
             {onImportClick && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
-                    onClick={onImportClick}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-surface-400 hover:bg-surface-800/50 hover:text-surface-200 transition-colors',
-                      collapsed && 'justify-center'
-                    )}
-                  >
-                    <Import size={18} />
+                  <button onClick={onImportClick} aria-label="Import OpenAPI/Postman" className={actionButtonClass}>
+                    <Import size={18} className="flex-shrink-0" />
                     {!collapsed && <span className="text-sm">Import</span>}
                   </button>
                 </TooltipTrigger>
@@ -260,14 +211,8 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
             {onShortcutsClick && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
-                    onClick={onShortcutsClick}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 rounded-lg text-surface-400 hover:bg-surface-800/50 hover:text-surface-200 transition-colors',
-                      collapsed && 'justify-center'
-                    )}
-                  >
-                    <Keyboard size={18} />
+                  <button onClick={onShortcutsClick} aria-label="Keyboard shortcuts" className={actionButtonClass}>
+                    <Keyboard size={18} className="flex-shrink-0" />
                     {!collapsed && <span className="text-sm">Shortcuts</span>}
                   </button>
                 </TooltipTrigger>
@@ -280,25 +225,14 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
             )}
           </div>
 
-          {/* Collapse Button */}
-          <div className="p-3 border-t border-surface-800">
+          <div className="p-3 border-t border-surface-700">
             <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors"
+              onClick={() => setUserCollapsed(!collapsed)}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              className="focus-ring w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md text-surface-500 hover:bg-surface-800/50 hover:text-surface-300 transition-colors duration-150"
             >
               {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-              <AnimatePresence>
-                {!collapsed && (
-                  <motion.span
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="text-sm"
-                  >
-                    Collapse
-                  </motion.span>
-                )}
-              </AnimatePresence>
+              {!collapsed && <span className="text-sm">Collapse</span>}
             </button>
           </div>
         </div>

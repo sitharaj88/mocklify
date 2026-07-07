@@ -2,6 +2,13 @@ import * as vscode from 'vscode';
 import { MockServerManager } from '../core/MockServerManager.js';
 import { MockServerConfig, RouteConfig, DatabaseConnection } from '../types/core.js';
 import { v4 as uuidv4 } from 'uuid';
+import { OpenApiExportService } from '../services/OpenApiExportService.js';
+import { buildApiDocsHtml, buildConfluenceStorageXhtml } from '../services/DocsExportService.js';
+import {
+  buildHttpFile,
+  buildOpenApiYaml,
+  buildPostmanCollection,
+} from '../services/CollectionExportService.js';
 import { AiUnavailableError, AiProviderId, AgenticScanUnavailableError } from '../ai/providers/types.js';
 import { MODEL_CATALOG, ModelProviderId } from '../ai/modelCatalog.js';
 import {
@@ -330,7 +337,7 @@ export class WebViewManager {
 
       case 'exportServer':
         if (message.serverId) {
-          await this.exportServer(message.serverId);
+          await this.exportServer(message.serverId, message.data as { format?: string } | undefined);
         }
         break;
 
@@ -856,23 +863,55 @@ export class WebViewManager {
     }
   }
 
-  private async exportServer(serverId: string): Promise<void> {
+  private async exportServer(serverId: string, data?: { format?: string }): Promise<void> {
     try {
-      const exportService = this.manager.getExportService();
       const server = await this.manager.getServer(serverId);
-      
+
       if (!server) {
         this.sendError('Server not found');
         return;
       }
-      
-      const content = exportService.exportServerToJson(server, { pretty: true });
+
+      const slug = server.name.replace(/\s+/g, '-');
+      const format = data?.format ?? 'config';
+      let content: string;
+      let filename: string;
+
+      switch (format) {
+        case 'openapi-json':
+          content = new OpenApiExportService().exportToJson(server);
+          filename = `${slug}-openapi.json`;
+          break;
+        case 'openapi-yaml':
+          content = buildOpenApiYaml(server, new OpenApiExportService().exportToOpenApi(server));
+          filename = `${slug}-openapi.yaml`;
+          break;
+        case 'postman':
+          content = JSON.stringify(buildPostmanCollection(server), null, 2);
+          filename = `${slug}.postman_collection.json`;
+          break;
+        case 'http':
+          content = buildHttpFile(server);
+          filename = `${slug}.http`;
+          break;
+        case 'html':
+          content = buildApiDocsHtml(server);
+          filename = `${slug}-docs.html`;
+          break;
+        case 'confluence':
+          content = buildConfluenceStorageXhtml(server);
+          filename = `${slug}-docs.xml`;
+          break;
+        default:
+          content = this.manager.getExportService().exportServerToJson(server, { pretty: true });
+          filename = `${slug}-config.json`;
+      }
 
       this.panel?.webview.postMessage({
         type: 'exportResult',
-        format: 'json',
+        format,
         content,
-        filename: `${server.name.replace(/\s+/g, '-')}-config.json`,
+        filename,
       });
     } catch (error) {
       this.sendError(error instanceof Error ? error.message : 'Failed to export server');

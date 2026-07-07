@@ -19,19 +19,22 @@
     --surface-950: 2 6 23;
   }
 
-  /* Light Theme */
+  /* Light Theme
+     Tuned for real hierarchy: white cards (800) on a gray canvas (900),
+     body text (200) >= 4.5:1, secondary text (400/500) >= 3:1,
+     borders (600/700) visible but recessive. */
   .light {
-    --surface-50: 2 6 23;
-    --surface-100: 15 23 42;
-    --surface-200: 30 41 59;
-    --surface-300: 51 65 85;
+    --surface-50: 15 23 42;
+    --surface-100: 30 41 59;
+    --surface-200: 51 65 85;
+    --surface-300: 71 85 105;
     --surface-400: 71 85 105;
     --surface-500: 100 116 139;
-    --surface-600: 148 163 184;
-    --surface-700: 203 213 225;
-    --surface-800: 241 245 249;
+    --surface-600: 203 213 225;
+    --surface-700: 226 232 240;
+    --surface-800: 255 255 255;
     --surface-900: 248 250 252;
-    --surface-950: 255 255 255;
+    --surface-950: 241 245 249;
   }
 
   * {
@@ -88,7 +91,7 @@
 
   /* Content Layout */
   .content-header {
-    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-800 bg-surface-900/80 backdrop-blur-sm flex-shrink-0;
+    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-surface-700 bg-surface-900/80 backdrop-blur-sm flex-shrink-0;
   }
 
   .content-header h1 {
@@ -99,9 +102,15 @@
     @apply flex-1 overflow-auto p-4 sm:p-6;
   }
 
+  /* Shared focus treatment for raw interactive elements (buttons, chips,
+     native selects). ui primitives carry their own equivalent classes. */
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500;
+  }
+
   /* Glass Effect */
   .glass {
-    @apply bg-surface-800/50 backdrop-blur-sm border border-surface-700/50 rounded-xl;
+    @apply bg-surface-800/50 backdrop-blur-sm border border-surface-700/50 rounded-lg;
   }
 
   /* Gradient Text */

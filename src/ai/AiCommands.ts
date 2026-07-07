@@ -2,6 +2,13 @@ import * as vscode from 'vscode';
 import { MockServerManager } from '../core/MockServerManager.js';
 import { MockServerConfig } from '../types/core.js';
 import { OpenApiExportService } from '../services/OpenApiExportService.js';
+import { buildApiDocsHtml, buildConfluenceStorageXhtml } from '../services/DocsExportService.js';
+import {
+  buildHttpFile,
+  buildOpenApiYaml,
+  buildPostmanCollection,
+} from '../services/CollectionExportService.js';
+import { getExtensionVersion } from '../version.js';
 import { AiService } from './AiService.js';
 import { AiProviderId, AiUnavailableError } from './providers/types.js';
 import { ApiKeyManager } from './providers/ApiKeyManager.js';
@@ -49,7 +56,7 @@ export function registerAiCommands(
       return;
     }
 
-    await vscode.window.withProgress(
+    const result = await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
         title: `Mocklify: Generating API documentation for "${server.name}"…`,
@@ -57,21 +64,38 @@ export function registerAiCommands(
       },
       async (_progress, token) => {
         try {
-          const result = await docsGenerator.generate(server, { token });
-          if (token.isCancellationRequested) {
-            return;
-          }
-          await saveAndOpenDocs(server, result.markdown);
-          if (!result.aiEnhanced) {
-            vscode.window.showInformationMessage(
-              'Mocklify: GitHub Copilot was unavailable — generated reference documentation instead.'
-            );
-          }
+          const generated = await docsGenerator.generate(server, { token });
+          return token.isCancellationRequested ? undefined : generated;
         } catch (error) {
           showAiError(error);
+          return undefined;
         }
       }
     );
+    if (!result) {
+      return;
+    }
+
+    await saveAndOpenDocs(server, result.markdown);
+    if (!result.aiEnhanced) {
+      vscode.window.showInformationMessage(
+        'Mocklify: GitHub Copilot was unavailable — generated reference documentation instead.'
+      );
+    }
+
+    // AI prose becomes the overview of the richer formats; the deterministic
+    // fallback already duplicates the endpoint reference.
+    const markdown = result.aiEnhanced ? result.markdown : undefined;
+    const also = await vscode.window.showInformationMessage(
+      'Mocklify: Also export the documentation as…',
+      'Web Page',
+      'Confluence'
+    );
+    if (also === 'Web Page') {
+      await saveServerExport(server, 'html', buildApiDocsHtml(server, { markdown }));
+    } else if (also === 'Confluence') {
+      await saveServerExport(server, 'confluence', buildConfluenceStorageXhtml(server, { markdown }));
+    }
   });
 
   register('mocklify.exportOpenApi', async (item?: { serverId?: string }) => {
@@ -101,6 +125,115 @@ export function registerAiCommands(
     if (action === 'Open File') {
       await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
     }
+  });
+
+  register('mocklify.exportServerAs', async (item?: { serverId?: string }) => {
+    const server = await pickServer(manager, item, 'Select a server to export');
+    if (!server) {
+      return;
+    }
+
+    const picked = await vscode.window.showQuickPick<vscode.QuickPickItem & { id: ExportFormatId }>(
+      [
+        {
+          label: '$(json) OpenAPI 3.0 — JSON',
+          detail: 'Spec with inferred response schemas',
+          id: 'openapi-json',
+        },
+        {
+          label: '$(file-code) OpenAPI 3.0 — YAML',
+          detail: 'The same spec serialized as YAML',
+          id: 'openapi-yaml',
+        },
+        {
+          label: '$(package) Postman Collection v2.1',
+          detail: 'Folders per tag, saved example responses, failure scenarios',
+          id: 'postman',
+        },
+        {
+          label: '$(terminal) REST Client (.http)',
+          detail: 'Runnable requests for the VS Code REST Client extension',
+          id: 'http',
+        },
+        {
+          label: '$(globe) API Docs — Web Page (.html)',
+          detail: 'Self-contained page with search, curl examples, and dark mode',
+          id: 'html',
+        },
+        {
+          label: '$(book) API Docs — Confluence (.xml)',
+          detail: 'Confluence Storage Format — paste into a page via Insert markup or the REST API',
+          id: 'confluence',
+        },
+        {
+          label: '$(markdown) API Docs — Markdown (.md)',
+          detail: 'AI-written docs with a deterministic fallback',
+          id: 'markdown',
+        },
+      ],
+      { placeHolder: `Export "${server.name}" as…` }
+    );
+    if (!picked) {
+      return;
+    }
+
+    let content: string | undefined;
+    switch (picked.id) {
+      case 'openapi-json':
+        content = openApiExport.exportToJson(server);
+        break;
+      case 'openapi-yaml':
+        content = buildOpenApiYaml(server, openApiExport.exportToOpenApi(server));
+        break;
+      case 'postman':
+        content = JSON.stringify(
+          buildPostmanCollection(server, { version: getExtensionVersion() }),
+          null,
+          2
+        );
+        break;
+      case 'http':
+        content = buildHttpFile(server);
+        break;
+      default:
+        // Docs formats: AI prose when a provider is available, deterministic
+        // reference otherwise (DocumentationGenerator handles the fallback).
+        content = await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `Mocklify: Generating documentation for "${server.name}"…`,
+            cancellable: true,
+          },
+          async (_progress, token) => {
+            try {
+              const result = await docsGenerator.generate(server, { token });
+              if (token.isCancellationRequested) {
+                return undefined;
+              }
+              if (picked.id === 'markdown') {
+                if (!result.aiEnhanced) {
+                  vscode.window.showInformationMessage(
+                    'Mocklify: AI was unavailable — generated reference documentation instead.'
+                  );
+                }
+                return result.markdown;
+              }
+              const markdown = result.aiEnhanced ? result.markdown : undefined;
+              return picked.id === 'html'
+                ? buildApiDocsHtml(server, { markdown })
+                : buildConfluenceStorageXhtml(server, { markdown });
+            } catch (error) {
+              showAiError(error);
+              return undefined;
+            }
+          }
+        );
+    }
+    if (content === undefined) {
+      return;
+    }
+
+    await saveServerExport(server, picked.id, content);
   });
 
   register('mocklify.aiGenerateServer', async () => {
@@ -793,6 +926,66 @@ export function registerAiCommands(
     await keys.deleteKey(picked.id);
     vscode.window.showInformationMessage(`Mocklify: ${picked.label} API key removed.`);
   });
+}
+
+type ExportFormatId =
+  | 'openapi-json'
+  | 'openapi-yaml'
+  | 'postman'
+  | 'http'
+  | 'html'
+  | 'confluence'
+  | 'markdown';
+
+const EXPORT_FILES: Record<ExportFormatId, { suffix: string; filters: Record<string, string[]> }> = {
+  'openapi-json': { suffix: '-openapi.json', filters: { 'OpenAPI JSON': ['json'] } },
+  'openapi-yaml': { suffix: '-openapi.yaml', filters: { 'OpenAPI YAML': ['yaml', 'yml'] } },
+  postman: { suffix: '.postman_collection.json', filters: { 'Postman Collection': ['json'] } },
+  http: { suffix: '.http', filters: { 'REST Client': ['http'] } },
+  html: { suffix: '-docs.html', filters: { 'Web Page': ['html'] } },
+  confluence: { suffix: '-docs.xml', filters: { 'Confluence Storage Format': ['xml'] } },
+  markdown: { suffix: '-docs.md', filters: { Markdown: ['md'] } },
+};
+
+async function saveServerExport(
+  server: MockServerConfig,
+  format: ExportFormatId,
+  content: string
+): Promise<void> {
+  const { suffix, filters } = EXPORT_FILES[format];
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+  const fileName = `${slugify(server.name)}${suffix}`;
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: workspaceRoot ? vscode.Uri.joinPath(workspaceRoot, fileName) : undefined,
+    filters,
+  });
+  if (!target) {
+    return;
+  }
+
+  await vscode.workspace.fs.writeFile(target, Buffer.from(content, 'utf-8'));
+
+  if (format === 'html') {
+    const action = await vscode.window.showInformationMessage(
+      `Mocklify: Exported "${server.name}" docs as a web page.`,
+      'Open in Browser',
+      'Reveal'
+    );
+    if (action === 'Open in Browser') {
+      await vscode.env.openExternal(target);
+    } else if (action === 'Reveal') {
+      await vscode.commands.executeCommand('revealFileInOS', target);
+    }
+    return;
+  }
+
+  const action = await vscode.window.showInformationMessage(
+    `Mocklify: Exported "${server.name}" as ${fileName}.`,
+    'Open File'
+  );
+  if (action === 'Open File') {
+    await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(target));
+  }
 }
 
 const SPEC_FILE_FILTERS: Record<string, string[]> = { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] };

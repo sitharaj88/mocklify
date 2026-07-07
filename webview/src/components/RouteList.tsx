@@ -99,8 +99,8 @@ export function RouteList() {
       <header className="content-header">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 w-full sm:w-auto">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-500/10">
-              <Route className="w-5 h-5 text-amber-400" />
+            <div className="p-2 rounded-md bg-brand-500/10">
+              <Route className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Routes</h1>
@@ -160,6 +160,69 @@ export function RouteList() {
                   {selectedServer?.name} Routes ({routes.length})
                 </CardTitle>
               </CardHeader>
+
+              {/* Stacked cards on narrow widths */}
+              <div className="sm:hidden px-4 pb-4 space-y-3">
+                {routes.map((route) => (
+                  <div
+                    key={route.id}
+                    className={cn(
+                      'rounded-lg border border-surface-700/50 bg-surface-800/50 p-3 space-y-2',
+                      !route.enabled && 'opacity-50'
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant={getMethodVariant(getFirstMethod(route.method))}>
+                        {formatMethod(route.method)}
+                      </Badge>
+                      <Badge variant={getStatusVariant(route.response.statusCode)}>
+                        {route.response.statusCode}
+                      </Badge>
+                      <Badge variant="default">{route.response.type}</Badge>
+                    </div>
+                    <code className="block text-xs font-mono text-surface-200 break-all">
+                      {route.path}
+                    </code>
+                    {route.name && route.name !== route.path && (
+                      <p className="text-xs text-surface-400 truncate">{route.name}</p>
+                    )}
+                    <div className="flex items-center gap-1 pt-1 border-t border-surface-700/50">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleToggleRoute(route)}
+                        title={route.enabled ? 'Disable route' : 'Enable route'}
+                      >
+                        {route.enabled ? (
+                          <ToggleRight size={18} className="text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <ToggleLeft size={18} />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleEditRoute(route)}
+                        title="Edit route"
+                      >
+                        <Edit size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setDeleteRouteId(route.id)}
+                        title="Delete route"
+                        className="hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Table on regular widths */}
+              <div className="hidden sm:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -186,7 +249,7 @@ export function RouteList() {
                           title={route.enabled ? 'Disable route' : 'Enable route'}
                         >
                           {route.enabled ? (
-                            <ToggleRight size={20} className="text-emerald-400" />
+                            <ToggleRight size={20} className="text-emerald-600 dark:text-emerald-400" />
                           ) : (
                             <ToggleLeft size={20} />
                           )}
@@ -228,7 +291,7 @@ export function RouteList() {
                             size="icon-sm"
                             onClick={() => setDeleteRouteId(route.id)}
                             title="Delete route"
-                            className="hover:text-red-400"
+                            className="hover:text-red-600 dark:hover:text-red-400"
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -238,6 +301,7 @@ export function RouteList() {
                   ))}
                 </TableBody>
               </Table>
+              </div>
             </Card>
           </motion.div>
         )}

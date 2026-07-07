@@ -187,7 +187,7 @@ export type MessageToExtension =
   // Import/Export
   | { type: 'importOpenApi'; serverId: string; data: { content: string } }
   | { type: 'importPostman'; serverId: string; data: { content: string } }
-  | { type: 'exportServer'; serverId: string }
+  | { type: 'exportServer'; serverId: string; data?: { format?: string } }
   | { type: 'exportLogs'; serverId?: string; data?: { format: string } }
   // Recording
   | { type: 'startRecording'; serverId: string; data: { targetUrl: string; pathFilter?: string } }

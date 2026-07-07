@@ -59,9 +59,6 @@ export default {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-brand': 'linear-gradient(135deg, #06b6d4 0%, #0891b2 50%, #0e7490 100%)',
-        'gradient-card': 'linear-gradient(180deg, rgba(6, 182, 212, 0.1) 0%, transparent 100%)',
-        'gradient-surface': 'linear-gradient(180deg, #1e293b 0%, #0f172a 100%)',
-        'mesh': 'radial-gradient(at 40% 20%, hsla(174, 77%, 40%, 0.15) 0px, transparent 50%), radial-gradient(at 80% 0%, hsla(189, 100%, 56%, 0.1) 0px, transparent 50%), radial-gradient(at 0% 50%, hsla(174, 62%, 56%, 0.1) 0px, transparent 50%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',

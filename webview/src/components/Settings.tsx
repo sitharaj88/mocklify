@@ -77,21 +77,19 @@ export function Settings() {
             <Card className="overflow-hidden">
               <div className="p-2 flex lg:flex-col gap-1 overflow-x-auto">
                 {settingsTabs.map((item) => (
-                  <motion.button
+                  <button
                     key={item.id}
-                    whileHover={{ x: 4 }}
-                    whileTap={{ scale: 0.98 }}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left whitespace-nowrap',
+                      'focus-ring flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors duration-150 text-left whitespace-nowrap',
                       activeTab === item.id
-                        ? 'bg-brand-500/15 text-brand-400'
+                        ? 'bg-brand-500/15 text-brand-700 dark:text-brand-400'
                         : 'text-surface-400 hover:bg-surface-700/50 hover:text-surface-200'
                     )}
                     onClick={() => setActiveTab(item.id)}
                   >
                     <item.icon size={16} />
                     <span>{item.label}</span>
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </Card>
@@ -123,7 +121,7 @@ export function Settings() {
                               key={option.value}
                               onClick={() => setTheme(option.value)}
                               className={cn(
-                                'relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all',
+                                'focus-ring relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-colors duration-150',
                                 isSelected
                                   ? 'border-brand-500 bg-brand-500/10'
                                   : 'border-surface-700 hover:border-surface-600 hover:bg-surface-800/50'
@@ -131,9 +129,9 @@ export function Settings() {
                             >
                               <div
                                 className={cn(
-                                  'p-3 rounded-lg',
+                                  'p-3 rounded-md',
                                   isSelected
-                                    ? 'bg-brand-500/20 text-brand-400'
+                                    ? 'bg-brand-500/20 text-brand-600 dark:text-brand-400'
                                     : 'bg-surface-700 text-surface-400'
                                 )}
                               >
@@ -142,7 +140,7 @@ export function Settings() {
                               <span
                                 className={cn(
                                   'text-sm font-medium',
-                                  isSelected ? 'text-brand-400' : 'text-surface-300'
+                                  isSelected ? 'text-brand-700 dark:text-brand-400' : 'text-surface-300'
                                 )}
                               >
                                 {option.label}
@@ -378,7 +376,7 @@ export function Settings() {
                           'OpenAPI/Swagger import',
                         ].map((feature) => (
                           <li key={feature} className="flex items-center gap-2 text-sm text-surface-400">
-                            <Check size={14} className="text-brand-400 flex-shrink-0" />
+                            <Check size={14} className="text-brand-600 dark:text-brand-400 flex-shrink-0" />
                             {feature}
                           </li>
                         ))}

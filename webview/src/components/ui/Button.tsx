@@ -4,12 +4,12 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-900 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-900 disabled:pointer-events-none disabled:opacity-50 active:scale-[0.98]',
   {
     variants: {
       variant: {
         default:
-          'bg-brand-500 text-white shadow-md hover:bg-brand-600 hover:shadow-glow',
+          'bg-brand-500 text-white shadow-sm hover:bg-brand-600',
         secondary:
           'bg-surface-700 text-surface-100 hover:bg-surface-600 border border-surface-600',
         ghost:
@@ -21,7 +21,7 @@ const buttonVariants = cva(
         success:
           'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/25 dark:border-emerald-500/20',
         link:
-          'text-brand-400 underline-offset-4 hover:underline hover:text-brand-300',
+          'text-brand-700 dark:text-brand-400 underline-offset-4 hover:underline hover:text-brand-600 dark:hover:text-brand-300',
       },
       size: {
         default: 'h-10 px-4 py-2',

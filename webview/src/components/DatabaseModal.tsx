@@ -21,16 +21,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui';
-import { cn } from '../lib/utils';
 
 type DbType = 'json' | 'sqlite' | 'mongodb' | 'mysql' | 'postgresql';
 
+// Type icons stay neutral: color is reserved for status, brand, and AI accents.
 const dbTypes = [
-  { value: 'json', label: 'JSON File', icon: FileJson, color: 'text-amber-400' },
-  { value: 'sqlite', label: 'SQLite', icon: HardDrive, color: 'text-blue-400' },
-  { value: 'mongodb', label: 'MongoDB', icon: Leaf, color: 'text-green-400' },
-  { value: 'mysql', label: 'MySQL', icon: Database, color: 'text-orange-400' },
-  { value: 'postgresql', label: 'PostgreSQL', icon: CircleDashed, color: 'text-sky-400' },
+  { value: 'json', label: 'JSON File', icon: FileJson },
+  { value: 'sqlite', label: 'SQLite', icon: HardDrive },
+  { value: 'mongodb', label: 'MongoDB', icon: Leaf },
+  { value: 'mysql', label: 'MySQL', icon: Database },
+  { value: 'postgresql', label: 'PostgreSQL', icon: CircleDashed },
 ];
 
 export function DatabaseModal() {
@@ -178,7 +178,7 @@ export function DatabaseModal() {
         <DialogHeader>
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-brand-500/15">
-              <Database className="w-5 h-5 text-brand-400" />
+              <Database className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             </div>
             <div>
               <DialogTitle>
@@ -220,7 +220,7 @@ export function DatabaseModal() {
                   {dbTypes.map((db) => (
                     <SelectItem key={db.value} value={db.value}>
                       <div className="flex items-center gap-2">
-                        <db.icon size={14} className={db.color} />
+                        <db.icon size={14} className="text-surface-400" />
                         {db.label}
                       </div>
                     </SelectItem>
@@ -236,10 +236,10 @@ export function DatabaseModal() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="rounded-xl bg-surface-800/50 border border-surface-700/50 p-4 space-y-4"
+                className="rounded-lg bg-surface-800/50 border border-surface-700/50 p-4 space-y-4"
               >
                 <div className="flex items-center gap-2">
-                  {selectedDb && <selectedDb.icon size={16} className={selectedDb.color} />}
+                  {selectedDb && <selectedDb.icon size={16} className="text-surface-400" />}
                   <h4 className="text-sm font-medium text-surface-200">
                     {selectedDb?.label} Configuration
                   </h4>
@@ -307,7 +307,7 @@ export function DatabaseModal() {
                 {/* MySQL/PostgreSQL Configuration */}
                 {(dbType === 'mysql' || dbType === 'postgresql') && (
                   <>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormGroup>
                         <Label>Host</Label>
                         <Input
@@ -333,7 +333,7 @@ export function DatabaseModal() {
                         placeholder="mockdb"
                       />
                     </FormGroup>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <FormGroup>
                         <Label>Username</Label>
                         <Input

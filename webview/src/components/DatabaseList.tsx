@@ -23,7 +23,6 @@ import {
   EmptyState,
   ConfirmDialog,
 } from './ui';
-import { cn } from '../lib/utils';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -99,29 +98,17 @@ export function DatabaseList() {
     }
   };
 
-  const getDbGradient = (type: string) => {
-    switch (type) {
-      case 'json':
-        return 'from-amber-500 to-amber-600';
-      case 'sqlite':
-        return 'from-blue-500 to-blue-600';
-      case 'mongodb':
-        return 'from-emerald-500 to-emerald-600';
-      case 'mysql':
-        return 'from-orange-500 to-orange-600';
-      case 'postgresql':
-        return 'from-indigo-500 to-indigo-600';
-      default:
-        return 'from-surface-500 to-surface-600';
-    }
-  };
+  // One muted, theme-aware treatment for every database type: color stays
+  // reserved for status, brand, and AI accents.
+  const dbIconClass =
+    'p-3 rounded-lg bg-surface-700/50 text-surface-500 dark:text-surface-300 border border-surface-700';
 
   return (
     <>
       <header className="content-header">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-purple-500/10">
-            <Database className="w-5 h-5 text-purple-400" />
+          <div className="p-2 rounded-md bg-brand-500/10">
+            <Database className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Database Connections</h1>
@@ -150,7 +137,7 @@ export function DatabaseList() {
             {/* Info Banner */}
             <Card className="bg-blue-500/5 border-blue-500/20">
               <CardContent className="p-4 flex gap-3">
-                <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                <Info className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-surface-100">Database Integration</p>
                   <p className="text-sm text-surface-400 mt-1">
@@ -173,10 +160,7 @@ export function DatabaseList() {
                     <CardContent className="p-5">
                       {/* Header */}
                       <div className="flex items-start gap-4 mb-4">
-                        <div className={cn(
-                          'p-3 rounded-xl bg-gradient-to-br text-white',
-                          getDbGradient(database.type)
-                        )}>
+                        <div className={dbIconClass}>
                           {getDbIcon(database.type)}
                         </div>
                         <div className="flex-1">
@@ -238,7 +222,8 @@ export function DatabaseList() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setDeleteDatabaseId(database.id)}
-                          className="hover:text-red-400"
+                          title="Delete connection"
+                          className="hover:text-red-600 dark:hover:text-red-400"
                         >
                           <Trash2 size={14} />
                         </Button>
@@ -269,10 +254,7 @@ export function DatabaseList() {
                   key={db.type}
                   className="flex items-center gap-3 p-3 rounded-lg bg-surface-800/50 border border-surface-700/50"
                 >
-                  <div className={cn(
-                    'p-2 rounded-lg bg-gradient-to-br text-white',
-                    getDbGradient(db.type)
-                  )}>
+                  <div className="p-2 rounded-md bg-surface-700/50 text-surface-500 dark:text-surface-300 border border-surface-700">
                     {getDbIcon(db.type)}
                   </div>
                   <div>

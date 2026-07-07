@@ -13,15 +13,15 @@ const badgeVariants = cva(
         warning: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 dark:border-amber-500/20',
         danger: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/25 dark:border-red-500/20',
         info: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/25 dark:border-blue-500/20',
-        purple: 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/25 dark:border-purple-500/20',
-        // HTTP method badges
-        get: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 dark:border-emerald-500/20 font-mono',
-        post: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/25 dark:border-blue-500/20 font-mono',
-        put: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/25 dark:border-amber-500/20 font-mono',
-        patch: 'bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/25 dark:border-purple-500/20 font-mono',
-        delete: 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/25 dark:border-red-500/20 font-mono',
-        options: 'bg-surface-500/15 text-surface-400 border border-surface-500/20 font-mono',
-        head: 'bg-surface-500/15 text-surface-400 border border-surface-500/20 font-mono',
+        // HTTP method badges — one muted hue family, deliberately distinct
+        // from the reserved status colors (emerald/amber/red) and AI violet.
+        get: 'bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20 font-mono',
+        post: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 font-mono',
+        put: 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20 font-mono',
+        patch: 'bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-400 border border-fuchsia-500/20 font-mono',
+        delete: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20 font-mono',
+        options: 'bg-surface-500/10 text-surface-500 dark:text-surface-400 border-surface-500/20 border font-mono',
+        head: 'bg-surface-500/10 text-surface-500 dark:text-surface-400 border-surface-500/20 border font-mono',
         // Status badges
         running: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 dark:border-emerald-500/20',
         stopped: 'bg-surface-500/15 text-surface-400 border border-surface-500/20',

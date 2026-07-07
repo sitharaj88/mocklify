@@ -7,7 +7,7 @@ export default function Import() {
     <div className="space-y-8">
       <PageHeader
         title="Import & Export"
-        description="Import API definitions from OpenAPI, Swagger, and Postman. Export logs as HAR or cURL."
+        description="Import API definitions from OpenAPI, Swagger, and Postman. Export servers as OpenAPI, Postman, .http, or shareable API docs — and logs as HAR or cURL."
       />
 
       {/* OpenAPI Import */}
@@ -98,6 +98,32 @@ export default function Import() {
           <li>• Example responses (if available)</li>
           <li>• Folder structure → Tags</li>
         </ul>
+      </section>
+
+      {/* Export Server As… */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Export Server As…</h2>
+        <p className="theme-text-secondary mb-4">
+          Run <strong>"Mocklify: Export Server As…"</strong> from the Command Palette (or the
+          server's context menu in the tree view, or the Export button on a server card in the
+          dashboard) to turn any mock server into:
+        </p>
+
+        <ul className="space-y-2 theme-text-secondary mb-6">
+          <li>• <strong>OpenAPI 3.0 — JSON or YAML</strong> → spec with inferred response schemas</li>
+          <li>• <strong>Postman Collection v2.1</strong> → folders per tag, saved example responses, and a "Failure scenarios" subfolder for disabled negative routes</li>
+          <li>• <strong>REST Client (.http)</strong> → runnable requests for the VS Code REST Client extension, path params pre-filled from mock data</li>
+          <li>• <strong>API Docs — Web Page (.html)</strong> → a single self-contained file (no external requests) with endpoint search, curl examples, and light/dark themes — ready to share or host anywhere</li>
+          <li>• <strong>API Docs — Confluence (.xml)</strong> → Confluence Storage Format with status-macro method badges and code macros — paste via "Insert markup" or push with the REST API</li>
+          <li>• <strong>API Docs — Markdown (.md)</strong> → AI-written documentation with a deterministic fallback when no AI provider is configured</li>
+        </ul>
+
+        <InfoBox type="tip">
+          The web page and Confluence exports include AI-written overview prose when an AI
+          provider is available (the same engine as "Generate API Documentation") and fall back
+          to a pure endpoint reference otherwise. After generating Markdown docs you are also
+          offered one-click "Also export as… Web Page / Confluence" with the AI prose embedded.
+        </InfoBox>
       </section>
 
       {/* HAR Export */}

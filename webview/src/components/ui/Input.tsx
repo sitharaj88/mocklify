@@ -19,7 +19,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           type={type}
           className={cn(
-            'flex h-10 w-full rounded-lg border bg-surface-800/80 px-3 py-2 text-sm text-surface-100 transition-all duration-200',
+            'flex h-10 w-full rounded-md border bg-surface-800/80 px-3 py-2 text-sm text-surface-100 transition-all duration-200',
             'placeholder:text-surface-500',
             'focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500',
             'disabled:cursor-not-allowed disabled:opacity-50',
@@ -49,7 +49,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <textarea
         className={cn(
-          'flex min-h-[100px] w-full rounded-lg border bg-surface-800/80 px-3 py-2 text-sm text-surface-100 transition-all duration-200',
+          'flex min-h-[100px] w-full rounded-md border bg-surface-800/80 px-3 py-2 text-sm text-surface-100 transition-all duration-200',
           'placeholder:text-surface-500',
           'focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500',
           'disabled:cursor-not-allowed disabled:opacity-50',
@@ -81,7 +81,7 @@ const Label = React.forwardRef<
     {...props}
   >
     {children}
-    {required && <span className="text-red-400">*</span>}
+    {required && <span className="text-red-700 dark:text-red-400">*</span>}
   </label>
 ));
 Label.displayName = 'Label';
@@ -116,7 +116,7 @@ const FormError = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-xs text-red-400', className)}
+    className={cn('text-xs text-red-700 dark:text-red-400', className)}
     {...props}
   />
 ));

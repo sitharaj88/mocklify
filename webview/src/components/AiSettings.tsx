@@ -45,7 +45,7 @@ const ENDPOINT_HINTS: Record<string, string> = {
 function ProviderStatus({ info }: { info: AiProviderInfo }) {
   if (info.available) {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-emerald-400">
+      <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 size={12} />
         {info.requiresKey ? 'Key configured' : 'Detected'}
       </span>
@@ -159,7 +159,7 @@ export function AiSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Sparkles size={16} className="text-violet-400" />
+          <Sparkles size={16} className="text-violet-600 dark:text-violet-400" />
           AI Provider
         </CardTitle>
       </CardHeader>
@@ -183,8 +183,8 @@ export function AiSettings() {
             className={cn(
               'flex items-start gap-2 p-3 rounded-lg border text-sm',
               aiTestResult.ok
-                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
-                : 'bg-red-500/10 border-red-500/25 text-red-300'
+                ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-300'
+                : 'bg-red-500/10 border-red-500/25 text-red-700 dark:text-red-300'
             )}
           >
             {aiTestResult.ok ? (
@@ -208,7 +208,7 @@ export function AiSettings() {
                   key={card.id}
                   onClick={() => selectProvider(card.id)}
                   className={cn(
-                    'relative flex flex-col items-start gap-1 p-4 rounded-xl border-2 text-left transition-all',
+                    'focus-ring relative flex flex-col items-start gap-1 p-4 rounded-lg border-2 text-left transition-colors duration-150',
                     isSelected
                       ? 'border-violet-500 bg-violet-500/10'
                       : 'border-surface-700 hover:border-surface-600 hover:bg-surface-800/50'
@@ -217,12 +217,12 @@ export function AiSettings() {
                   <div className="flex items-center gap-2">
                     <card.icon
                       size={16}
-                      className={isSelected ? 'text-violet-400' : 'text-surface-400'}
+                      className={isSelected ? 'text-violet-600 dark:text-violet-400' : 'text-surface-400'}
                     />
                     <span
                       className={cn(
                         'text-sm font-medium',
-                        isSelected ? 'text-violet-300' : 'text-surface-200'
+                        isSelected ? 'text-violet-700 dark:text-violet-300' : 'text-surface-200'
                       )}
                     >
                       {card.label}
@@ -306,7 +306,7 @@ export function AiSettings() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="hover:text-red-400"
+                      className="hover:text-red-600 dark:hover:text-red-400"
                       onClick={() => postMessage({ type: 'clearAiApiKey', data: { provider: p.id } })}
                       title="Remove stored API key"
                     >
@@ -411,7 +411,7 @@ export function AiSettings() {
                     For company gateways: AWS Bedrock-compatible, Azure-compatible, or LiteLLM
                     proxies. Leave empty to use the official API. Set the model above to the ID
                     your gateway expects (e.g. Bedrock&apos;s{' '}
-                    <code className="text-violet-400">anthropic.claude-opus-4-8</code>).
+                    <code className="text-violet-600 dark:text-violet-400">anthropic.claude-opus-4-8</code>).
                   </FormHint>
                 </FormGroup>
               </div>

@@ -72,8 +72,8 @@ export function LogsViewer() {
     <>
       <header className="content-header">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-emerald-500/10">
-            <ScrollText className="w-5 h-5 text-emerald-400" />
+          <div className="p-2 rounded-md bg-brand-500/10">
+            <ScrollText className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Request Logs</h1>
@@ -147,8 +147,11 @@ export function LogsViewer() {
                     key={log.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => e.key === 'Enter' && setSelectedLog(log)}
                     className={cn(
-                      'flex items-center gap-3 px-4 py-3 border-b border-surface-700/50 cursor-pointer transition-colors',
+                      'focus-ring flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 border-b border-surface-700/50 cursor-pointer transition-colors duration-150',
                       selectedLog?.id === log.id
                         ? 'bg-brand-500/10'
                         : 'hover:bg-surface-700/30'
@@ -161,13 +164,16 @@ export function LogsViewer() {
                     <Badge variant={getMethodVariant(log.request.method)}>
                       {log.request.method}
                     </Badge>
-                    <span className="flex-1 text-sm text-surface-200 truncate font-mono" title={log.request.url}>
+                    <span
+                      className="order-last w-full min-[480px]:order-none min-[480px]:w-auto min-[480px]:flex-1 text-sm text-surface-200 truncate font-mono"
+                      title={log.request.url}
+                    >
                       {log.request.path}
                     </span>
                     <Badge variant={getStatusVariant(log.response.statusCode)}>
                       {log.response.statusCode}
                     </Badge>
-                    <span className="text-xs text-surface-400 w-14 text-right">
+                    <span className="text-xs text-surface-400 w-14 text-right ml-auto min-[480px]:ml-0">
                       {log.response.duration}ms
                     </span>
                   </motion.div>
@@ -184,7 +190,7 @@ export function LogsViewer() {
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              className="w-[400px] flex-shrink-0"
+              className="w-full lg:w-[400px] flex-shrink-0 max-h-[50vh] lg:max-h-none"
             >
               <Card className="h-full overflow-hidden flex flex-col">
                 <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -219,7 +225,7 @@ export function LogsViewer() {
                           .slice(0, 10)
                           .map(([key, value]) => (
                             <div key={key}>
-                              <span className="text-brand-400">{key}</span>
+                              <span className="text-brand-700 dark:text-brand-400">{key}</span>
                               <span className="text-surface-500">: </span>
                               <span className="text-surface-300">{String(value)}</span>
                             </div>

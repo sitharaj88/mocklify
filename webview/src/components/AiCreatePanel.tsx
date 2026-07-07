@@ -57,13 +57,13 @@ export function AiCreatePanel() {
   return (
     <div
       className={cn(
-        'relative rounded-xl border p-4 sm:p-5 mb-6 overflow-hidden',
-        'border-violet-500/30 bg-gradient-to-br from-violet-500/10 via-transparent to-blue-500/10'
+        'relative rounded-lg border p-4 sm:p-5 mb-6 overflow-hidden',
+        'border-violet-500/30 bg-violet-500/5'
       )}
     >
       <div className="flex items-center gap-2 mb-3">
-        <div className="p-1.5 rounded-lg bg-violet-500/15">
-          <Sparkles className="w-4 h-4 text-violet-400" />
+        <div className="p-1.5 rounded-md bg-violet-500/15">
+          <Sparkles className="w-4 h-4 text-violet-600 dark:text-violet-400" />
         </div>
         <h2 className="font-semibold text-surface-50">Create with AI</h2>
         <span className="text-xs text-surface-400 hidden sm:inline">
@@ -80,9 +80,9 @@ export function AiCreatePanel() {
           disabled={isGenerating}
           placeholder="e.g. ecommerce api server with products, carts, and orders"
           className={cn(
-            'flex-1 px-3 py-2 rounded-lg text-sm',
-            'bg-surface-900/60 border border-surface-700 text-surface-100 placeholder:text-surface-500',
-            'focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50',
+            'flex-1 px-3 py-2 rounded-md text-sm transition-colors duration-150',
+            'bg-surface-800/80 border border-surface-600 text-surface-100 placeholder:text-surface-500',
+            'focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500',
             'disabled:opacity-60'
           )}
         />
@@ -133,9 +133,9 @@ export function AiCreatePanel() {
               key={suggestion}
               onClick={() => handleGenerate(suggestion)}
               className={cn(
-                'px-3 py-1 rounded-full text-xs transition-colors',
+                'focus-ring px-3 py-1 rounded-full text-xs transition-colors duration-150',
                 'bg-surface-800/80 border border-surface-700 text-surface-300',
-                'hover:border-violet-500/50 hover:text-violet-300'
+                'hover:border-violet-500/50 hover:text-violet-700 dark:hover:text-violet-300'
               )}
             >
               {suggestion}
@@ -153,7 +153,7 @@ export function AiCreatePanel() {
             exit={{ opacity: 0, height: 0 }}
             className="mt-3 space-y-2"
           >
-            <div className="flex items-center gap-2 text-sm text-violet-300">
+            <div className="flex items-center gap-2 text-sm text-violet-700 dark:text-violet-300">
               <Loader2 size={14} className="animate-spin shrink-0" />
               <span className="flex-1 min-w-0 truncate">
                 {aiGeneration.message ??
@@ -161,7 +161,7 @@ export function AiCreatePanel() {
               </span>
               <button
                 onClick={() => postMessage({ type: 'aiCancelGeneration' })}
-                className="shrink-0 px-2 py-0.5 rounded text-xs border border-surface-600 text-surface-300 hover:border-red-500/50 hover:text-red-300 transition-colors"
+                className="focus-ring shrink-0 px-2 py-0.5 rounded text-xs border border-surface-600 text-surface-300 hover:border-red-500/50 hover:text-red-600 dark:hover:text-red-300 transition-colors duration-150"
               >
                 Cancel
               </button>
@@ -182,7 +182,7 @@ export function AiCreatePanel() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-3 flex flex-wrap items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-sm text-emerald-300"
+            className="mt-3 flex flex-wrap items-center gap-3 p-3 rounded-md bg-emerald-500/10 border border-emerald-500/25 text-sm text-emerald-700 dark:text-emerald-300"
           >
             <CheckCircle2 size={16} />
             <span>
@@ -195,7 +195,7 @@ export function AiCreatePanel() {
                 </>
               ) : null}
               {aiGeneration.message ? (
-                <span className="block text-xs text-emerald-400/80 mt-1">
+                <span className="block text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
                   {aiGeneration.message}
                 </span>
               ) : null}
@@ -206,7 +206,7 @@ export function AiCreatePanel() {
             </Button>
             <button
               onClick={() => setAiGeneration({ status: 'idle' })}
-              className="ml-auto p-1 rounded hover:bg-surface-700/50 text-surface-400"
+              className="focus-ring ml-auto p-1 rounded hover:bg-surface-700/50 text-surface-400 transition-colors duration-150"
               title="Dismiss"
             >
               <X size={14} />
@@ -219,13 +219,13 @@ export function AiCreatePanel() {
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="mt-3 flex items-start gap-2 p-3 rounded-lg bg-red-500/10 border border-red-500/25 text-sm text-red-300"
+            className="mt-3 flex items-start gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/25 text-sm text-red-700 dark:text-red-300"
           >
             <AlertCircle size={16} className="mt-0.5 shrink-0" />
             <span className="flex-1">{aiGeneration.message}</span>
             <button
               onClick={() => setAiGeneration({ status: 'idle' })}
-              className="p-1 rounded hover:bg-surface-700/50 text-surface-400"
+              className="focus-ring p-1 rounded hover:bg-surface-700/50 text-surface-400 transition-colors duration-150"
               title="Dismiss"
             >
               <X size={14} />

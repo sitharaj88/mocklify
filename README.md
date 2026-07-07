@@ -69,11 +69,21 @@
 
 ### 📥 Import & Export
 
-- **OpenAPI/Swagger** - Import from OpenAPI 3.0/3.1 or Swagger 2.0 specs — deterministic, with optional AI enrichment
-- **OpenAPI Export** - Export any server as an OpenAPI 3.0 spec
-- **Postman Collections** - Import from Postman Collection v2.1
-- **HAR Export** - Export request logs in HTTP Archive format
-- **cURL Export** - Generate cURL commands from logged requests
+| Direction | Format | Notes |
+|-----------|--------|-------|
+| Import | OpenAPI 3.0/3.1 / Swagger 2.0 (JSON or YAML) | Deterministic, with optional AI enrichment |
+| Import | Postman Collection v2.1 | Requests, folders, and example responses |
+| Export | Server config (JSON) | Re-importable Mocklify configuration |
+| Export | OpenAPI 3.0 (JSON or YAML) | Inferred response schemas |
+| Export | Postman Collection v2.1 | Folders per tag, saved example responses, failure-scenario subfolders |
+| Export | REST Client (`.http`) | Runnable requests for the VS Code REST Client extension |
+| Export | API docs — web page (`.html`) | Self-contained single file with search, curl examples, and light/dark themes |
+| Export | API docs — Confluence (`.xml`) | Confluence Storage Format — paste into a page or push via the REST API |
+| Export | API docs — Markdown (`.md`) | AI-written docs with a deterministic fallback |
+| Export | Request logs — HAR | HTTP Archive for browser dev tools |
+| Export | Request logs — cURL | Shell script of curl commands |
+
+Every server export format is available from **`Mocklify: Export Server As…`**, the server's context menu in the tree view, and the dashboard's per-server Export dialog.
 
 ### 🎯 Advanced Features
 
@@ -247,6 +257,7 @@ Run **`Mocklify: Configure Chaos (Latency & Failures)`** on a server to test how
 | `Mocklify: AI: Generate Routes from Description` | Natural language → routes for an existing server |
 | `Mocklify: Generate API Documentation` | AI-written Markdown docs (deterministic fallback without Copilot) |
 | `Mocklify: Export OpenAPI Spec` | OpenAPI 3.0 JSON with inferred schemas |
+| `Mocklify: Export Server As…` | OpenAPI JSON/YAML, Postman v2.1, `.http`, or API docs as web page / Confluence / Markdown |
 | `Mocklify: Ask Mocklify in Copilot Chat` | Open Copilot Chat with `@mocklify` |
 
 Generated documentation is saved to `docs/<server-name>-docs.md` in your workspace and opened with a live Markdown preview.

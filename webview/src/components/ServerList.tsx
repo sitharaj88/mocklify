@@ -12,7 +12,16 @@ import {
   Activity,
   Copy,
   ExternalLink,
+  AlertCircle,
+  Download,
+  FileJson,
+  FileCode,
+  Package,
+  Terminal,
+  Globe,
+  BookOpen,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import type { MockServerConfig } from '../types';
 import {
   Button,
@@ -22,6 +31,12 @@ import {
   StatusDot,
   EmptyState,
   ConfirmDialog,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
 } from './ui';
 import { cn } from '../lib/utils';
 import { AiCreatePanel } from './AiCreatePanel';
@@ -39,6 +54,16 @@ const itemVariants = {
   show: { opacity: 1, y: 0 },
 };
 
+const EXPORT_FORMATS: { id: string; label: string; description: string; icon: LucideIcon }[] = [
+  { id: 'config', label: 'Server Config (JSON)', description: 'Full Mocklify config — re-importable', icon: FileJson },
+  { id: 'openapi-json', label: 'OpenAPI 3.0 (JSON)', description: 'Spec with inferred response schemas', icon: FileCode },
+  { id: 'openapi-yaml', label: 'OpenAPI 3.0 (YAML)', description: 'The same spec serialized as YAML', icon: FileCode },
+  { id: 'postman', label: 'Postman Collection v2.1', description: 'Folders per tag with saved example responses', icon: Package },
+  { id: 'http', label: 'REST Client (.http)', description: 'Runnable requests for the REST Client extension', icon: Terminal },
+  { id: 'html', label: 'API Docs — Web Page', description: 'Self-contained HTML with search and curl examples', icon: Globe },
+  { id: 'confluence', label: 'API Docs — Confluence', description: 'Storage-format XML to paste into a page', icon: BookOpen },
+];
+
 export function ServerList() {
   const {
     servers,
@@ -50,6 +75,13 @@ export function ServerList() {
   } = useStore();
 
   const [deleteServerId, setDeleteServerId] = useState<string | null>(null);
+  const [exportServer, setExportServer] = useState<MockServerConfig | null>(null);
+
+  const handleExport = (format: string) => {
+    if (!exportServer) return;
+    postMessage({ type: 'exportServer', serverId: exportServer.id, data: { format } });
+    setExportServer(null);
+  };
 
   const handleCreateServer = () => {
     setEditingServer(null);
@@ -89,8 +121,8 @@ export function ServerList() {
     <>
       <header className="content-header">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-500/10">
-            <Server className="w-5 h-5 text-blue-400" />
+          <div className="p-2 rounded-md bg-brand-500/10">
+            <Server className="w-5 h-5 text-brand-600 dark:text-brand-400" />
           </div>
           <div>
             <h1 className="text-lg sm:text-xl font-semibold text-surface-50">Servers</h1>
@@ -130,10 +162,10 @@ export function ServerList() {
 
               return (
                 <motion.div key={server.id} variants={itemVariants}>
-                  <Card 
+                  <Card
                     className={cn(
-                      'overflow-hidden transition-all duration-300',
-                      isRunning && 'border-emerald-500/30 shadow-emerald-500/5',
+                      'overflow-hidden',
+                      isRunning && 'border-emerald-500/30',
                       isError && 'border-red-500/30'
                     )}
                   >
@@ -150,7 +182,7 @@ export function ServerList() {
                             <div className="flex items-center gap-1 text-sm text-surface-400 font-mono">
                               localhost:{server.port}
                               <button
-                                className="p-1 hover:bg-surface-700 rounded transition-colors"
+                                className="focus-ring p-1 hover:bg-surface-700 rounded transition-colors duration-150"
                                 onClick={() => copyUrl(server.port)}
                                 title="Copy URL"
                               >
@@ -162,7 +194,7 @@ export function ServerList() {
 
                         <div className="flex items-center gap-1">
                           <Button
-                            variant={isRunning ? 'secondary' : 'success'}
+                            variant={isRunning ? 'secondary' : 'default'}
                             size="icon-sm"
                             onClick={() => handleToggleServer(server)}
                             title={isRunning ? 'Stop Server' : 'Start Server'}
@@ -180,9 +212,17 @@ export function ServerList() {
                           <Button
                             variant="ghost"
                             size="icon-sm"
+                            onClick={() => setExportServer(server)}
+                            title="Export Server"
+                          >
+                            <Download size={14} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => setDeleteServerId(server.id)}
                             title="Delete Server"
-                            className="hover:text-red-400"
+                            className="hover:text-red-600 dark:hover:text-red-400"
                           >
                             <Trash2 size={14} />
                           </Button>
@@ -206,8 +246,9 @@ export function ServerList() {
 
                       {/* Error message */}
                       {state?.error && (
-                        <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
-                          {state.error}
+                        <div className="mb-4 flex items-start gap-2 p-3 rounded-md bg-red-500/10 border border-red-500/20 text-sm text-red-700 dark:text-red-400">
+                          <AlertCircle size={16} className="mt-0.5 flex-shrink-0" />
+                          <span className="min-w-0 break-words">{state.error}</span>
                         </div>
                       )}
 
@@ -247,6 +288,39 @@ export function ServerList() {
           </motion.div>
         )}
       </div>
+
+      <Dialog open={!!exportServer} onOpenChange={(open) => !open && setExportServer(null)}>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Export Server</DialogTitle>
+            <DialogDescription>
+              Download "{exportServer?.name}" in the format you need
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody className="p-2 sm:p-2">
+            <div className="flex flex-col gap-0.5">
+              {EXPORT_FORMATS.map((format) => (
+                <button
+                  key={format.id}
+                  className="focus-ring flex items-start gap-3 w-full rounded-md px-3 py-2.5 text-left hover:bg-surface-700 transition-colors duration-150"
+                  onClick={() => handleExport(format.id)}
+                >
+                  <format.icon
+                    size={16}
+                    className="mt-0.5 flex-shrink-0 text-brand-600 dark:text-brand-400"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-surface-100">
+                      {format.label}
+                    </span>
+                    <span className="block text-xs text-surface-400">{format.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={!!deleteServerId}

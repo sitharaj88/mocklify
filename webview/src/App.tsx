@@ -187,7 +187,7 @@ function App() {
         onImportClick={() => setShowImportModal(true)}
         onShortcutsClick={() => setShowShortcutsHelp(true)}
       />
-      <main className="main-content mesh-bg pt-14 lg:pt-0">
+      <main className="main-content mesh-bg">
         {/* Search Bar for routes and logs views */}
         <SearchBar />
         
