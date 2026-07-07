@@ -2,6 +2,21 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
+## [0.3.1] - 2026-07-07 (pre-release)
+
+### Added
+
+- **Agentic codebase scanning** (`mocklify.ai.scanMode`: `fast` | `agentic`): in agentic mode the AI explores the workspace itself through read-only tools (`list_files` / `read_file` / `search_code`) — following imports to data models, auth, and error conventions — then submits routes validated against the route schema. Hardened confinement: path-traversal and symlink protection, secrets denylist (`.env`, keys, credentials), 512KB read budget, 30-tool-call cap, 8-minute wall clock. Falls back to the fast scan (with a notice) when the active provider lacks tool support
+- **Dashboard codebase generation**: a "From Codebase" button in the Create with AI panel with live stage messages, a progress bar, and a Cancel button
+- **Copilot model selection** (`mocklify.ai.copilotModel`): pick from the live model list your Copilot subscription exposes — in the dashboard or via `Mocklify: Select AI Model`; empty = auto-select best
+- **Model dropdowns in the dashboard** for Claude/OpenAI/Gemini fed by a shared catalog, with a custom-ID escape hatch for gateway model names
+- **AI endpoint fields in the dashboard**: configure Bedrock-compatible / Azure-compatible / LiteLLM gateway base URLs per provider without leaving the dashboard
+
+### Fixed
+
+- AI requests can no longer hang forever: a stall watchdog (120s first data / 90s mid-stream gap) aborts dead requests with an error naming the provider and the base-URL setting to check; the codebase scan shows live streaming progress
+- Dashboard sidebar/About and HAR exports showed a hardcoded version 0.1.0 — the real extension version is now injected at runtime
+
 ## [0.3.0] - 2026-07-07 (pre-release)
 
 ### Added
