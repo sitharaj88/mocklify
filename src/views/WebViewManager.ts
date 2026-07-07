@@ -3,6 +3,7 @@ import { MockServerManager } from '../core/MockServerManager.js';
 import { MockServerConfig, RouteConfig, DatabaseConnection } from '../types/core.js';
 import { v4 as uuidv4 } from 'uuid';
 import { AiUnavailableError, AiProviderId } from '../ai/providers/types.js';
+import { MODEL_CATALOG, ModelProviderId } from '../ai/modelCatalog.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
 import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
@@ -507,6 +508,8 @@ export class WebViewManager {
         hasKey: p.id !== 'copilot' ? ((await this.apiKeys?.hasKey(p.id)) ?? false) : false,
         model: MODEL_SETTINGS[p.id] ? config.get<string>(MODEL_SETTINGS[p.id]) : undefined,
         baseUrl: BASE_URL_SETTINGS[p.id] ? config.get<string>(BASE_URL_SETTINGS[p.id], '') : undefined,
+        models:
+          p.id in MODEL_CATALOG ? MODEL_CATALOG[p.id as ModelProviderId].models : undefined,
       }))
     );
 

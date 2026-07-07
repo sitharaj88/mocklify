@@ -202,6 +202,7 @@ export type MessageToExtension =
   | { type: 'getAiConfig' }
   | { type: 'setAiProvider'; data: { provider: string } }
   | { type: 'setAiModel'; data: { provider: string; model: string } }
+  | { type: 'setAiBaseUrl'; data: { provider: string; baseUrl: string } }
   | { type: 'setAiApiKey'; data: { provider: string; key: string } }
   | { type: 'clearAiApiKey'; data: { provider: string } }
   | { type: 'testAiProvider' };
@@ -252,6 +253,7 @@ export interface AiProviderInfo {
   hasKey: boolean;
   model?: string;
   baseUrl?: string;
+  models?: { id: string; detail: string }[];
 }
 
 export interface AiConfig {

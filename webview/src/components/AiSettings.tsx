@@ -21,6 +21,11 @@ import {
   FormGroup,
   Label,
   FormHint,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from './ui';
 import { cn } from '../lib/utils';
 import type { AiProviderInfo } from '../types';
@@ -63,6 +68,7 @@ export function AiSettings() {
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
   const [modelDrafts, setModelDrafts] = useState<Record<string, string>>({});
   const [baseUrlDrafts, setBaseUrlDrafts] = useState<Record<string, string>>({});
+  const [customModelMode, setCustomModelMode] = useState<Record<string, boolean>>({});
   const [testing, setTesting] = useState(false);
 
   useEffect(() => {
@@ -104,6 +110,20 @@ export function AiSettings() {
     const model = (modelDrafts[provider] ?? fallback ?? '').trim();
     if (!model || model === fallback) return;
     postMessage({ type: 'setAiModel', data: { provider, model } });
+  };
+
+  const CUSTOM_MODEL = '__custom__';
+
+  const selectModel = (provider: string, value: string, current?: string) => {
+    if (value === CUSTOM_MODEL) {
+      setCustomModelMode((m) => ({ ...m, [provider]: true }));
+      setModelDrafts((d) => ({ ...d, [provider]: current ?? '' }));
+      return;
+    }
+    setCustomModelMode((m) => ({ ...m, [provider]: false }));
+    if (value !== current) {
+      postMessage({ type: 'setAiModel', data: { provider, model: value } });
+    }
   };
 
   const saveBaseUrl = (provider: string, fallback?: string) => {
@@ -277,13 +297,59 @@ export function AiSettings() {
 
                 <FormGroup>
                   <Label className="text-xs">Model</Label>
-                  <Input
-                    className="w-full sm:w-72"
-                    value={modelDrafts[p.id] ?? p.model ?? ''}
-                    onChange={(e) => setModelDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                    onBlur={() => saveModel(p.id, p.model)}
-                    onKeyDown={(e) => e.key === 'Enter' && saveModel(p.id, p.model)}
-                  />
+                  {(() => {
+                    const known = p.models ?? [];
+                    const currentIsKnown = known.some((m) => m.id === p.model);
+                    const inCustomMode = customModelMode[p.id] ?? (!!p.model && !currentIsKnown);
+                    if (known.length === 0 || inCustomMode) {
+                      return (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <Input
+                            className="w-full sm:w-72"
+                            placeholder="custom model ID your endpoint expects"
+                            value={modelDrafts[p.id] ?? p.model ?? ''}
+                            onChange={(e) =>
+                              setModelDrafts((d) => ({ ...d, [p.id]: e.target.value }))
+                            }
+                            onBlur={() => saveModel(p.id, p.model)}
+                            onKeyDown={(e) => e.key === 'Enter' && saveModel(p.id, p.model)}
+                          />
+                          {known.length > 0 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setCustomModelMode((m) => ({ ...m, [p.id]: false }))
+                              }
+                            >
+                              Pick from list
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+                    return (
+                      <Select
+                        value={currentIsKnown ? p.model : undefined}
+                        onValueChange={(value) => selectModel(p.id, value, p.model)}
+                      >
+                        <SelectTrigger className="w-full sm:w-96">
+                          <SelectValue placeholder="Choose a model…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {known.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                              <span className="font-medium">{m.id}</span>
+                              <span className="ml-2 text-xs text-surface-500">{m.detail}</span>
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={CUSTOM_MODEL}>
+                            Custom model ID… (gateways, e.g. anthropic.claude-opus-4-8)
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    );
+                  })()}
                 </FormGroup>
 
                 <FormGroup>
