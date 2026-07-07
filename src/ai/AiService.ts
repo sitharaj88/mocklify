@@ -5,6 +5,9 @@ import {
   AiProvider,
   AiProviderId,
   AiRequestOptions,
+  AiToolDefinition,
+  AiToolExecutor,
+  AiToolLoopOptions,
   AiUnavailableError,
 } from './providers/types.js';
 import { ApiKeyManager } from './providers/ApiKeyManager.js';
@@ -12,7 +15,13 @@ import { ClaudeProvider } from './providers/ClaudeProvider.js';
 import { OpenAiProvider } from './providers/OpenAiProvider.js';
 import { GeminiProvider } from './providers/GeminiProvider.js';
 
-export type { AiRequestOptions } from './providers/types.js';
+export type {
+  AiRequestOptions,
+  AiToolCall,
+  AiToolDefinition,
+  AiToolExecutor,
+  AiToolLoopOptions,
+} from './providers/types.js';
 
 /** Auto-mode preference order. */
 const AUTO_ORDER: AiProviderId[] = ['copilot', 'claude', 'openai', 'gemini'];
@@ -56,6 +65,8 @@ export class AiService {
       label: 'GitHub Copilot',
       isAvailable: () => copilot.isAvailable(),
       streamRequest: (prompt, options) => copilot.streamRequest(prompt, options),
+      runToolLoop: (prompt, tools, execute, options) =>
+        copilot.runToolLoop(prompt, tools, execute, options),
     };
 
     this.providers = new Map<AiProviderId, AiProvider>([
@@ -178,6 +189,28 @@ export class AiService {
       watchdog.dispose();
     }
     return result;
+  }
+
+  /**
+   * Run a bounded agentic loop with client-executed tools on the active
+   * provider; resolves with the final assistant text. options.onData and
+   * options.onToolCall are forwarded so callers can show liveness.
+   * Throws AiUnavailableError when the resolved provider lacks tool support.
+   */
+  async runToolLoop(
+    prompt: string,
+    tools: AiToolDefinition[],
+    execute: AiToolExecutor,
+    options?: AiToolLoopOptions
+  ): Promise<string> {
+    const provider = await this.resolveProvider();
+    if (!provider.runToolLoop) {
+      throw new AiUnavailableError(
+        `${provider.label} does not support agentic tool use in Mocklify. Switch to Claude, OpenAI, or Gemini with "Mocklify: Select AI Provider", or use the fast scan instead.`,
+        provider.id
+      );
+    }
+    return provider.runToolLoop(prompt, tools, execute, options);
   }
 
   /**

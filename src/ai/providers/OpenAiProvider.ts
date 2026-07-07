@@ -2,10 +2,22 @@ import * as vscode from 'vscode';
 import {
   AiProvider,
   AiRequestOptions,
+  AiToolDefinition,
+  AiToolExecutor,
+  AiToolLoopOptions,
   AiUnavailableError,
   isSchemaRejection,
   readSseJson,
 } from './types.js';
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  TOOL_BUDGET_EXHAUSTED_NUDGE,
+  TOOL_BUDGET_EXHAUSTED_RESULT,
+  TOOL_TURN_TIMEOUT_MS,
+  executeToolCall,
+  parseOpenAiToolCalls,
+  toolDefsToOpenAiFormat,
+} from './toolLoop.js';
 import { ApiKeyManager } from './ApiKeyManager.js';
 
 const DEFAULT_MODEL = 'gpt-4o';
@@ -141,6 +153,154 @@ export class OpenAiProvider implements AiProvider {
         return;
       }
       throw error;
+    }
+  }
+
+  async runToolLoop(
+    prompt: string,
+    tools: AiToolDefinition[],
+    execute: AiToolExecutor,
+    options?: AiToolLoopOptions
+  ): Promise<string> {
+    const apiKey = await this.keys.getKey('openai');
+    if (!apiKey) {
+      throw new AiUnavailableError(
+        'No OpenAI API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'openai'
+      );
+    }
+
+    const openAiTools = toolDefsToOpenAiFormat(tools);
+    const messages: Record<string, unknown>[] = [];
+    if (options?.systemPrompt) {
+      messages.push({ role: 'system', content: options.systemPrompt });
+    }
+    messages.push({ role: 'user', content: prompt });
+    const maxToolCalls = options?.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+
+    let used = 0;
+    let totalChars = 0;
+    let lastText = '';
+    let finalTurn = false;
+
+    for (;;) {
+      if (options?.token?.isCancellationRequested) {
+        return lastText;
+      }
+
+      const controller = new AbortController();
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, TOOL_TURN_TIMEOUT_MS);
+      const cancellation = options?.token?.onCancellationRequested(() => controller.abort());
+
+      // The timer and cancellation subscription must stay live until the body
+      // is fully read — a stalled body after 200 headers is as dead as a
+      // stalled connect.
+      let payload: {
+        choices?: { message?: { content?: string | null; tool_calls?: unknown } }[];
+      };
+      try {
+        let response: Response;
+        try {
+          response = await fetch(`${this.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify({
+              model: this.model,
+              messages,
+              tools: openAiTools,
+              ...(finalTurn ? { tool_choice: 'none' } : {}),
+            }),
+            signal: controller.signal,
+          });
+        } catch {
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          if (timedOut) {
+            throw new Error(
+              `${this.label} stopped responding (no reply within ${Math.round(TOOL_TURN_TIMEOUT_MS / 1000)}s). Try again or switch providers.`
+            );
+          }
+          throw new Error(
+            this.baseUrl === DEFAULT_BASE_URL
+              ? 'Could not reach the OpenAI API. Check your network connection.'
+              : `Could not reach the OpenAI-compatible endpoint at ${this.baseUrl}. Check the mocklify.ai.openaiBaseUrl setting and your network.`
+          );
+        }
+
+        if (!response.ok) {
+          const error = await this.toError(response);
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          throw error;
+        }
+
+        try {
+          payload = (await response.json()) as typeof payload;
+        } catch {
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          if (timedOut) {
+            throw new Error(
+              `${this.label} stopped responding (no reply within ${Math.round(TOOL_TURN_TIMEOUT_MS / 1000)}s). Try again or switch providers.`
+            );
+          }
+          throw new Error('The OpenAI API returned an unreadable response.');
+        }
+      } finally {
+        clearTimeout(timer);
+        cancellation?.dispose();
+      }
+      const message = payload.choices?.[0]?.message;
+      const text = typeof message?.content === 'string' ? message.content : '';
+      if (text) {
+        lastText = text;
+        totalChars += text.length;
+        options?.onData?.(totalChars);
+      }
+
+      const calls = parseOpenAiToolCalls(message?.tool_calls);
+      if (finalTurn || calls.length === 0) {
+        return lastText;
+      }
+
+      // Echo the assistant turn (incl. raw tool_calls) so the tool messages
+      // below pair with their calls.
+      messages.push({
+        role: 'assistant',
+        content: message?.content ?? null,
+        tool_calls: message?.tool_calls,
+      });
+
+      for (const call of calls) {
+        let resultText: string;
+        if (used >= maxToolCalls) {
+          resultText = `Error: ${TOOL_BUDGET_EXHAUSTED_RESULT}`;
+        } else if (call.parseError) {
+          resultText = `Error: ${call.parseError}`;
+        } else {
+          const toolCall = { name: call.name, input: call.input };
+          options?.onToolCall?.(toolCall, used);
+          used++;
+          const outcome = await executeToolCall(execute, toolCall);
+          resultText = outcome.isError ? `Error: ${outcome.text}` : outcome.text;
+        }
+        messages.push({ role: 'tool', tool_call_id: call.id, content: resultText });
+      }
+
+      if (used >= maxToolCalls) {
+        finalTurn = true;
+        messages.push({ role: 'system', content: TOOL_BUDGET_EXHAUSTED_NUDGE });
+      }
     }
   }
 

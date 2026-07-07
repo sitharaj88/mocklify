@@ -131,6 +131,13 @@ export default function AiFeatures() {
             failure routes are created <em>disabled</em>.
           </li>
         </ol>
+        <p className="theme-text-secondary mb-4">
+          Prefer depth over speed? Set{' '}
+          <code className="text-purple-400">mocklify.ai.scanMode</code> to{' '}
+          <code className="text-purple-400">agentic</code> and the AI explores the codebase
+          itself with read-only tools — reading files, following imports to data models, and
+          finding auth/error conventions — for higher-quality routes at more time and AI cost.
+        </p>
         <h3 className="text-lg font-medium mb-3">Positive and negative flows</h3>
         <p className="theme-text-secondary mb-4">
           For each endpoint the scan also generates negative-flow routes shaped like your

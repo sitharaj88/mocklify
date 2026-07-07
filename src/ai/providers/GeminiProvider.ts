@@ -2,10 +2,24 @@ import * as vscode from 'vscode';
 import {
   AiProvider,
   AiRequestOptions,
+  AiToolDefinition,
+  AiToolExecutor,
+  AiToolLoopOptions,
   AiUnavailableError,
   isSchemaRejection,
   readSseJson,
 } from './types.js';
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  TOOL_BUDGET_EXHAUSTED_NUDGE,
+  TOOL_BUDGET_EXHAUSTED_RESULT,
+  TOOL_TURN_TIMEOUT_MS,
+  executeToolCall,
+  extractGeminiFunctionCalls,
+  extractGeminiText,
+  geminiFunctionResponsePart,
+  toolDefsToGeminiFormat,
+} from './toolLoop.js';
 import { ApiKeyManager } from './ApiKeyManager.js';
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
@@ -135,6 +149,152 @@ export class GeminiProvider implements AiProvider {
         return;
       }
       throw error;
+    }
+  }
+
+  async runToolLoop(
+    prompt: string,
+    tools: AiToolDefinition[],
+    execute: AiToolExecutor,
+    options?: AiToolLoopOptions
+  ): Promise<string> {
+    const apiKey = await this.keys.getKey('gemini');
+    if (!apiKey) {
+      throw new AiUnavailableError(
+        'No Google Gemini API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'gemini'
+      );
+    }
+
+    const url = `${this.baseUrl}/models/${encodeURIComponent(this.model)}:generateContent`;
+    const geminiTools = toolDefsToGeminiFormat(tools);
+    const contents: Record<string, unknown>[] = [
+      { role: 'user', parts: [{ text: prompt }] },
+    ];
+    const maxToolCalls = options?.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+
+    let used = 0;
+    let totalChars = 0;
+    let lastText = '';
+    let finalTurn = false;
+
+    for (;;) {
+      if (options?.token?.isCancellationRequested) {
+        return lastText;
+      }
+
+      const body: Record<string, unknown> = { contents, tools: geminiTools };
+      if (options?.systemPrompt) {
+        body.systemInstruction = { parts: [{ text: options.systemPrompt }] };
+      }
+      if (finalTurn) {
+        body.toolConfig = { functionCallingConfig: { mode: 'NONE' } };
+      }
+
+      const controller = new AbortController();
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        controller.abort();
+      }, TOOL_TURN_TIMEOUT_MS);
+      const cancellation = options?.token?.onCancellationRequested(() => controller.abort());
+
+      // The timer and cancellation subscription must stay live until the body
+      // is fully read — a stalled body after 200 headers is as dead as a
+      // stalled connect.
+      let payload: { candidates?: { content?: { parts?: unknown[] } }[] };
+      try {
+        let response: Response;
+        try {
+          response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
+            },
+            body: JSON.stringify(body),
+            signal: controller.signal,
+          });
+        } catch {
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          if (timedOut) {
+            throw new Error(
+              `${this.label} stopped responding (no reply within ${Math.round(TOOL_TURN_TIMEOUT_MS / 1000)}s). Try again or switch providers.`
+            );
+          }
+          throw new Error(
+            this.baseUrl === DEFAULT_BASE_URL
+              ? 'Could not reach the Google Gemini API. Check your network connection.'
+              : `Could not reach the Gemini-compatible endpoint at ${this.baseUrl}. Check the mocklify.ai.geminiBaseUrl setting and your network.`
+          );
+        }
+
+        if (!response.ok) {
+          const error = await this.toError(response);
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          throw error;
+        }
+
+        try {
+          payload = (await response.json()) as typeof payload;
+        } catch {
+          if (options?.token?.isCancellationRequested) {
+            return lastText;
+          }
+          if (timedOut) {
+            throw new Error(
+              `${this.label} stopped responding (no reply within ${Math.round(TOOL_TURN_TIMEOUT_MS / 1000)}s). Try again or switch providers.`
+            );
+          }
+          throw new Error('The Gemini API returned an unreadable response.');
+        }
+      } finally {
+        clearTimeout(timer);
+        cancellation?.dispose();
+      }
+      const parts = payload.candidates?.[0]?.content?.parts ?? [];
+
+      const text = extractGeminiText(parts);
+      if (text) {
+        lastText = text;
+        totalChars += text.length;
+        options?.onData?.(totalChars);
+      }
+
+      const calls = extractGeminiFunctionCalls(parts);
+      if (finalTurn || calls.length === 0) {
+        return lastText;
+      }
+
+      contents.push({ role: 'model', parts });
+
+      const responseParts: Record<string, unknown>[] = [];
+      for (const fc of calls) {
+        if (used >= maxToolCalls) {
+          responseParts.push(
+            geminiFunctionResponsePart(fc.name, {
+              text: TOOL_BUDGET_EXHAUSTED_RESULT,
+              isError: true,
+            })
+          );
+          continue;
+        }
+        const call = { name: fc.name, input: fc.args };
+        options?.onToolCall?.(call, used);
+        used++;
+        const outcome = await executeToolCall(execute, call);
+        responseParts.push(geminiFunctionResponsePart(fc.name, outcome));
+      }
+
+      if (used >= maxToolCalls) {
+        finalTurn = true;
+        responseParts.push({ text: TOOL_BUDGET_EXHAUSTED_NUDGE });
+      }
+      contents.push({ role: 'user', parts: responseParts });
     }
   }
 

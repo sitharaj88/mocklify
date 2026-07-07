@@ -209,6 +209,8 @@ Run **`Mocklify: AI: Generate Mock Server from Codebase`** in any app workspace.
 - **Failure routes** (disabled) for negative-flow testing: 400 validation, 401 auth, 404 missing, 500 errors — toggle one on to simulate that failure in your app
 - Point your app's base URL at `http://localhost:<port>` and develop offline
 
+**Agentic scanning.** By default the scan is one-shot: extracted snippets go to the AI in a single request (`mocklify.ai.scanMode: "fast"`). Set `mocklify.ai.scanMode` to `"agentic"` and the AI instead explores the codebase itself through read-only tools — listing, reading, and searching files, following imports to your data models, and picking up auth and error-body conventions — before submitting the routes. It produces higher-quality mocks but is slower (up to 8 minutes) and uses substantially more AI tokens. The exploration is strictly read-only and confined to your workspace: at most 30 tool calls, a 512 KB read budget, and never a write or command execution.
+
 With the `mocklify.ai.driftWatch` setting enabled, Mocklify also watches saved source files for new API calls that no mock covers and offers to generate the missing routes — scanning stays local; the AI only runs when you accept.
 
 ### Record & Replay Real Traffic

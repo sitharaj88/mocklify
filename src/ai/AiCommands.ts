@@ -7,7 +7,8 @@ import { AiProviderId, AiUnavailableError } from './providers/types.js';
 import { ApiKeyManager } from './providers/ApiKeyManager.js';
 import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
-import { CodebaseMockGenerator } from './CodebaseMockGenerator.js';
+import { CodebaseMockGenerator, CodebaseScanProgress, CodebaseScanSummary } from './CodebaseMockGenerator.js';
+import { AgenticScanner, AgenticScanUnavailableError } from './AgenticScanner.js';
 import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 import { MODEL_CATALOG, ModelProviderId } from './modelCatalog.js';
 import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
@@ -383,6 +384,9 @@ export function registerAiCommands(
       return;
     }
 
+    const scanMode = vscode.workspace
+      .getConfiguration('mocklify')
+      .get<'fast' | 'agentic'>('ai.scanMode', 'fast');
     const codebaseGenerator = new CodebaseMockGenerator(ai);
 
     await vscode.window.withProgress(
@@ -394,16 +398,34 @@ export function registerAiCommands(
       async (progress, token) => {
         try {
           let lastFraction = 0;
-          const summary = await codebaseGenerator.generate({
-            token,
-            onProgress: ({ message, fraction }) => {
-              progress.report({
-                message,
-                increment: Math.max(0, (fraction - lastFraction) * 100),
-              });
-              lastFraction = Math.max(lastFraction, fraction);
-            },
-          });
+          const onProgress = ({ message, fraction }: CodebaseScanProgress) => {
+            progress.report({
+              message,
+              increment: Math.max(0, (fraction - lastFraction) * 100),
+            });
+            lastFraction = Math.max(lastFraction, fraction);
+          };
+
+          let summary: CodebaseScanSummary;
+          if (scanMode === 'agentic') {
+            try {
+              summary = await new AgenticScanner(ai).generate({ token, onProgress });
+            } catch (error) {
+              const unavailable =
+                error instanceof AgenticScanUnavailableError ||
+                (error instanceof Error && error.name === 'AgenticScanUnavailableError');
+              if (!unavailable) {
+                throw error;
+              }
+              const label = (await ai.getActiveProviderLabel()) ?? 'The active AI provider';
+              vscode.window.showInformationMessage(
+                `Mocklify: ${label} does not support agentic scanning — using fast scan.`
+              );
+              summary = await codebaseGenerator.generate({ token, onProgress });
+            }
+          } else {
+            summary = await codebaseGenerator.generate({ token, onProgress });
+          }
           if (token.isCancellationRequested) {
             return;
           }

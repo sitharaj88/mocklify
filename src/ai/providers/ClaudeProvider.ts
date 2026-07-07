@@ -1,6 +1,22 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { AiProvider, AiRequestOptions, AiUnavailableError, isSchemaRejection } from './types.js';
+import {
+  AiProvider,
+  AiRequestOptions,
+  AiToolDefinition,
+  AiToolExecutor,
+  AiToolLoopOptions,
+  AiUnavailableError,
+  isSchemaRejection,
+} from './types.js';
+import {
+  DEFAULT_MAX_TOOL_CALLS,
+  TOOL_BUDGET_EXHAUSTED_NUDGE,
+  TOOL_BUDGET_EXHAUSTED_RESULT,
+  TOOL_TURN_TIMEOUT_MS,
+  executeToolCall,
+  toolDefsToClaudeFormat,
+} from './toolLoop.js';
 import { ApiKeyManager } from './ApiKeyManager.js';
 
 const DEFAULT_MODEL = 'claude-opus-4-8';
@@ -98,6 +114,145 @@ export class ClaudeProvider implements AiProvider {
       } finally {
         cancellation?.dispose();
       }
+    }
+  }
+
+  async runToolLoop(
+    prompt: string,
+    tools: AiToolDefinition[],
+    execute: AiToolExecutor,
+    options?: AiToolLoopOptions
+  ): Promise<string> {
+    const apiKey = await this.keys.getKey('claude');
+    if (!apiKey) {
+      throw new AiUnavailableError(
+        'No Anthropic API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'claude'
+      );
+    }
+
+    const client = new Anthropic({ apiKey, baseURL: this.baseUrl });
+    const claudeTools = toolDefsToClaudeFormat(tools) as Anthropic.Messages.Tool[];
+    const messages: Anthropic.Messages.MessageParam[] = [{ role: 'user', content: prompt }];
+    const maxToolCalls = options?.maxToolCalls ?? DEFAULT_MAX_TOOL_CALLS;
+
+    let used = 0;
+    let totalChars = 0;
+    let lastText = '';
+    let finalTurn = false;
+
+    for (;;) {
+      if (options?.token?.isCancellationRequested) {
+        return lastText;
+      }
+
+      // Streaming turns: tool_use streams fine, large submit_routes outputs
+      // are not killed by a whole-turn deadline (the watchdog only fires on
+      // TOOL_TURN_TIMEOUT_MS of *inactivity*), and onData gives liveness
+      // while the model generates.
+      const stream = client.messages.stream({
+        model: this.model,
+        max_tokens: 32000,
+        system: options?.systemPrompt,
+        messages,
+        tools: claudeTools,
+        ...(finalTurn ? { tool_choice: { type: 'none' as const } } : {}),
+      });
+
+      let timedOut = false;
+      let watchdog = setTimeout(() => {
+        timedOut = true;
+        stream.abort();
+      }, TOOL_TURN_TIMEOUT_MS);
+      const bumpWatchdog = () => {
+        clearTimeout(watchdog);
+        watchdog = setTimeout(() => {
+          timedOut = true;
+          stream.abort();
+        }, TOOL_TURN_TIMEOUT_MS);
+      };
+      const cancellation = options?.token?.onCancellationRequested(() => stream.abort());
+
+      let response: Anthropic.Messages.Message;
+      try {
+        for await (const event of stream) {
+          bumpWatchdog();
+          if (event.type === 'content_block_delta') {
+            // Both text and tool-input JSON count as liveness.
+            if (event.delta.type === 'text_delta') {
+              totalChars += event.delta.text.length;
+              options?.onData?.(totalChars);
+            } else if (event.delta.type === 'input_json_delta') {
+              totalChars += event.delta.partial_json.length;
+              options?.onData?.(totalChars);
+            }
+          }
+        }
+        response = await stream.finalMessage();
+      } catch (error) {
+        if (options?.token?.isCancellationRequested) {
+          return lastText;
+        }
+        if (timedOut) {
+          throw new Error(
+            `${this.label} stopped responding (no data for ${Math.round(TOOL_TURN_TIMEOUT_MS / 1000)}s). Try again or switch providers.`
+          );
+        }
+        throw this.normalizeError(error);
+      } finally {
+        clearTimeout(watchdog);
+        cancellation?.dispose();
+      }
+
+      if (response.stop_reason === 'refusal') {
+        throw new Error('Claude declined this request (safety refusal). Try rephrasing.');
+      }
+
+      const text = response.content
+        .filter((block): block is Anthropic.Messages.TextBlock => block.type === 'text')
+        .map((block) => block.text)
+        .join('');
+      if (text) {
+        lastText = text; // totalChars already counted while streaming
+      }
+
+      const toolUses = response.content.filter(
+        (block): block is Anthropic.Messages.ToolUseBlock => block.type === 'tool_use'
+      );
+      if (finalTurn || response.stop_reason !== 'tool_use' || toolUses.length === 0) {
+        return lastText;
+      }
+
+      messages.push({ role: 'assistant', content: response.content });
+
+      const userContent: Anthropic.Messages.ContentBlockParam[] = [];
+      for (const block of toolUses) {
+        if (used >= maxToolCalls) {
+          userContent.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: TOOL_BUDGET_EXHAUSTED_RESULT,
+            is_error: true,
+          });
+          continue;
+        }
+        const call = { name: block.name, input: block.input };
+        options?.onToolCall?.(call, used);
+        used++;
+        const outcome = await executeToolCall(execute, call);
+        userContent.push({
+          type: 'tool_result',
+          tool_use_id: block.id,
+          content: outcome.text,
+          is_error: outcome.isError,
+        });
+      }
+
+      if (used >= maxToolCalls) {
+        finalTurn = true;
+        userContent.push({ type: 'text', text: TOOL_BUDGET_EXHAUSTED_NUDGE });
+      }
+      messages.push({ role: 'user', content: userContent });
     }
   }
 

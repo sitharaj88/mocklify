@@ -21,6 +21,33 @@ export interface AiRequestOptions {
   token?: vscode.CancellationToken;
 }
 
+/** A client-executed tool the model may call during an agentic loop. */
+export interface AiToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema (object root) describing the tool input. */
+  inputSchema: Record<string, unknown>;
+}
+
+/** One tool invocation requested by the model. */
+export interface AiToolCall {
+  name: string;
+  input: unknown;
+}
+
+/**
+ * Executes a tool call and returns the result text. Throwing sends the error
+ * message back to the model as a tool result marked as an error.
+ */
+export type AiToolExecutor = (call: AiToolCall) => Promise<string>;
+
+export interface AiToolLoopOptions extends AiRequestOptions {
+  /** Maximum tool executions across the whole loop (default 30). */
+  maxToolCalls?: number;
+  /** Called before each tool executes, with the running 0-based call index. */
+  onToolCall?: (call: AiToolCall, index: number) => void;
+}
+
 /**
  * A text-generation backend. Implementations: GitHub Copilot (vscode.lm),
  * Anthropic Claude, OpenAI, and Google Gemini.
@@ -32,6 +59,28 @@ export interface AiProvider {
   isAvailable(): Promise<boolean>;
   /** Stream response text fragments for a prompt. */
   streamRequest(prompt: string, options?: AiRequestOptions): AsyncGenerator<string, void, undefined>;
+  /**
+   * Run a bounded agentic loop in which the model may call client-executed
+   * tools; resolves with the final assistant text. Optional — callers must
+   * fall back when the resolved provider does not implement it.
+   */
+  runToolLoop?(
+    prompt: string,
+    tools: AiToolDefinition[],
+    execute: AiToolExecutor,
+    options?: AiToolLoopOptions
+  ): Promise<string>;
+}
+
+/**
+ * Thrown when the resolved provider (or its selected model) cannot run
+ * agentic tool loops — callers fall back to the fast scan.
+ */
+export class AgenticScanUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AgenticScanUnavailableError';
+  }
 }
 
 /**
