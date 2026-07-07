@@ -110,6 +110,7 @@ export class WebViewManager {
     );
 
     const nonce = this.getNonce();
+    const version = (this.context.extension.packageJSON as { version?: string }).version ?? '';
 
     return `<!DOCTYPE html>
 <html lang="en">
@@ -129,6 +130,7 @@ export class WebViewManager {
       </div>
     </div>
   </div>
+  <script nonce="${nonce}">window.__MOCKLIFY_VERSION__ = ${JSON.stringify(version)};</script>
   <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
 </body>
 </html>`;

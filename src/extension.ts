@@ -20,6 +20,7 @@ import {
 import { registerScenarioCommands } from './ai/ScenarioCommands.js';
 import { activateDriftWatcher } from './ai/DriftWatcher.js';
 import { registerChaosCommands } from './core/ChaosCommands.js';
+import { setExtensionVersion } from './version.js';
 
 let manager: MockServerManager | undefined;
 let statusBarController: StatusBarController | undefined;
@@ -27,6 +28,8 @@ let webViewManager: WebViewManager | undefined;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log('Mocklify extension is now active');
+
+  setExtensionVersion((context.extension.packageJSON as { version?: string }).version ?? '');
 
   // Get workspace root
   const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;

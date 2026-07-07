@@ -34,7 +34,7 @@ import {
   Label,
   FormHint,
 } from './ui';
-import { cn } from '../lib/utils';
+import { cn, extensionVersion } from '../lib/utils';
 import { useThemeStore } from '../hooks/useTheme';
 
 const settingsTabs = [
@@ -333,7 +333,9 @@ export function Settings() {
                       </div>
 
                       <h2 className="text-2xl font-bold text-surface-50 mb-2">Mocklify</h2>
-                      <p className="text-surface-400 mb-2">Version 0.1.0</p>
+                      <p className="text-surface-400 mb-2">
+                        {extensionVersion() ? `Version ${extensionVersion()}` : 'Version unknown'}
+                      </p>
                       <p className="text-surface-400 max-w-md mx-auto mb-6">
                         A powerful API mocking extension for VS Code that enables developers to
                         create, manage, and run mock API servers directly from their IDE.

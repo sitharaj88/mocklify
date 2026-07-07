@@ -16,7 +16,7 @@ import {
   Import,
   Keyboard,
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, extensionVersion } from '../lib/utils';
 import { Badge, StatusDot, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui';
 
 type NavItemId = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
@@ -149,7 +149,9 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
                   transition={{ duration: 0.15 }}
                 >
                   <h1 className="font-bold text-surface-50 whitespace-nowrap">Mocklify</h1>
-                  <p className="text-xs text-surface-500">v0.1.0</p>
+                  <p className="text-xs text-surface-500">
+                    {extensionVersion() ? `v${extensionVersion()}` : ''}
+                  </p>
                 </motion.div>
               )}
             </AnimatePresence>

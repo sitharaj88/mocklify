@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises';
 import { MockServerConfig, RouteConfig, RequestLogEntry } from '../types/core.js';
+import { getExtensionVersion } from '../version.js';
 
 export interface ExportFormat {
   type: 'json' | 'yaml' | 'har' | 'curl';
@@ -133,7 +134,7 @@ export class ExportService {
       version: '1.2',
       creator: {
         name: 'Mocklify',
-        version: '0.1.0',
+        version: getExtensionVersion(),
       },
       entries,
     };
