@@ -153,14 +153,17 @@ export class CodebaseMockGenerator {
         throw new vscode.CancellationError();
       }
       const provider = (await this.ai.getActiveProviderLabel()) ?? 'AI';
-      report(
-        `Analyzing API integrations with ${provider} (part ${i + 1}/${chunks.length})…`,
-        0.2 + 0.6 * (i / chunks.length)
-      );
+      const partLabel = `Analyzing API integrations with ${provider} (part ${i + 1}/${chunks.length}`;
+      const fraction = 0.2 + 0.6 * (i / chunks.length);
+      report(`${partLabel})…`, fraction);
 
       try {
         const routes = await this.analyzeChunk(appName, chunks[i], modelSection, {
           token: options?.token,
+          // Liveness signal — without it the notification looks frozen for
+          // the full duration of a model response.
+          onData: (chars) =>
+            report(`${partLabel} · ${(chars / 1000).toFixed(1)}k received)…`, fraction),
         });
         allRoutes.push(...routes);
       } catch (error) {

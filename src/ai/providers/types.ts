@@ -13,6 +13,11 @@ export interface AiRequestOptions {
    * apply upstream).
    */
   jsonSchema?: Record<string, unknown>;
+  /**
+   * Called as response text streams in, with the total characters received
+   * so far. Lets long-running callers show liveness in progress UI.
+   */
+  onData?: (totalChars: number) => void;
   token?: vscode.CancellationToken;
 }
 

@@ -20,6 +20,27 @@ const AUTO_ORDER: AiProviderId[] = ['copilot', 'claude', 'openai', 'gemini'];
 const NO_PROVIDER_MESSAGE =
   'No AI provider is available. Install GitHub Copilot, or add a Claude/OpenAI/Gemini API key with "Mocklify: Set AI Provider API Key".';
 
+/** First streamed byte must arrive within this window (covers queuing/thinking). */
+const FIRST_DATA_TIMEOUT_MS = 120_000;
+/** Once streaming, a gap this long means the connection is dead. */
+const STALL_TIMEOUT_MS = 90_000;
+
+const TIMED_OUT = Symbol('timeout');
+
+async function raceWithTimeout<T>(promise: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<typeof TIMED_OUT>((resolve) => {
+        timer = setTimeout(() => resolve(TIMED_OUT), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Routes all Mocklify AI requests to the active provider: GitHub Copilot
  * (vscode.lm), Anthropic Claude, OpenAI, or Google Gemini. The provider is
@@ -120,9 +141,41 @@ export class AiService {
   }
 
   async sendRequest(prompt: string, options?: AiRequestOptions): Promise<string> {
+    const provider = await this.resolveProvider();
+
+    // Stall watchdog: providers have no request timeout of their own, so a
+    // dead endpoint (bad gateway URL, hung proxy) would spin progress UI
+    // forever. Cancelling the watchdog token aborts the underlying request.
+    const watchdog = new vscode.CancellationTokenSource();
+    const cancelSub = options?.token?.onCancellationRequested(() => watchdog.cancel());
+    const stream = provider.streamRequest(prompt, { ...options, token: watchdog.token });
+
     let result = '';
-    for await (const fragment of this.streamRequest(prompt, options)) {
-      result += fragment;
+    try {
+      for (;;) {
+        const timeoutMs = result.length === 0 ? FIRST_DATA_TIMEOUT_MS : STALL_TIMEOUT_MS;
+        const next = await raceWithTimeout(stream.next(), timeoutMs);
+        if (next === TIMED_OUT) {
+          watchdog.cancel();
+          if (options?.token?.isCancellationRequested) {
+            return result; // user cancelled while we were waiting
+          }
+          throw new Error(
+            `${provider.label} stopped responding (no data for ${Math.round(timeoutMs / 1000)}s). ` +
+              (provider.id === 'copilot'
+                ? 'Check that GitHub Copilot is signed in and reachable, then try again.'
+                : `If you use a custom endpoint, verify the mocklify.ai.${provider.id}BaseUrl setting points at a reachable ${provider.label} compatible gateway; otherwise try again or switch providers.`)
+          );
+        }
+        if (next.done) {
+          break;
+        }
+        result += next.value;
+        options?.onData?.(result.length);
+      }
+    } finally {
+      cancelSub?.dispose();
+      watchdog.dispose();
     }
     return result;
   }
