@@ -28,3 +28,4 @@ dist/*.map
 .DS_Store
 sharp/**
 .github/**
+.claude/**
