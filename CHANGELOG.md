@@ -2,6 +2,12 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
+## [0.3.2] - 2026-07-07 (pre-release)
+
+### Fixed
+
+- A configured gateway base URL was saved but never used unless an API key was also stored: providers with a custom endpoint now count as available (auto mode picks them, "Gateway configured" shown in the dashboard) and send a placeholder key when the gateway authenticates upstream
+
 ## [0.3.1] - 2026-07-07 (pre-release)
 
 ### Added
@@ -21,7 +27,6 @@ All notable changes to the "Mocklify" extension will be documented in this file.
 - Dashboard sidebar/About and HAR exports showed a hardcoded version 0.1.0 — the real extension version is now injected at runtime
 - Search bar, filters, and three dialogs rendered as unstyled native (white) controls in both themes — undefined Tailwind token classes mapped onto the theme palette
 - Generated curl commands (docs exports and the log cURL export) used invalid shell quoting for single quotes in bodies/headers — now properly escaped and round-trip through `sh`
-- A configured gateway base URL was saved but never used unless an API key was also stored: providers with a custom endpoint now count as available (auto mode picks them, "Gateway configured" shown in the dashboard) and send a placeholder key when the gateway authenticates upstream
 
 ## [0.3.0] - 2026-07-07 (pre-release)
 
