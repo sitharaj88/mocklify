@@ -186,14 +186,31 @@ export function AiCreatePanel() {
           >
             <CheckCircle2 size={16} />
             <span>
-              Created <strong>{aiGeneration.serverName}</strong> with {aiGeneration.routeCount}{' '}
-              routes
-              {aiGeneration.port ? (
+              {aiGeneration.servers && aiGeneration.servers.length > 1 ? (
                 <>
-                  {' '}
-                  at <span className="font-mono">localhost:{aiGeneration.port}</span>
+                  Created <strong>{aiGeneration.servers.length} mock servers</strong> — one per
+                  API surface:
+                  <span className="block mt-1">
+                    {aiGeneration.servers.map((s) => (
+                      <span key={s.serverId} className="block text-xs">
+                        <strong>{s.serverName}</strong> · {s.routeCount} routes at{' '}
+                        <span className="font-mono">localhost:{s.port}</span>
+                      </span>
+                    ))}
+                  </span>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  Created <strong>{aiGeneration.serverName}</strong> with{' '}
+                  {aiGeneration.routeCount} routes
+                  {aiGeneration.port ? (
+                    <>
+                      {' '}
+                      at <span className="font-mono">localhost:{aiGeneration.port}</span>
+                    </>
+                  ) : null}
+                </>
+              )}
               {aiGeneration.message ? (
                 <span className="block text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
                   {aiGeneration.message}

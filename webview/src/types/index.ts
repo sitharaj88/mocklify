@@ -233,10 +233,19 @@ export type MessageFromExtension =
       serverName?: string;
       port?: number;
       routeCount?: number;
+      /** All servers a multi-surface codebase scan created (one per API surface). */
+      servers?: AiCreatedServer[];
     }
   // AI configuration
   | { type: 'aiConfig'; provider: string; activeLabel?: string; providers: AiProviderInfo[] }
   | { type: 'aiTestResult'; ok: boolean; message: string };
+
+export interface AiCreatedServer {
+  serverId: string;
+  serverName: string;
+  port: number;
+  routeCount: number;
+}
 
 export interface AiGenerationState {
   status: 'idle' | 'generating' | 'done' | 'error';
@@ -248,6 +257,8 @@ export interface AiGenerationState {
   serverName?: string;
   port?: number;
   routeCount?: number;
+  /** All servers a multi-surface codebase scan created (one per API surface). */
+  servers?: AiCreatedServer[];
 }
 
 export interface AiProviderInfo {

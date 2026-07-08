@@ -344,8 +344,10 @@ export function registerAiCommands(
     return importChannel;
   };
 
-  register('mocklify.importOpenApi', async () => {
-    const specUri = await pickSpecFile();
+  // Accepts an optional pre-resolved spec Uri so the codebase-scan spec-first
+  // shortcut (and the dashboard) can reuse the whole import pipeline.
+  register('mocklify.importOpenApi', async (specArg?: vscode.Uri) => {
+    const specUri = specArg instanceof vscode.Uri ? specArg : await pickSpecFile();
     if (!specUri) {
       return;
     }
@@ -563,11 +565,90 @@ export function registerAiCommands(
             return;
           }
 
+          // Spec-first shortcut: an existing API spec gives exact routes
+          // without inference — offer it before creating anything.
+          if (summary.specFiles?.length) {
+            const choice = await offerSpecImport(summary.specFiles);
+            if (choice === 'import' || choice === 'both') {
+              await importWorkspaceSpec(summary.specFiles);
+              if (choice === 'import') {
+                return;
+              }
+            }
+          }
+
           const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
           const verificationNote =
             summary.repairedCount > 0 || summary.droppedCount > 0
               ? ` Self-verification auto-repaired ${summary.repairedCount} and dropped ${summary.droppedCount} invalid route(s).`
               : '';
+
+          const servers = await manager.getServers();
+          const usedPorts = new Set(servers.map((s) => s.port));
+          let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
+          const nextFreePort = (): number => {
+            while (usedPorts.has(port)) {
+              port++;
+            }
+            usedPorts.add(port);
+            return port;
+          };
+
+          const surfaces = summary.surfaces ?? [];
+          if (surfaces.length > 1) {
+            // Multi-surface workspace: one mock server per API surface.
+            const planned = surfaces.map((surface) => ({
+              surface,
+              serverName: `${surface.name} Mock API`,
+              port: nextFreePort(),
+            }));
+            const lines = planned.map(({ surface, port: plannedPort }) => {
+              const negative = surface.routes.filter((r) => r.tags?.includes('negative')).length;
+              const positive = surface.routes.length - negative;
+              return `${surface.name} [${surface.direction}]: ${surface.routes.length} routes (${positive} success + ${negative} failure) — port ${plannedPort}`;
+            });
+            const confirm = await vscode.window.showInformationMessage(
+              `Found ${surfaces.length} API surfaces in ${summary.matchedFileCount} of ${summary.scannedFileCount} scanned files — Mocklify will create one mock server per surface.`,
+              {
+                modal: true,
+                detail:
+                  `${lines.join('\n')}\n\n` +
+                  `"serves" = a backend's contract, mocked for its clients; "consumes" = the endpoints an app calls. ` +
+                  `Failure routes are disabled; enable one to simulate that error.${verificationNote}`,
+              },
+              'Create All',
+              'Create All & Start'
+            );
+            if (!confirm) {
+              return;
+            }
+
+            const created: MockServerConfig[] = [];
+            for (const plan of planned) {
+              const server = await manager.createServer(plan.serverName, plan.port);
+              await manager.addRoutes(server.id, plan.surface.routes);
+              created.push(server);
+            }
+            if (confirm === 'Create All & Start') {
+              for (const server of created) {
+                try {
+                  await manager.startServer(server.id);
+                } catch (error) {
+                  vscode.window.showErrorMessage(
+                    `Mocklify: "${server.name}" was created but failed to start: ${error instanceof Error ? error.message : String(error)}`
+                  );
+                }
+              }
+            }
+            const namesList = created.map((s) => `"${s.name}" (port ${s.port})`).join(', ');
+            vscode.window.showInformationMessage(
+              confirm === 'Create All & Start'
+                ? `Mocklify: Started ${created.length} mock servers — ${namesList}. Point each app at its server's base URL.`
+                : `Mocklify: Created ${created.length} mock servers — ${namesList}.`
+            );
+            return;
+          }
+
           const confirm = await vscode.window.showInformationMessage(
             `Found API usage in ${summary.matchedFileCount} of ${summary.scannedFileCount} scanned files. ` +
               `Create "${workspaceName} Mock API" with ${summary.routes.length} routes — ` +
@@ -582,14 +663,7 @@ export function registerAiCommands(
             return;
           }
 
-          const servers = await manager.getServers();
-          const usedPorts = new Set(servers.map((s) => s.port));
-          let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
-          while (usedPorts.has(port)) {
-            port++;
-          }
-
-          const server = await manager.createServer(`${workspaceName} Mock API`, port);
+          const server = await manager.createServer(`${workspaceName} Mock API`, nextFreePort());
           await manager.addRoutes(server.id, summary.routes);
 
           if (confirm === 'Create & Start') {
@@ -1028,6 +1102,66 @@ async function pickSpecFile(): Promise<vscode.Uri | undefined> {
     return undefined;
   }
   return picked.uri ?? browseForSpecFile();
+}
+
+export type SpecOfferChoice = 'import' | 'scan' | 'both';
+
+/**
+ * Non-blocking (non-modal) offer shown when a codebase scan found API spec
+ * files: import the spec for exact routes, keep the AI scan results, or both.
+ * Dismissing the notification keeps the scan results (the safe default).
+ */
+export async function offerSpecImport(specFiles: string[]): Promise<SpecOfferChoice> {
+  const n = specFiles.length;
+  const listed = n === 1 ? specFiles[0] : `${specFiles[0]}, …`;
+  const choice = await vscode.window.showInformationMessage(
+    `Mocklify: Found ${n} API spec file${n === 1 ? '' : 's'} in this workspace (${listed}). Importing a spec directly gives exact routes without AI inference.`,
+    'Import Spec Instead',
+    'Use Scan Results',
+    'Both'
+  );
+  if (choice === 'Import Spec Instead') {
+    return 'import';
+  }
+  if (choice === 'Both') {
+    return 'both';
+  }
+  return 'scan';
+}
+
+const POSTMAN_SPEC_RE = /postman_collection\.json$/i;
+const OPENAPI_SPEC_RE = /\.(json|ya?ml)$/i;
+
+/**
+ * Import one of the workspace-relative spec files the scan found. OpenAPI /
+ * Swagger documents go through the full mocklify.importOpenApi pipeline;
+ * formats without a direct importer (proto, GraphQL, Postman) are opened in
+ * the editor with a note.
+ */
+export async function importWorkspaceSpec(specFiles: string[]): Promise<void> {
+  const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+  if (!root || specFiles.length === 0) {
+    return;
+  }
+  let relative = specFiles[0];
+  if (specFiles.length > 1) {
+    const picked = await vscode.window.showQuickPick(specFiles, {
+      placeHolder: 'Which spec file should Mocklify import?',
+    });
+    if (!picked) {
+      return;
+    }
+    relative = picked;
+  }
+  const uri = vscode.Uri.joinPath(root, relative);
+  if (OPENAPI_SPEC_RE.test(relative) && !POSTMAN_SPEC_RE.test(relative)) {
+    await vscode.commands.executeCommand('mocklify.importOpenApi', uri);
+    return;
+  }
+  await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(uri));
+  vscode.window.showInformationMessage(
+    'Mocklify: This spec format has no direct importer yet — the file was opened instead. OpenAPI/Swagger specs (JSON or YAML) can be imported directly.'
+  );
 }
 
 async function pickServer(

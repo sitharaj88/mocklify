@@ -2,6 +2,19 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- **Universal codebase scanning**: the codebase scan now profiles the workspace first (web, Android, iOS, Kotlin Multiplatform, React Native, Flutter, Ionic, and backends — Spring Boot, Express/NestJS, FastAPI/Django/Flask, Rails, Go, Laravel, ASP.NET Core, …). Backends are scanned in the *serves* direction: route declarations and handler code become the mocked contract for frontend teams
+- **One mock server per API surface**: monorepos and multi-app workspaces get a per-surface confirmation (name, direction, success/failure route counts, auto-assigned ports) and one mock server per surface, in both the command and the dashboard "From Codebase" flow; single-app repos behave exactly as before
+- **Spec-first shortcut**: when the scan finds API spec files (OpenAPI/Swagger, proto, GraphQL, Postman), Mocklify offers to import the spec directly for exact routes — instead of or alongside the AI scan results; OpenAPI/Swagger imports reuse the full import pipeline
+- Agentic scans on multi-project workspaces scale their budgets (up to 60 tool calls, 16 minutes, 1 MB read budget) and narrate progress milestones live
+
+### Changed
+
+- Drift watch now also recognizes server-route declarations (Express, Spring, FastAPI, and other backend frameworks), so backend files are watched for uncovered endpoints too
+
 ## [0.3.2] - 2026-07-07 (pre-release)
 
 ### Fixed

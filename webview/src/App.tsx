@@ -122,6 +122,7 @@ function App() {
             serverName: message.serverName,
             port: message.port,
             routeCount: message.routeCount,
+            servers: message.servers,
           });
           break;
 

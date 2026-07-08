@@ -113,7 +113,10 @@ export default function AiFeatures() {
           Point Mocklify at any client codebase — Android, iOS, web, Flutter — and it
           reverse-engineers the API the app calls into a complete mock server. Run{' '}
           <code className="text-purple-400">Mocklify: AI: Generate Mock Server from Codebase</code>{' '}
-          in your app&apos;s workspace.
+          in your app&apos;s workspace. It works with any project: backends (Spring, Express,
+          FastAPI, Rails, Go, …) are mocked from their declared routes and handlers, monorepos
+          get one mock server per detected API surface, and when an OpenAPI spec already exists
+          Mocklify offers to import it directly for exact routes.
         </p>
         <h3 className="text-lg font-medium mb-3">How it works</h3>
         <ol className="space-y-2 theme-text-secondary list-decimal list-inside mb-4">

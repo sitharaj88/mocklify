@@ -1,7 +1,11 @@
 import type * as vscode from 'vscode';
 import { NEGATIVE_ROUTE_PRIORITY, RouteConfig } from '../types/core.js';
 import type { AiService } from './AiService.js';
-import type { CodebaseScanProgress, CodebaseScanSummary } from './CodebaseMockGenerator.js';
+import type {
+  CodebaseScanProgress,
+  CodebaseScanSummary,
+  ScanSurface,
+} from './CodebaseMockGenerator.js';
 import { extractJson } from './extractJson.js';
 import {
   MockGenerator,
@@ -13,27 +17,34 @@ import {
   API_FILE_GLOB,
   SCAN_EXCLUDE_GLOB,
   ScoredFile,
-  scoreApiContent,
+  scoreApiContentDirectional,
   extractApiSnippets,
   dedupeRoutes,
 } from './scan/heuristics.js';
 import { hasGraphQlMarkers } from './scan/modelContext.js';
-import { createWorkspaceTools } from './agent/workspaceTools.js';
+import {
+  describeProfiles,
+  profileWorkspace,
+  type ApiDirection,
+  type ProjectKind,
+  type ProjectProfile,
+} from './scan/projectProfile.js';
+import { createWorkspaceTools, DEFAULT_READ_BUDGET_BYTES } from './agent/workspaceTools.js';
 import { AgenticScanUnavailableError } from './providers/types.js';
 import type { AiToolCall, AiToolDefinition, AiToolExecutor } from './providers/types.js';
 import { DEFAULT_MAX_TOOL_CALLS } from './providers/toolLoop.js';
 
 /**
- * Hybrid agentic codebase scan: the same deterministic heuristics that seed
- * the fast scan produce a scored file list, then the model explores the
- * workspace itself through read-only tools (list_files / read_file /
- * search_code) — following imports to data models, finding auth and error
- * conventions — and submits the finished mock routes through a fourth
- * submit_routes tool that validates them on the spot.
+ * Recon-first agentic codebase scan. A deterministic recon phase profiles the
+ * workspace (project kinds, API direction, spec files) and runs the
+ * directional seed scan; the model then explores through read-only tools
+ * (list_files / read_file / search_code), narrates milestones via
+ * report_progress, and submits finished mock routes — optionally split across
+ * multiple API surfaces — through submit_routes, which validates on the spot.
  *
- * Pure helpers (seed formatting, submit bookkeeping, progress math) are
- * exported for unit tests; vscode is loaded lazily inside the class so the
- * module imports cleanly under vitest.
+ * Pure helpers (recon assembly, prompt building, budget scaling, submit and
+ * surface bookkeeping, progress math) are exported for unit tests; vscode is
+ * loaded lazily inside the class so the module imports cleanly under vitest.
  */
 
 // Seed scan — mirrors CodebaseMockGenerator's deterministic discovery.
@@ -41,18 +52,33 @@ const MAX_FILES_TO_READ = 600;
 const MAX_FILE_BYTES = 262_144;
 const MIN_SCORE = 10;
 
-/** Tool-execution cap for one scan (matches the provider loop default). */
+/** Base tool-execution cap for a single-project scan (provider loop default). */
 export const AGENT_MAX_TOOL_CALLS = DEFAULT_MAX_TOOL_CALLS;
-/** Hard wall-clock budget for the whole agentic scan. */
+/** Extra tool calls granted per additional detected project. */
+export const EXTRA_PROJECT_TOOL_CALLS = 15;
+/** Hard ceiling on tool executions however many projects were detected. */
+export const MAX_TOOL_CALLS_CAP = 60;
+/** Base wall-clock budget for a single-project scan. */
 export const AGENTIC_SCAN_BUDGET_MS = 8 * 60_000;
+/** Extra wall-clock budget granted per additional detected project. */
+export const EXTRA_PROJECT_BUDGET_MS = 4 * 60_000;
+/** Hard wall-clock ceiling however many projects were detected. */
+export const SCAN_BUDGET_CAP_MS = 16 * 60_000;
+/** Tool read budget when more than one project must be explored. */
+export const MULTI_PROJECT_READ_BUDGET_BYTES = 1024 * 1024;
 /** Inside this window before the deadline, exploration tools demand a submit. */
 export const SUBMIT_NUDGE_WINDOW_MS = 90_000;
 /** Failed submit_routes rounds tolerated before the valid subset is accepted. */
 export const MAX_SUBMIT_REJECTIONS = 2;
 
 export const SEED_MAX_FILES = 30;
+/** Per-surface seed cap when several projects share the prompt. */
+export const SEED_MAX_FILES_MULTI = 15;
 export const SEED_TEASER_LINES = 3;
 export const SEED_TEASER_LINE_CHARS = 120;
+
+export const PROGRESS_NOTE_MAX_CHARS = 200;
+export const PROGRESS_NOTE_ACK = 'Noted — continue.';
 
 export const SUBMIT_ROUTES_ACCEPTED_ACK =
   'Routes accepted — the mock server will be assembled from them. Stop calling tools and reply "done".';
@@ -63,17 +89,110 @@ export const TIME_BUDGET_NUDGE =
 
 export { AgenticScanUnavailableError } from './providers/types.js';
 
-/** The fourth tool: the model hands over the finished routes through it. */
+// ---------------------------------------------------------------------------
+// Budget scaling (pure)
+// ---------------------------------------------------------------------------
+
+function extraProjects(projectCount: number): number {
+  return Math.max(0, Math.floor(projectCount) - 1);
+}
+
+/** 30 tool calls + 15 per additional detected project, capped at 60. */
+export function scaleMaxToolCalls(projectCount: number): number {
+  return Math.min(
+    MAX_TOOL_CALLS_CAP,
+    AGENT_MAX_TOOL_CALLS + EXTRA_PROJECT_TOOL_CALLS * extraProjects(projectCount)
+  );
+}
+
+/** 8 minutes + 4 per additional detected project, capped at 16 minutes. */
+export function scaleScanBudgetMs(projectCount: number): number {
+  return Math.min(
+    SCAN_BUDGET_CAP_MS,
+    AGENTIC_SCAN_BUDGET_MS + EXTRA_PROJECT_BUDGET_MS * extraProjects(projectCount)
+  );
+}
+
+/** 512KB read budget for one project, 1MB when several must be explored. */
+export function scaleReadBudgetBytes(projectCount: number): number {
+  return projectCount > 1 ? MULTI_PROJECT_READ_BUDGET_BYTES : DEFAULT_READ_BUDGET_BYTES;
+}
+
+// ---------------------------------------------------------------------------
+// Tool definitions
+// ---------------------------------------------------------------------------
+
+/**
+ * ROUTES_JSON_SCHEMA extended for multi-surface submissions: an optional
+ * per-route "surface" name plus a top-level "surfaceNames" list. Built as a
+ * deep copy so the shared schema (used by other generation flows) is never
+ * mutated; stays inside the strict structured-output dialect (object root,
+ * additionalProperties: false everywhere, no min/max constraints).
+ */
+export const SURFACE_ROUTES_JSON_SCHEMA: Record<string, unknown> = (() => {
+  const schema = JSON.parse(JSON.stringify(ROUTES_JSON_SCHEMA)) as Record<string, unknown>;
+  const properties = schema.properties as Record<string, Record<string, unknown>>;
+  const items = properties.routes.items as Record<string, unknown>;
+  (items.properties as Record<string, unknown>).surface = {
+    type: 'string',
+    description:
+      'Name of the API surface this route belongs to — one of the surface names listed in the mission. Omit when the mission has a single surface.',
+  };
+  properties.surfaceNames = {
+    type: 'array',
+    items: { type: 'string' },
+    description: 'Every surface name used across the submitted routes.',
+  };
+  return schema;
+})();
+
+/** The submit tool: the model hands over the finished routes through it. */
 export const SUBMIT_ROUTES_TOOL: AiToolDefinition = {
   name: 'submit_routes',
   description:
-    'Submit the final set of mock routes for the scanned application. Call this exactly once, after exploring, with EVERY route (success routes plus disabled negative-flow routes) as {"routes": [...]}. If the result lists validation problems, fix them and call submit_routes again with the COMPLETE corrected set. Never put route JSON in your text reply — it is only read from this tool.',
-  inputSchema: ROUTES_JSON_SCHEMA,
+    'Submit the final set of mock routes for the scanned workspace. Call this exactly once, after exploring, with EVERY route (success routes plus disabled negative-flow routes) as {"routes": [...]}. When the mission lists multiple API surfaces, set "surface" on every route to its surface name and include a top-level "surfaceNames" array. If the result lists validation problems, fix them and call submit_routes again with the COMPLETE corrected set. Never put route JSON in your text reply — it is only read from this tool.',
+  inputSchema: SURFACE_ROUTES_JSON_SCHEMA,
 };
+
+/** Lightweight narration tool: milestones stream straight to the progress UI. */
+export const REPORT_PROGRESS_TOOL: AiToolDefinition = {
+  name: 'report_progress',
+  description:
+    'Report a short progress milestone to the user while you explore, e.g. {"note": "Detected Spring backend, reading UserController…"}. One line of plain text — never route JSON. This does not submit anything; you still must call submit_routes with the routes.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      note: { type: 'string', description: 'One-line progress note shown to the user.' },
+    },
+    required: ['note'],
+    additionalProperties: false,
+  },
+};
+
+/** Sanitize a report_progress note: single line, trimmed, length-capped. */
+export function progressNote(input: unknown): string {
+  if (input === null || typeof input !== 'object') {
+    return '';
+  }
+  const note = (input as Record<string, unknown>).note;
+  if (typeof note !== 'string') {
+    return '';
+  }
+  const flattened = note.replace(/\s+/g, ' ').trim();
+  return flattened.length > PROGRESS_NOTE_MAX_CHARS
+    ? `${flattened.slice(0, PROGRESS_NOTE_MAX_CHARS)}…`
+    : flattened;
+}
 
 // ---------------------------------------------------------------------------
 // Seed formatting (pure)
 // ---------------------------------------------------------------------------
+
+/** A seed-scan hit scored separately per API direction. */
+export interface DirectionalScoredFile extends ScoredFile {
+  clientScore: number;
+  serverScore: number;
+}
 
 /** First few non-empty snippet lines, trimmed and length-capped. */
 export function formatSeedTeaser(
@@ -109,12 +228,99 @@ export function formatSeedSection(files: ScoredFile[], maxFiles = SEED_MAX_FILES
 }
 
 // ---------------------------------------------------------------------------
+// Recon surfaces (pure)
+// ---------------------------------------------------------------------------
+
+/** One API surface the mission asks the agent to cover. */
+export interface SurfaceSeed {
+  name: string;
+  rootPath: string;
+  kind: ProjectKind;
+  frameworks: string[];
+  direction: ApiDirection;
+  specFiles: string[];
+  seedSection: string;
+  /** Files listed in seedSection. */
+  seedFileCount: number;
+  /** Seed-scan hits assigned to this surface. */
+  matchedFileCount: number;
+}
+
+function directionalScoreFor(file: DirectionalScoredFile, direction: ApiDirection): number {
+  const preferred =
+    direction === 'serves' ? file.serverScore : direction === 'consumes' ? file.clientScore : file.score;
+  return preferred > 0 ? preferred : file.score;
+}
+
+/**
+ * Assign seed-scan hits to the detected projects (deepest enclosing root
+ * wins; orphans go to the first, shallowest profile) and produce one
+ * SurfaceSeed per project, its seed list re-ranked by the project's API
+ * direction. With no profiles at all, everything folds into one default
+ * consumes surface named after the workspace — today's single-app behavior.
+ */
+export function buildSurfaceSeeds(
+  profiles: ProjectProfile[],
+  files: DirectionalScoredFile[],
+  appName: string
+): SurfaceSeed[] {
+  if (profiles.length === 0) {
+    return [
+      {
+        name: appName,
+        rootPath: '',
+        kind: 'unknown',
+        frameworks: [],
+        direction: 'consumes',
+        specFiles: [],
+        seedSection: formatSeedSection(files),
+        seedFileCount: Math.min(files.length, SEED_MAX_FILES),
+        matchedFileCount: files.length,
+      },
+    ];
+  }
+
+  const buckets: DirectionalScoredFile[][] = profiles.map(() => []);
+  for (const file of files) {
+    let best = -1;
+    for (let i = 0; i < profiles.length; i++) {
+      const root = profiles[i].rootPath;
+      if (root === '' || file.path === root || file.path.startsWith(`${root}/`)) {
+        if (best === -1 || root.length > profiles[best].rootPath.length) {
+          best = i;
+        }
+      }
+    }
+    buckets[best === -1 ? 0 : best].push(file);
+  }
+
+  const maxPer = profiles.length > 1 ? SEED_MAX_FILES_MULTI : SEED_MAX_FILES;
+  return profiles.map((profile, i) => {
+    const ranked = buckets[i].map((file) => ({
+      ...file,
+      score: directionalScoreFor(file, profile.direction),
+    }));
+    return {
+      name: profile.rootPath === '' ? appName : profile.rootPath,
+      rootPath: profile.rootPath,
+      kind: profile.kind,
+      frameworks: profile.frameworks,
+      direction: profile.direction,
+      specFiles: profile.specFiles,
+      seedSection: formatSeedSection(ranked, maxPer),
+      seedFileCount: Math.min(ranked.length, maxPer),
+      matchedFileCount: ranked.length,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Progress (pure)
 // ---------------------------------------------------------------------------
 
 function mainToolArg(call: AiToolCall): string {
   const input = (call.input ?? {}) as Record<string, unknown>;
-  const value = input.path ?? input.glob ?? input.pattern;
+  const value = input.path ?? input.glob ?? input.pattern ?? input.note;
   if (typeof value !== 'string' || value === '') {
     return '';
   }
@@ -131,6 +337,8 @@ export function describeToolCall(call: AiToolCall): string {
       return `list ${arg || 'files'}`;
     case 'search_code':
       return `search "${arg}"`;
+    case 'report_progress':
+      return arg || 'progress note';
     case 'submit_routes':
       return 'submitting routes';
     default:
@@ -156,6 +364,40 @@ export function formatToolCallProgress(
 // submit_routes bookkeeping (pure)
 // ---------------------------------------------------------------------------
 
+/**
+ * Key that ties a submitted route back to its declared surface after Zod
+ * validation strips the non-core "surface" field. Includes the response
+ * status code when available so a negative variant (e.g. the 404 twin of a
+ * success route) can belong to a different surface than the route sharing
+ * its method+path.
+ */
+export function routeSurfaceKey(method: unknown, path: unknown, statusCode?: unknown): string {
+  const methods = Array.isArray(method)
+    ? method.map((m) => String(m)).sort().join(',')
+    : String(method ?? '');
+  const base = `${methods.toUpperCase()}|${String(path ?? '').toLowerCase()}`;
+  return typeof statusCode === 'number' ? `${base}|${statusCode}` : base;
+}
+
+/** Status code of a raw (pre-validation) submitted route, if present. */
+function rawStatusCode(route: Record<string, unknown>): unknown {
+  const response = route.response;
+  return response !== null && typeof response === 'object'
+    ? (response as Record<string, unknown>).statusCode
+    : undefined;
+}
+
+const SURFACE_NAME_MAX_CHARS = 120;
+const MAX_SURFACE_NAMES = 32;
+
+/** Model-controlled surface names: one trimmed, length-capped line. */
+export function sanitizeSurfaceName(raw: string): string {
+  const flattened = raw.replace(/\s+/g, ' ').trim();
+  return flattened.length > SURFACE_NAME_MAX_CHARS
+    ? flattened.slice(0, SURFACE_NAME_MAX_CHARS)
+    : flattened;
+}
+
 export interface SubmitState {
   /** Failed rounds so far. */
   rejections: number;
@@ -171,6 +413,18 @@ export interface SubmitState {
   repairedCount: number;
   /** Routes still failing at acceptance time. */
   droppedCount: number;
+  /** Surface names declared across submissions (top-level + per-route). */
+  surfaceNames: string[];
+  /** routeSurfaceKey → declared surface name, latest submission wins. */
+  surfaceByKey: Map<string, string>;
+  /**
+   * Status-aware routeSurfaceKey → EVERY surface declared for it in the
+   * latest submission. Two surfaces legitimately sharing an endpoint (an app
+   * and the backend it calls both cover GET /api/users 200) collide on one
+   * key; this map keeps all of them so the deduped route can be attached to
+   * every declaring surface instead of silently vanishing from all but one.
+   */
+  surfaceNamesByKey: Map<string, string[]>;
 }
 
 export function createSubmitState(): SubmitState {
@@ -182,7 +436,89 @@ export function createSubmitState(): SubmitState {
     prevRejectedCount: 0,
     repairedCount: 0,
     droppedCount: 0,
+    surfaceNames: [],
+    surfaceByKey: new Map(),
+    surfaceNamesByKey: new Map(),
   };
+}
+
+/**
+ * Capture surface declarations from a raw submission before validation
+ * strips them: top-level surfaceNames plus per-route "surface" strings.
+ */
+export function recordSurfaceInfo(state: SubmitState, input: unknown): void {
+  if (input === null || typeof input !== 'object') {
+    return;
+  }
+  const record = input as Record<string, unknown>;
+  const addName = (value: unknown): void => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const name = sanitizeSurfaceName(value);
+    if (name !== '' && !state.surfaceNames.includes(name) && state.surfaceNames.length < MAX_SURFACE_NAMES) {
+      state.surfaceNames.push(name);
+    }
+  };
+  if (Array.isArray(record.surfaceNames)) {
+    record.surfaceNames.forEach(addName);
+  }
+  if (!Array.isArray(record.routes)) {
+    return;
+  }
+  // Rebuilt per submission — a correction round's complete resubmission
+  // replaces earlier per-key declarations rather than accumulating them.
+  state.surfaceNamesByKey = new Map();
+  for (const item of record.routes) {
+    if (item === null || typeof item !== 'object') {
+      continue;
+    }
+    const route = item as Record<string, unknown>;
+    if (typeof route.surface === 'string' && route.surface.trim() !== '') {
+      const name = sanitizeSurfaceName(route.surface);
+      // Status-aware key first (lets a negative variant live on a different
+      // surface), plus the method+path key as a fallback for lookups on
+      // routes whose raw submission carried no usable status code.
+      const statusKey = routeSurfaceKey(route.method, route.path, rawStatusCode(route));
+      state.surfaceByKey.set(statusKey, name);
+      state.surfaceByKey.set(routeSurfaceKey(route.method, route.path), name);
+      const names = state.surfaceNamesByKey.get(statusKey);
+      if (!names) {
+        state.surfaceNamesByKey.set(statusKey, [name]);
+      } else if (!names.includes(name)) {
+        names.push(name);
+      }
+      addName(route.surface);
+    }
+  }
+}
+
+/**
+ * Surface name(s) declared for a validated route: status-aware key first,
+ * then the method+path fallback.
+ */
+function declaredSurfaces(
+  route: Omit<RouteConfig, 'id'>,
+  surfaceByKey: ReadonlyMap<string, string | readonly string[]>
+): string | readonly string[] | undefined {
+  return (
+    surfaceByKey.get(routeSurfaceKey(route.method, route.path, route.response.statusCode)) ??
+    surfaceByKey.get(routeSurfaceKey(route.method, route.path))
+  );
+}
+
+/**
+ * The grouping map for groupRoutesBySurface: status-aware keys carry EVERY
+ * surface declared for them in the latest submission (an endpoint shared by
+ * an app and its backend belongs to both), while method+path fallback keys
+ * keep the latest single declaration.
+ */
+export function surfaceLookup(state: SubmitState): Map<string, string | readonly string[]> {
+  const merged = new Map<string, string | readonly string[]>(state.surfaceByKey);
+  for (const [key, names] of state.surfaceNamesByKey) {
+    merged.set(key, names.length === 1 ? names[0] : names);
+  }
+  return merged;
 }
 
 const REJECTION_LISTING_MAX_CHARS = 4000;
@@ -214,14 +550,15 @@ function acceptRoutes(
 }
 
 /**
- * Handle one submit_routes call: validate + verify, quote failures back for
- * up to MAX_SUBMIT_REJECTIONS rounds, then accept the valid subset. Mutates
- * state; returns the tool result text.
+ * Handle one submit_routes call: record surface declarations, validate +
+ * verify, quote failures back for up to MAX_SUBMIT_REJECTIONS rounds, then
+ * accept the valid subset. Mutates state; returns the tool result text.
  */
 export function handleSubmitRoutes(state: SubmitState, input: unknown): string {
   if (state.done) {
     return ROUTES_ALREADY_ACCEPTED;
   }
+  recordSurfaceInfo(state, input);
 
   let valid: Omit<RouteConfig, 'id'>[];
   try {
@@ -257,7 +594,75 @@ export function handleSubmitRoutes(state: SubmitState, input: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Prompt (pure)
+// Surface grouping (pure)
+// ---------------------------------------------------------------------------
+
+// The surface shape is shared with the fast scanner — one type, one server
+// per surface downstream. Re-exported so existing imports keep working.
+export type { ScanSurface } from './CodebaseMockGenerator.js';
+
+/** The agentic scan result: the flat back-compat summary plus per-surface routes. */
+export interface AgenticScanSummary extends CodebaseScanSummary {
+  surfaces: ScanSurface[];
+  /** API spec files recon found — a direct import is an alternative to these routes. */
+  specFiles: string[];
+}
+
+/**
+ * Group the final flattened routes by their declared surface(s). Declared
+ * names are clamped to the recon surface list (exact match first, then
+ * case-insensitive): a route declaring an unknown name lands on the first
+ * recon surface instead of minting a new one, so injected instructions in a
+ * scanned repo cannot fan a submission out into unbounded extra mock servers.
+ * A key declared for several surfaces (a shared endpoint) is attached to each
+ * of them. Recon order is preserved; surfaces with no routes are dropped.
+ * Directions come from recon, defaulting to 'consumes'.
+ */
+export function groupRoutesBySurface(
+  routes: Omit<RouteConfig, 'id'>[],
+  surfaceByKey: ReadonlyMap<string, string | readonly string[]>,
+  recon: { name: string; direction: ApiDirection }[]
+): ScanSurface[] {
+  const defaultName = recon[0]?.name ?? 'API';
+  const clamp = (declared: string): string =>
+    recon.find((r) => r.name === declared)?.name ??
+    recon.find((r) => r.name.toLowerCase() === declared.toLowerCase())?.name ??
+    defaultName;
+  const grouped = new Map<string, Omit<RouteConfig, 'id'>[]>();
+  for (const { name } of recon) {
+    grouped.set(name, []);
+  }
+  if (!grouped.has(defaultName)) {
+    grouped.set(defaultName, []);
+  }
+  for (const route of routes) {
+    const declared = declaredSurfaces(route, surfaceByKey);
+    const names =
+      declared === undefined
+        ? [defaultName]
+        : [...new Set((typeof declared === 'string' ? [declared] : declared).map(clamp))];
+    for (const name of names) {
+      grouped.get(name)?.push(route);
+    }
+  }
+  const directionFor = (name: string): ApiDirection => {
+    const match = recon.find((r) => r.name === name);
+    if (match) {
+      return match.direction;
+    }
+    return recon.length === 1 ? recon[0].direction : 'consumes';
+  };
+  const surfaces: ScanSurface[] = [];
+  for (const [name, surfaceRoutes] of grouped) {
+    if (surfaceRoutes.length > 0) {
+      surfaces.push({ name, routes: surfaceRoutes, direction: directionFor(name) });
+    }
+  }
+  return surfaces;
+}
+
+// ---------------------------------------------------------------------------
+// Mission prompt (pure)
 // ---------------------------------------------------------------------------
 
 const GRAPHQL_INSTRUCTIONS = `
@@ -265,30 +670,91 @@ const GRAPHQL_INSTRUCTIONS = `
 ## GraphQL
 This codebase uses a GraphQL client. Mocklify matches requests on path + method only (it cannot inspect the operation name), so create ONE "POST /graphql" route per operation family (e.g. one for the user queries, one for the order mutations) with a realistic { "data": { ... } } body matching the operations' selection sets. Also add one disabled negative variant per family with status 200 and a { "errors": [{ "message": "…", "extensions": { "code": "…" } }] } body, tagged ["negative", "graphql"].`;
 
-export function buildAgentPrompt(
+const DIRECTION_STRATEGIES: Record<ApiDirection, string> = {
+  consumes:
+    'This project CALLS APIs. Explore its HTTP call sites (clients, repositories, services, interceptors), follow imports to the data-model types it parses so every response body matches EXACTLY the shape the client expects, and find its auth and error-body conventions. Mock every endpoint it CALLS so the app can run against the mock server.',
+  serves:
+    'This project SERVES an API. Explore its route declarations (controllers, routers, URL maps, decorators, route files), then READ THE HANDLERS behind each route — return statements, serializers, DTOs, view models, fixtures — to derive the EXACT response shapes it produces. Mock what this backend SERVES so frontend teams can develop against the mock without running the backend.',
+  both:
+    'This project both SERVES and CALLS APIs (fullstack). Its served API is this surface: derive routes from its route/handler declarations and read the handlers for exact response shapes; its own client-side calls to those routes confirm the same contract.',
+};
+
+function specInstruction(specFiles: string[]): string {
+  return `An API specification already exists for this surface: ${specFiles.join(', ')}. Read it FIRST and prefer its exact contract — paths, parameters, status codes, schemas, examples — over inference from code. In your final text reply, mention that the user could also import this spec file directly instead of scanning.`;
+}
+
+const KIND_HEADINGS: Record<ProjectKind, string> = {
+  web: 'web app',
+  'mobile-android': 'Android app',
+  'mobile-ios': 'iOS app',
+  kmp: 'Kotlin Multiplatform app',
+  'react-native': 'React Native app',
+  flutter: 'Flutter app',
+  'ionic-capacitor': 'Ionic/Capacitor app',
+  backend: 'backend service',
+  library: 'library',
+  unknown: 'project',
+};
+
+function surfaceSection(seed: SurfaceSeed): string {
+  const frameworks = seed.frameworks.length > 0 ? ` (${seed.frameworks.join(', ')})` : '';
+  const at = seed.rootPath === '' ? 'the workspace root' : `${seed.rootPath}/`;
+  const parts = [
+    `### Surface "${seed.name}" — ${KIND_HEADINGS[seed.kind]}${frameworks} at ${at} [${seed.direction}]`,
+    DIRECTION_STRATEGIES[seed.direction],
+  ];
+  if (seed.specFiles.length > 0) {
+    parts.push(specInstruction(seed.specFiles));
+  }
+  parts.push(
+    seed.seedSection
+      ? `Seed files (top ${seed.seedFileCount} of ${seed.matchedFileCount} matched by the deterministic scan):\n${seed.seedSection}`
+      : 'No pre-scored seed files for this surface — map it with list_files and search_code.'
+  );
+  return parts.join('\n');
+}
+
+/**
+ * The recon-informed mission prompt: project inventory, one strategy section
+ * per API surface (consumes → mock what it calls; serves → read handlers and
+ * mock what it serves; spec files trump inference), multi-surface submission
+ * rules, and the shared route-authoring contract.
+ */
+export function buildMissionPrompt(
   appName: string,
-  seedSection: string,
-  matchedFileCount: number,
+  inventory: string,
+  surfaces: SurfaceSeed[],
   graphQl: boolean
 ): string {
-  const seedCount = Math.min(matchedFileCount, SEED_MAX_FILES);
-  return `You are an expert API reverse-engineer exploring the workspace of a client application ("${appName}" — could be Android, iOS, web, Flutter, or similar) through read-only tools. Identify every HTTP API endpoint this app calls, then create mock API routes for a mock server so the app can run against it.
+  const multi = surfaces.length > 1;
+  const surfaceSections = surfaces.map(surfaceSection).join('\n\n');
+  const multiBlock = multi
+    ? `\n\n## Multiple API surfaces
+This workspace has ${surfaces.length} distinct API surfaces (${surfaces
+        .map((s) => `"${s.name}"`)
+        .join(', ')}); each becomes its own mock server. Set "surface" on EVERY submitted route to exactly one of those names, and include a top-level "surfaceNames" array listing every name you used. Submit ALL surfaces' routes in the ONE submit_routes call.`
+    : '';
 
-A deterministic scan already found the most likely API-related files (listed under "Seed files" below with a relevance score and a short teaser). Explore from there:
-1. Read the highest-scoring seed files to find the endpoints, methods, paths, and request/response handling.
-2. Follow imports to the data-model types so every response body matches EXACTLY the shape the client parses — never guess field names when you can read the model.
-3. Find the app's auth conventions (headers, tokens, interceptors) and its error-body conventions (how failures are parsed) so negative routes match them.
-4. Use search_code to catch endpoints outside the seed list (base URLs, "/api/" strings, HTTP client calls).
+  return `You are an expert API reverse-engineer exploring the workspace "${appName}" through read-only tools (list_files / read_file / search_code). A deterministic recon pass already profiled the projects in it and pre-scored the most likely API-related files.
 
-When you have the full picture, call submit_routes EXACTLY ONCE with every route. If the result lists validation problems, fix them and call submit_routes again with the complete corrected set. Do not write route JSON in your text replies.
+## Recon
+${inventory}
+
+Narrate milestones as you work by calling report_progress with a short one-line note (e.g. {"note": "Detected Spring backend, reading UserController…"}).
+
+## API surfaces (${surfaces.length})
+
+${surfaceSections}${multiBlock}
+
+When you have the full picture, call submit_routes EXACTLY ONCE with every route${multi ? ' across ALL surfaces' : ''}. If the result lists validation problems, fix them and call submit_routes again with the complete corrected set. Do not write route JSON in your text replies.
 
 For EVERY endpoint you find, create:
-1. A success route (\`"enabled": true\`) whose response body matches EXACTLY what the client code expects to parse — infer field names and types from data models, JSON parsing, and how the response is used. Use realistic, domain-appropriate example data.
-2. Negative-flow routes (\`"enabled": false\`) for realistic failures: 400 validation error (for endpoints with request bodies), 401 unauthorized (when the code sends auth headers/tokens), 403 forbidden (for authenticated endpoints where a role or permission check could fail), 404 not found (for endpoints with path parameters), 429 rate limit (for the most important endpoints — include "Retry-After": "30" in the response headers), and 500 server error (for the most important endpoints). Shape the error bodies the way the client's error handling expects. Tag every negative route with "negative" plus its status, e.g. "tags": ["negative", "401"]. Also give them names like "GET /api/users/:id — 404 not found".
+1. A success route (\`"enabled": true\`) whose response body matches EXACTLY the real contract — for consumed APIs the shape the client code parses, for served APIs the shape the handlers actually return (serializers, DTOs, fixtures). Never guess field names when you can read the model or handler. Use realistic, domain-appropriate example data.
+2. Negative-flow routes (\`"enabled": false\`) for realistic failures: 400 validation error (for endpoints with request bodies), 401 unauthorized (when the code involves auth headers/tokens), 403 forbidden (for authenticated endpoints where a role or permission check could fail), 404 not found (for endpoints with path parameters), 429 rate limit (for the most important endpoints — include "Retry-After": "30" in the response headers), and 500 server error (for the most important endpoints). Shape the error bodies the way the code's error handling produces or expects them. Tag every negative route with "negative" plus its status, e.g. "tags": ["negative", "401"]. Also give them names like "GET /api/users/:id — 404 not found".
 3. For the 1-3 most critical endpoints, a slow-response simulation route (\`"enabled": false\`) that mirrors the success response (same status and body) but adds "delay": { "type": "fixed", "value": 10000 }, tagged ["negative", "timeout"], named like "GET /api/orders — slow response (10s)".
 
 Rules:
-- ONLY include endpoints this code actually calls — never invent endpoints.
+- ONLY include endpoints this code actually calls or serves — never invent endpoints.
 - Strip the host/base URL; keep only the path. Convert path variables to :param form.
 - Tag positive routes with a short domain tag (e.g. "users", "orders").
 - When the success routes for one resource form a CRUD family (GET list + GET by :id + POST/PUT/PATCH/DELETE), give every route in the family the SAME "stateful" field (collection = resource name, idParam = the path's :param name, seed of 3-5 coherent items — each including the id field — on the GET list route only). Never add "stateful" to negative-flow routes or to endpoints outside a CRUD family.${graphQl ? GRAPHQL_INSTRUCTIONS : ''}
@@ -297,11 +763,7 @@ Rules:
 
 ${ROUTE_FORMAT_INSTRUCTIONS}
 
-(The routes go into the submit_routes tool input as {"routes": [...]} — never into your text reply.)
-
-## Seed files (top ${seedCount} of ${matchedFileCount} matched by the deterministic scan)
-
-${seedSection}`;
+(The routes go into the submit_routes tool input as {"routes": [...]}${multi ? ' with a "surface" name on each route and a top-level "surfaceNames" array' : ''} — never into your text reply.)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,14 +775,15 @@ export class AgenticScanner {
 
   /**
    * Same contract as CodebaseMockGenerator.generate so the command layer can
-   * treat both scanners identically. Throws AgenticScanUnavailableError when
+   * treat both scanners identically; the resolved summary additionally
+   * carries per-surface route groups. Throws AgenticScanUnavailableError when
    * the active provider cannot run tool loops — callers should fall back to
    * the fast scan.
    */
   async generate(options?: {
     token?: vscode.CancellationToken;
     onProgress?: (progress: CodebaseScanProgress) => void;
-  }): Promise<CodebaseScanSummary> {
+  }): Promise<AgenticScanSummary> {
     // Lazy so the pure exports above stay importable outside the extension host.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const vs: typeof import('vscode') = require('vscode');
@@ -340,11 +803,20 @@ export class AgenticScanner {
       throw new Error('Open a workspace folder to scan for API calls.');
     }
 
-    // 1. Deterministic seed scan — identical heuristics to the fast path
-    report('Scanning workspace for API calls…', 0.02);
+    // 1. Recon: profile the projects (best-effort), then the directional
+    //    seed scan — identical file heuristics to the fast path.
+    report('Profiling workspace projects…', 0.02);
+    let profiles: ProjectProfile[] = [];
+    try {
+      profiles = await profileWorkspace(root);
+    } catch {
+      // Recon is advisory — a plain single-surface scan still works.
+    }
+
+    report('Scanning workspace for API usage…', 0.04);
     const uris = await vs.workspace.findFiles(API_FILE_GLOB, SCAN_EXCLUDE_GLOB, MAX_FILES_TO_READ);
 
-    const scored: ScoredFile[] = [];
+    const scored: DirectionalScoredFile[] = [];
     let scanned = 0;
     for (const uri of uris) {
       if (options?.token?.isCancellationRequested) {
@@ -353,8 +825,8 @@ export class AgenticScanner {
       scanned++;
       if (scanned % 100 === 0) {
         report(
-          `Scanning workspace for API calls… (${scanned}/${uris.length} files)`,
-          0.02 + 0.11 * (scanned / uris.length)
+          `Scanning workspace for API usage… (${scanned}/${uris.length} files)`,
+          0.04 + 0.09 * (scanned / uris.length)
         );
       }
       try {
@@ -364,9 +836,16 @@ export class AgenticScanner {
         }
         const content = Buffer.from(await vs.workspace.fs.readFile(uri)).toString('utf-8');
         const relativePath = vs.workspace.asRelativePath(uri);
-        const score = scoreApiContent(content, relativePath);
+        const { clientScore, serverScore } = scoreApiContentDirectional(content, relativePath);
+        const score = Math.max(clientScore, serverScore);
         if (score >= MIN_SCORE) {
-          scored.push({ path: relativePath, score, snippet: extractApiSnippets(content) });
+          scored.push({
+            path: relativePath,
+            score,
+            clientScore,
+            serverScore,
+            snippet: extractApiSnippets(content),
+          });
         }
       } catch {
         // Unreadable file — skip
@@ -375,20 +854,25 @@ export class AgenticScanner {
 
     if (scored.length === 0) {
       throw new Error(
-        'No API calls were found in this workspace. Mocklify looked for fetch/axios/Retrofit/URLSession/Dio/HttpClient and similar patterns in source files.'
+        'No API calls were found in this workspace. Mocklify looked for fetch/axios/Retrofit/URLSession/Dio/HttpClient calls and server route declarations in source files.'
       );
     }
 
-    // 2. Agent prompt from the seed
+    // 2. Mission prompt from the recon inventory + per-surface seeds
     report(`Preparing the exploration agent (${provider.label})…`, 0.16);
     const appName = vs.workspace.workspaceFolders?.[0]?.name ?? 'App';
     const graphQl = scored.some((file) => hasGraphQlMarkers(file.snippet));
-    const prompt = buildAgentPrompt(appName, formatSeedSection(scored), scored.length, graphQl);
+    const surfaces = buildSurfaceSeeds(profiles, scored, appName);
+    const prompt = buildMissionPrompt(appName, describeProfiles(profiles), surfaces, graphQl);
 
-    // 3. Tool belt: read-only workspace tools + submit_routes
-    const tools = createWorkspaceTools(root);
+    const projectCount = Math.max(1, profiles.length);
+    const maxToolCalls = scaleMaxToolCalls(projectCount);
+    const budgetMs = scaleScanBudgetMs(projectCount);
+
+    // 3. Tool belt: read-only workspace tools + report_progress + submit_routes
+    const tools = createWorkspaceTools(root, scaleReadBudgetBytes(projectCount));
     const state = createSubmitState();
-    const deadline = Date.now() + AGENTIC_SCAN_BUDGET_MS;
+    const deadline = Date.now() + budgetMs;
 
     // Loop cancellation: fired by the user's token, by the wall-clock budget,
     // or by an accepted submission (providers return quietly on cancel).
@@ -397,7 +881,7 @@ export class AgenticScanner {
     if (options?.token?.isCancellationRequested) {
       loopCancel.cancel();
     }
-    const budgetTimer = setTimeout(() => loopCancel.cancel(), AGENTIC_SCAN_BUDGET_MS);
+    const budgetTimer = setTimeout(() => loopCancel.cancel(), budgetMs);
 
     let lastLabel = `Exploring codebase with ${provider.label}…`;
     let lastFraction = 0.2;
@@ -410,6 +894,14 @@ export class AgenticScanner {
           loopCancel.cancel(); // accepted — end the loop after this batch
         }
         return result;
+      }
+      if (call.name === REPORT_PROGRESS_TOOL.name) {
+        const note = progressNote(call.input);
+        if (note !== '' && !state.done) {
+          lastLabel = note;
+          report(note, lastFraction);
+        }
+        return PROGRESS_NOTE_ACK;
       }
       if (state.done) {
         return ROUTES_ALREADY_ACCEPTED;
@@ -425,15 +917,15 @@ export class AgenticScanner {
       try {
         finalText = await provider.runToolLoop(
           prompt,
-          [...tools.definitions, SUBMIT_ROUTES_TOOL],
+          [...tools.definitions, REPORT_PROGRESS_TOOL, SUBMIT_ROUTES_TOOL],
           execute,
           {
             justification: 'Mocklify is exploring your codebase to generate a mock server.',
             token: loopCancel.token,
-            maxToolCalls: AGENT_MAX_TOOL_CALLS,
+            maxToolCalls,
             onToolCall: (call, index) => {
-              lastLabel = formatToolCallProgress(call, index, AGENT_MAX_TOOL_CALLS);
-              lastFraction = toolCallFraction(index, AGENT_MAX_TOOL_CALLS);
+              lastLabel = formatToolCallProgress(call, index, maxToolCalls);
+              lastFraction = toolCallFraction(index, maxToolCalls);
               report(lastLabel, lastFraction);
             },
             // Liveness while a model turn streams (labels end with '…').
@@ -479,7 +971,7 @@ export class AgenticScanner {
     if (routes.length === 0) {
       throw new Error(
         Date.now() >= deadline
-          ? 'The agentic scan hit its 8-minute budget before any valid routes were submitted. Try again, or switch mocklify.ai.scanMode to "fast".'
+          ? `The agentic scan hit its ${Math.round(budgetMs / 60_000)}-minute budget before any valid routes were submitted. Try again, or switch mocklify.ai.scanMode to "fast".`
           : 'The AI exploration did not produce any valid mock routes from this codebase. Try again, use the fast scan, or use "AI: Generate Mock Server from Description" instead.'
       );
     }
@@ -496,6 +988,7 @@ export class AgenticScanner {
     }
 
     const negativeCount = routes.filter((r) => r.tags?.includes('negative')).length;
+    const specFiles = [...new Set(surfaces.flatMap((s) => s.specFiles))];
 
     return {
       scannedFileCount: scanned,
@@ -506,6 +999,12 @@ export class AgenticScanner {
       negativeCount,
       repairedCount,
       droppedCount,
+      surfaces: groupRoutesBySurface(
+        routes,
+        surfaceLookup(state),
+        surfaces.map((s) => ({ name: s.name, direction: s.direction }))
+      ),
+      specFiles,
     };
   }
 }

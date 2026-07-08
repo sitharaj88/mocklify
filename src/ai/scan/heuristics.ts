@@ -14,6 +14,10 @@ export const API_FILE_GLOB =
 export const SCAN_EXCLUDE_GLOB =
   '{**/node_modules/**,**/dist/**,**/build/**,**/out/**,**/.git/**,**/target/**,**/Pods/**,**/vendor/**,**/.mocklify/**,**/coverage/**,**/__pycache__/**,**/*.min.js,**/*.d.ts,**/webview/dist/**}';
 
+/** Machine-readable API spec files (OpenAPI, Swagger, gRPC, GraphQL, Postman). */
+export const SPEC_FILE_GLOB =
+  '**/{*openapi*.{json,yaml,yml},*swagger*.{json,yaml,yml},*.proto,*.graphql,*.graphqls,*.gql,*.postman_collection.json}';
+
 /** Strong signals that a line performs or declares an HTTP call. */
 const STRONG_MARKERS: RegExp[] = [
   /\bfetch\s*\(/, // web fetch
@@ -43,6 +47,85 @@ const STRONG_MARKERS: RegExp[] = [
   /["'`][^"'`\s]*\/graphql\b/, // generic POST-to-/graphql endpoint
 ];
 
+/**
+ * Server-side route DECLARATIONS (as opposed to client HTTP calls). Every
+ * pattern is word-boundary anchored and linear-time: single-level quantifiers
+ * over disjoint character classes, no nested or overlapping quantifiers.
+ */
+export const SERVER_MARKERS: RegExp[] = [
+  // Express / Koa / Fastify / restify route registration
+  /\b(?:app|router|fastify|server)\.(?:get|post|put|patch|delete|options|head|all)\s*\(\s*["'`]\//,
+  /\.route\s*\(\s*["'`]\/[^"'`\n]*["'`]\s*\)\s*\.(?:get|post|put|patch|delete)/,
+  // NestJS decorators (Retrofit uses uppercase @GET, so no overlap)
+  /@(?:Get|Post|Put|Patch|Delete|Head|Options|All)\s*\(/,
+  /@Controller\s*\(/,
+  // Spring MVC / WebFlux
+  /@(?:Get|Post|Put|Patch|Delete|Request)Mapping\b/,
+  /@RestController\b/,
+  // JAX-RS (leading slash distinguishes from Retrofit's @Path("id") params)
+  /\b(?:javax|jakarta)\.ws\.rs\b/,
+  /@Path\s*\(\s*["']\//,
+  // Ktor routing DSL (lookbehind rejects client.get(...) member calls)
+  /\brouting\s*\{/,
+  /(?<![.\w])(?:get|post|put|patch|delete)\s*\(\s*["']\/[^"'\n]*["']\s*\)\s*\{/,
+  // FastAPI decorators
+  /@(?:app|router)\.(?:get|post|put|patch|delete)\s*\(/,
+  // Flask @app.route / @bp.route
+  /@\w+\.route\s*\(\s*["']\//,
+  // Django URLconf
+  /\burlpatterns\s*=/,
+  /\b(?:path|re_path)\s*\(\s*r?["'][^"'\n]*["']\s*,/,
+  // Rails / Phoenix routing DSL
+  /\bresources\s+:\w+/,
+  /(?<![.\w])(?:get|post|put|patch|delete)\s+["']\/[^"'\n]*["']\s*,/,
+  /\broutes\.draw\b/,
+  /\bscope\s+["']\//,
+  // Laravel
+  /\bRoute::(?:get|post|put|patch|delete|any|match|resource|apiResource)\s*\(/,
+  // Go: gin/echo (r.GET), chi (r.Get), gorilla/mux, net/http mux
+  /\b\w+\.(?:GET|POST|PUT|PATCH|DELETE)\s*\(\s*"\//,
+  /\b\w+\.(?:Get|Post|Put|Patch|Delete)\s*\(\s*"\//,
+  /\bHandleFunc\s*\(\s*"\//,
+  /\.Methods\s*\(\s*"(?:GET|POST|PUT|PATCH|DELETE)"/,
+  // ASP.NET attribute routing and minimal APIs
+  /\[Http(?:Get|Post|Put|Patch|Delete|Head|Options)\b/,
+  /\[ApiController\]/,
+  /\bMap(?:Get|Post|Put|Patch|Delete|Methods)\s*\(\s*"/,
+];
+
+/** Client-call signals missing from STRONG_MARKERS (newer ecosystems). */
+export const CLIENT_MARKERS_EXTRA: RegExp[] = [
+  // Ktor HttpClient (KMM/KMP shared modules); also .NET HttpClient ctor
+  /\bHttpClient\s*\(/,
+  /\bio\.ktor\.client\b/,
+  /\bclient\.(?:get|post|put|patch|delete)\s*[(<{]/,
+  // Capacitor
+  /\bCapacitorHttp\b/,
+  /\bHttp\.(?:request|get|post|put|patch|del)\s*\(/,
+  // Angular HttpClient method calls (typed or via this.http)
+  /\bthis\.http\.(?:get|post|put|patch|delete|request)\s*\(/,
+  /\bhttp\.(?:get|post|put|patch|delete)\s*</,
+  // tRPC
+  /\bcreateTRPC(?:ProxyClient|Client|React|Next)\b/,
+  /\bhttpBatchLink\b|\bhttpLink\b/,
+  /['"`]@trpc\/[\w-]+['"`]/,
+  // Lookbehind (not \b): '$' is a non-word char inside [\w$], so \b would
+  // restart the match before every word char after a '$' — quadratic on long
+  // $-delimited identifier runs (e.g. mangled generated code).
+  /(?<![\w$])[\w$]+\.[\w$]+\.(?:useQuery|useMutation|useInfiniteQuery)\s*\(/,
+  // openapi-generator / openapi-typescript-codegen clients
+  /\bnew\s+Configuration\s*\(/,
+  /\bBASE_PATH\s*[:=]/,
+  /\bOpenAPI\.BASE\b/,
+  // Objective-C NSURLSession
+  /\bNSURLSession\b/,
+  /\bdataTaskWithRequest\b|\bdataTaskWithURL\b/,
+  // grpc-web / Connect
+  /\bcreatePromiseClient\b|\bcreateConnectTransport\b|\bcreateGrpcWebTransport\b/,
+  /\bGrpcWebClientBase\b/,
+  /['"`](?:grpc-web|@connectrpc\/[\w-]+|@bufbuild\/connect[\w-]*)['"`]/,
+];
+
 /** Weak signals — only meaningful alongside strong ones or in bulk. */
 const WEAK_MARKERS: RegExp[] = [
   /\b(BASE_URL|baseUrl|API_URL|apiUrl|API_BASE|api_base)\b/,
@@ -62,25 +145,43 @@ export interface ScoredFile {
   snippet: string;
 }
 
+function countHits(markers: RegExp[], content: string): number {
+  let hits = 0;
+  for (const marker of markers) {
+    if (marker.test(content)) {
+      hits++;
+    }
+  }
+  return hits;
+}
+
+/**
+ * Score file content separately for client HTTP calls and server route
+ * declarations. Same formula as the original scoreApiContent per direction:
+ * strong*10 + weak*2 + filename bonus when any marker matched.
+ */
+export function scoreApiContentDirectional(
+  content: string,
+  fileName: string
+): { clientScore: number; serverScore: number } {
+  const clientStrong = countHits(STRONG_MARKERS, content) + countHits(CLIENT_MARKERS_EXTRA, content);
+  const serverStrong = countHits(SERVER_MARKERS, content);
+  const weak = countHits(WEAK_MARKERS, content);
+  const nameBonus = FILE_NAME_HINTS.test(fileName) ? 5 : 0;
+  return {
+    clientScore: clientStrong * 10 + weak * 2 + (clientStrong + weak > 0 ? nameBonus : 0),
+    serverScore: serverStrong * 10 + weak * 2 + (serverStrong + weak > 0 ? nameBonus : 0),
+  };
+}
+
 /**
  * Score file content for API relevance. >= 10 means at least one strong
- * marker (or a hinted filename with several weak markers).
+ * marker (or a hinted filename with several weak markers). Superset of the
+ * original client-only behavior: server-route-only files now score too.
  */
 export function scoreApiContent(content: string, fileName: string): number {
-  let strong = 0;
-  let weak = 0;
-  for (const marker of STRONG_MARKERS) {
-    if (marker.test(content)) {
-      strong++;
-    }
-  }
-  for (const marker of WEAK_MARKERS) {
-    if (marker.test(content)) {
-      weak++;
-    }
-  }
-  const nameBonus = FILE_NAME_HINTS.test(fileName) ? 5 : 0;
-  return strong * 10 + weak * 2 + (strong + weak > 0 ? nameBonus : 0);
+  const { clientScore, serverScore } = scoreApiContentDirectional(content, fileName);
+  return Math.max(clientScore, serverScore);
 }
 
 /**
@@ -89,7 +190,7 @@ export function scoreApiContent(content: string, fileName: string): number {
  */
 export function extractApiSnippets(content: string, maxChars = 4000, context = 12): string {
   const lines = content.split('\n');
-  const all = [...STRONG_MARKERS, ...WEAK_MARKERS];
+  const all = [...STRONG_MARKERS, ...CLIENT_MARKERS_EXTRA, ...SERVER_MARKERS, ...WEAK_MARKERS];
 
   const matchedLines: number[] = [];
   for (let i = 0; i < lines.length; i++) {

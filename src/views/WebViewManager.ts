@@ -17,9 +17,18 @@ import {
   CodebaseScanSummary,
 } from '../ai/CodebaseMockGenerator.js';
 import { AgenticScanner } from '../ai/AgenticScanner.js';
+import { offerSpecImport, importWorkspaceSpec } from '../ai/AiCommands.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
 import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
+
+/**
+ * Hard cap on mock servers auto-created (and auto-started) from one webview
+ * scan — this flow has no per-surface confirmation dialog, so a scan that
+ * somehow yields more surfaces than this falls back to a single combined
+ * server instead of fanning out.
+ */
+const MAX_SURFACE_SERVERS = 8;
 
 const MODEL_SETTINGS: Record<string, string> = {
   copilot: 'ai.copilotModel',
@@ -720,36 +729,84 @@ export class WebViewManager {
         return;
       }
 
+      // Spec-first shortcut: an existing API spec gives exact routes without
+      // inference — offer it (non-modal) before creating anything.
+      if (summary.specFiles?.length) {
+        onProgress({ message: 'Found an API spec file — waiting for your choice…', fraction: 0.95 });
+        const choice = await offerSpecImport(summary.specFiles);
+        if (choice === 'import' || choice === 'both') {
+          await importWorkspaceSpec(summary.specFiles);
+          if (choice === 'import') {
+            this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
+            return;
+          }
+        }
+      }
+
       const servers = await this.manager.getServers();
       const usedPorts = new Set(servers.map((s) => s.port));
       let port = vscode.workspace.getConfiguration('mocklify').get<number>('defaultPort', 3000);
-      while (usedPorts.has(port)) {
-        port++;
-      }
+      const nextFreePort = (): number => {
+        while (usedPorts.has(port)) {
+          port++;
+        }
+        usedPorts.add(port);
+        return port;
+      };
 
       const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
-      const server = await this.manager.createServer(`${workspaceName} Mock API`, port);
-      await this.manager.addRoutes(server.id, summary.routes);
+      const surfaces = summary.surfaces ?? [];
+      const created: { server: MockServerConfig; routeCount: number }[] = [];
+      if (surfaces.length > 1 && surfaces.length <= MAX_SURFACE_SERVERS) {
+        // Multi-surface workspace: one mock server per API surface.
+        for (const surface of surfaces) {
+          const server = await this.manager.createServer(
+            `${surface.name} Mock API`,
+            nextFreePort()
+          );
+          await this.manager.addRoutes(server.id, surface.routes);
+          created.push({ server, routeCount: surface.routes.length });
+        }
+      } else {
+        const server = await this.manager.createServer(`${workspaceName} Mock API`, nextFreePort());
+        await this.manager.addRoutes(server.id, summary.routes);
+        created.push({ server, routeCount: summary.routes.length });
+      }
 
       if (data?.autoStart) {
-        try {
-          await this.manager.startServer(server.id);
-        } catch (error) {
-          this.sendError(
-            `Server created, but failed to start: ${error instanceof Error ? error.message : 'unknown error'}`
-          );
+        for (const { server } of created) {
+          try {
+            await this.manager.startServer(server.id);
+          } catch (error) {
+            this.sendError(
+              `"${server.name}" created, but failed to start: ${error instanceof Error ? error.message : 'unknown error'}`
+            );
+          }
         }
       }
 
       await this.sendState();
+      const first = created[0];
+      const surfaceNote =
+        created.length > 1
+          ? `${created.length} API surfaces detected — one mock server per surface (${created
+              .map(({ server }) => `"${server.name}" on port ${server.port}`)
+              .join(', ')}). `
+          : '';
       this.panel?.webview.postMessage({
         type: 'aiStatus',
         status: 'done',
-        serverId: server.id,
-        serverName: server.name,
-        port: server.port,
+        serverId: first.server.id,
+        serverName: first.server.name,
+        port: first.server.port,
         routeCount: summary.routes.length,
-        message: `${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
+        servers: created.map(({ server, routeCount }) => ({
+          serverId: server.id,
+          serverName: server.name,
+          port: server.port,
+          routeCount,
+        })),
+        message: `${surfaceNote}${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
       });
     } catch (error) {
       if (error instanceof vscode.CancellationError || token.isCancellationRequested) {
