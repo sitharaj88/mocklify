@@ -113,10 +113,13 @@ export default function AiFeatures() {
           Point Mocklify at any client codebase — Android, iOS, web, Flutter — and it
           reverse-engineers the API the app calls into a complete mock server. Run{' '}
           <code className="text-purple-400">Mocklify: AI: Generate Mock Server from Codebase</code>{' '}
-          in your app&apos;s workspace. It works with any project: backends (Spring, Express,
-          FastAPI, Rails, Go, …) are mocked from their declared routes and handlers, monorepos
-          get one mock server per detected API surface, and when an OpenAPI spec already exists
-          Mocklify offers to import it directly for exact routes.
+          in your app&apos;s workspace. It works with any project in any language — there is no
+          extension whitelist; language-agnostic API signals (REST paths, URLs, HTTP verbs) seed
+          the scan even for stacks Mocklify has never heard of, and a workspace with no matches
+          falls back to a census-guided exploration instead of a dead end. Backends (Spring,
+          Express, FastAPI, Rails, Go, …) are mocked from their declared routes and handlers,
+          monorepos get one mock server per detected API surface, and when an OpenAPI spec
+          already exists Mocklify offers to import it directly for exact routes.
         </p>
         <h3 className="text-lg font-medium mb-3">How it works</h3>
         <ol className="space-y-2 theme-text-secondary list-decimal list-inside mb-4">
@@ -135,11 +138,14 @@ export default function AiFeatures() {
           </li>
         </ol>
         <p className="theme-text-secondary mb-4">
-          Prefer depth over speed? Set{' '}
-          <code className="text-purple-400">mocklify.ai.scanMode</code> to{' '}
-          <code className="text-purple-400">agentic</code> and the AI explores the codebase
-          itself with read-only tools — reading files, following imports to data models, and
-          finding auth/error conventions — for higher-quality routes at more time and AI cost.
+          By default (<code className="text-purple-400">mocklify.ai.scanMode: &quot;auto&quot;</code>)
+          Mocklify picks the best strategy per project: an existing spec leads, then agentic
+          exploration when the provider supports tools, then the fast one-shot scan. Set it to{' '}
+          <code className="text-purple-400">agentic</code> to always let the AI explore the
+          codebase itself with read-only tools — reading files, following imports to data
+          models, and finding auth/error conventions — for higher-quality routes at more time
+          and AI cost, or <code className="text-purple-400">fast</code> to force the cheap
+          one-shot scan.
         </p>
         <h3 className="text-lg font-medium mb-3">Positive and negative flows</h3>
         <p className="theme-text-secondary mb-4">

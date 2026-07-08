@@ -8,10 +8,8 @@ import {
   RejectedRoute,
 } from './MockGenerator.js';
 import {
-  API_FILE_GLOB,
   SCAN_EXCLUDE_GLOB,
   ScoredFile,
-  scoreApiContentDirectional,
   extractApiSnippets,
   extractModelReferences,
   extractTypeDefinitions,
@@ -24,6 +22,18 @@ import {
   formatModelSection,
   ModelFileContext,
 } from './scan/modelContext.js';
+import {
+  detectUniversalSignals,
+  isProbablyTextFile,
+  pickScanCandidates,
+  scoreFileUniversal,
+  shouldScanPath,
+  universalLean,
+  type UniversalDirection,
+} from './scan/universalSignals.js';
+import { censusWorkspace, describeCensus } from './scan/census.js';
+import { enumerateScanCandidates } from './scan/enumerateFiles.js';
+import { MAX_FILES_TO_ENUMERATE, universalSeedSnippet } from './AgenticScanner.js';
 import {
   describeProfiles,
   profileWorkspace,
@@ -42,6 +52,8 @@ function vs(): typeof import('vscode') {
 const MAX_FILES_TO_READ = 600;
 const MAX_FILE_BYTES = 262_144; // skip generated/bundled monsters
 const MIN_SCORE = 10; // at least one strong API marker
+/** Bytes sniffed per file to reject binaries (inclusive discovery). */
+const TEXT_SNIFF_BYTES = 8192;
 
 const CHUNK_CHAR_BUDGET = 24_000; // matches chunkScoredFiles default
 /** Data-model context must never crowd out the API snippets. */
@@ -54,6 +66,17 @@ const MODEL_DEFS_PER_FILE_CHARS = 2_000;
 
 const MAX_REPAIR_ROUTES = 20; // one bounded repair round
 const MAX_REPAIR_PROMPT_CHARS = 16_000;
+
+// Census-chunk mode (zero-seed fallback): instead of erroring when no file
+// matches the deterministic heuristics, a one-shot prompt gets the workspace
+// census (scan/census.ts: tree, file types, README/manifest heads) plus the
+// heads of the most promising files, ranked by universal signals.
+const CENSUS_FIND_LIMIT = 2_000; // findFiles cap when sampling head candidates
+const CENSUS_READ_LIMIT = 80; // candidate files actually read for heads
+/** Most-promising file heads embedded in the census prompt. */
+export const CENSUS_MAX_HEADS = 12;
+/** Characters of each file head embedded in the census prompt. */
+export const CENSUS_HEAD_CHARS = 1_600;
 
 /** Which way a chunk's snippets face: calling APIs or declaring them. */
 export type ScanDirection = 'client' | 'server';
@@ -89,6 +112,20 @@ export interface ProjectChunkGroup {
   chunkCount: number;
 }
 
+/** How one API surface was (or should be) scanned. */
+export type ScanStrategy = 'spec' | 'fast' | 'agentic' | 'census';
+
+/**
+ * Per-surface strategy report — which scan strategy each detected API surface
+ * got and why. Populated by the ScanOrchestrator (additive; plain
+ * CodebaseMockGenerator/AgenticScanner summaries omit it).
+ */
+export interface ScanStrategyReport {
+  surface: string;
+  strategy: ScanStrategy;
+  reason: string;
+}
+
 export interface CodebaseScanSummary {
   scannedFileCount: number;
   matchedFileCount: number;
@@ -111,6 +148,19 @@ export interface CodebaseScanSummary {
    * the spec directly instead of an AI scan.
    */
   specFiles?: string[];
+  /**
+   * Per-surface strategy decisions ('spec' | 'fast' | 'agentic' | 'census')
+   * with reasons; present when the scan ran through the ScanOrchestrator.
+   */
+  strategies?: ScanStrategyReport[];
+  /**
+   * Present ONLY when an agentic scan explored the workspace and deliberately
+   * concluded there is no HTTP API surface to mock (routes/surfaces are empty
+   * then): the agent's own explanation, ready for a user-facing message. The
+   * command layer must surface it as an informational outcome, never an
+   * error. Set by the AgenticScanner; flows through the ScanOrchestrator.
+   */
+  noApiSurfaceReason?: string;
 }
 
 export interface CodebaseScanProgress {
@@ -123,6 +173,10 @@ export interface CodebaseScanProgress {
 export interface DirectionalScoredFile extends ScoredFile {
   clientScore: number;
   serverScore: number;
+  /** Language-agnostic universal-signal score (inclusive discovery). */
+  universalScore?: number;
+  /** Direction guess when only universal signals scored (inclusive discovery). */
+  universalDirection?: UniversalDirection;
 }
 
 /** One prompt-sized chunk plus how to analyze it and which project owns it. */
@@ -131,11 +185,35 @@ export interface PlannedChunk {
   mode: ScanDirection;
   /** Root of the project this chunk belongs to ('' = workspace root). */
   rootPath: string;
+  /**
+   * True for the zero-seed census chunk: `text` is a workspace census
+   * (describeCensus output) analyzed with buildCensusChunkPrompt instead of
+   * the snippet prompt.
+   */
+  census?: boolean;
 }
 
-interface MatchedFile extends DirectionalScoredFile {
+/** A seed-scan hit plus the model references needed for data-model context. */
+export interface ReconFile extends DirectionalScoredFile {
   importPaths: string[];
   typeNames: string[];
+}
+
+/**
+ * The shared recon both scanners start from: workspace profiles plus the
+ * deterministic directional seed scan. Computed once by the ScanOrchestrator
+ * (collectWorkspaceRecon) and passed to CodebaseMockGenerator.generate /
+ * AgenticScanner.generate so neither recomputes it.
+ */
+export interface WorkspaceRecon {
+  /** Workspace folder name ('App' fallback). */
+  appName: string;
+  /** Detected project profiles; [] when profiling found nothing or failed. */
+  profiles: ProjectProfile[];
+  /** Seed-scan hits (files whose heuristic score crossed the threshold). */
+  files: ReconFile[];
+  /** Files the seed scan read. */
+  scannedFileCount: number;
 }
 
 /** Any per-direction score is < 1000, so boosted files always sort first. */
@@ -144,33 +222,54 @@ const SERVER_PREFERENCE_BOOST = 1_000_000;
 /**
  * Sort score for packing a file into chunks. In a 'serves' project, files
  * that declare routes outrank pure client-call files; everywhere else the
- * original max(client, server) ordering is preserved.
+ * original max(client, server) ordering is preserved. A universal-only file
+ * (marker scores both 0 — unknown language) keeps its universal ranking
+ * instead of collapsing to 0, and earns the serves boost when its universal
+ * shape says it declares routes.
  */
 export function directionalChunkScore(
-  scores: { clientScore: number; serverScore: number },
+  scores: {
+    clientScore: number;
+    serverScore: number;
+    universalScore?: number;
+    universalDirection?: UniversalDirection;
+  },
   direction: ApiDirection | undefined
 ): number {
   if (direction === 'serves' && scores.serverScore > 0) {
     return SERVER_PREFERENCE_BOOST + scores.serverScore;
   }
-  return Math.max(scores.clientScore, scores.serverScore);
+  const marker = Math.max(scores.clientScore, scores.serverScore);
+  const universal = scores.universalScore ?? 0;
+  if (marker === 0 && universal > 0) {
+    return direction === 'serves' && scores.universalDirection === 'serves'
+      ? SERVER_PREFERENCE_BOOST + universal
+      : universal;
+  }
+  return marker;
 }
 
 /**
  * Pick the analyzeChunk prompt mode for a project: 'serves' projects get the
  * backend prompt, 'consumes' the client prompt, and 'both'/unknown projects
- * whichever direction their matched files lean toward (ties go to client —
- * today's behavior).
+ * whichever direction their matched files lean toward. Marker-score ties go
+ * to client (today's behavior) unless the group's files seeded purely via
+ * universal signals AND their universal shapes lean server-side
+ * (`universalLean` — Sinatra-style route tables in unknown languages).
  */
 export function chunkModeForProject(
   direction: ApiDirection | undefined,
-  totals: { clientScore: number; serverScore: number }
+  totals: { clientScore: number; serverScore: number },
+  lean?: UniversalDirection
 ): ScanDirection {
   if (direction === 'serves') {
     return 'server';
   }
   if (direction === 'consumes') {
     return 'client';
+  }
+  if (totals.serverScore === totals.clientScore && lean === 'serves') {
+    return 'server';
   }
   return totals.serverScore > totals.clientScore ? 'server' : 'client';
 }
@@ -223,7 +322,7 @@ export function planProjectChunks<T extends DirectionalScoredFile>(
       totals.clientScore += file.clientScore;
       totals.serverScore += file.serverScore;
     }
-    const mode = chunkModeForProject(profile?.direction, totals);
+    const mode = chunkModeForProject(profile?.direction, totals, universalLean(group));
     const rescored = group.map((file) => ({
       ...file,
       score: directionalChunkScore(file, profile?.direction),
@@ -392,6 +491,208 @@ ${snippetsLabel}
 ${chunk}`;
 }
 
+// ---------------------------------------------------------------------------
+// Census-chunk mode (pure helpers)
+// ---------------------------------------------------------------------------
+
+/** The head (first CENSUS_HEAD_CHARS chars) of one promising census file. */
+export interface CensusFileHead {
+  path: string;
+  head: string;
+}
+
+/**
+ * Rank census candidates by the best of their universal (language-agnostic)
+ * and heuristic directional scores and keep the top heads. Deterministic:
+ * ties break on path. Zero-scoring files still qualify — in a workspace with
+ * no seeds at all, any head is better context than none.
+ */
+export function pickCensusHeads(
+  files: readonly { path: string; content: string }[],
+  maxHeads = CENSUS_MAX_HEADS,
+  headChars = CENSUS_HEAD_CHARS
+): CensusFileHead[] {
+  const ranked = files
+    .map((file) => {
+      const scores = scoreFileUniversal(file.content, file.path);
+      return {
+        path: file.path,
+        content: file.content,
+        score: Math.max(scores.universalScore, scores.clientScore, scores.serverScore),
+      };
+    })
+    .sort((a, b) => b.score - a.score || (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  return ranked.slice(0, Math.max(0, maxHeads)).map(({ path, content }) => ({
+    path,
+    head: content.length > headChars ? `${content.slice(0, headChars)}…` : content,
+  }));
+}
+
+/**
+ * Format the most promising file heads as a census-prompt section appended
+ * after describeCensus's inventory; '' when there are no heads.
+ */
+export function formatCensusHeads(heads: readonly CensusFileHead[]): string {
+  if (heads.length === 0) {
+    return '';
+  }
+  return `\n\n### Most promising file heads\n\n${heads
+    .map((head) => `#### File: ${head.path}\n${head.head}`)
+    .join('\n\n')}`;
+}
+
+/**
+ * The census-chunk prompt variant: used when the deterministic seed scan
+ * matched nothing (unknown language/framework). Direction-neutral — the model
+ * decides per endpoint whether the code calls or serves it — and explicitly
+ * allowed to return [] so an API-less workspace fails cleanly instead of
+ * hallucinating routes.
+ */
+export function buildCensusChunkPrompt(input: {
+  appName: string;
+  censusSection: string;
+  profileSummary?: string;
+}): string {
+  const { appName, censusSection, profileSummary } = input;
+  const profileSection = profileSummary ? `\n\n## Workspace profile\n${profileSummary}` : '';
+
+  return `You are an expert API reverse-engineer. Mocklify's deterministic scan found NO known API client/server patterns in the workspace "${appName}" — it may use a language or framework Mocklify has no built-in markers for. Below is a census of the workspace's scannable files plus the beginnings of the most promising ones. Identify every HTTP API endpoint this code calls or serves (rooted REST path literals, absolute URLs, route tables, curl invocations, API docs or notes), then create mock API routes for a mock server so the app can run against it.${profileSection}
+
+For EVERY endpoint you find, create:
+1. A success route (\`"enabled": true\`) whose response body matches EXACTLY what the code sends or expects — infer field names and types from payload literals, parsing code, and documentation. Use realistic, domain-appropriate example data.
+2. Negative-flow routes (\`"enabled": false\`) for realistic failures: 400 validation error (for endpoints with request bodies), 401 unauthorized (when the code involves auth headers/tokens), 403 forbidden (for authenticated endpoints where a role or permission check could fail), 404 not found (for endpoints with path parameters), 429 rate limit (for the most important endpoints — include "Retry-After": "30" in the response headers), and 500 server error (for the most important endpoints). Shape the error bodies the way the code's error handling produces or expects them. Tag every negative route with "negative" plus its status, e.g. "tags": ["negative", "401"]. Also give them names like "GET /api/users/:id — 404 not found".
+3. For the 1-3 most critical endpoints, a slow-response simulation route (\`"enabled": false\`) that mirrors the success response (same status and body) but adds "delay": { "type": "fixed", "value": 10000 }, tagged ["negative", "timeout"], named like "GET /api/orders — slow response (10s)".
+
+Rules:
+- ONLY include endpoints this code actually calls or serves — never invent endpoints. If the census truly contains no API usage, return an empty JSON array [].
+- Strip the host/base URL; keep only the path. Convert path variables to :param form.
+- Tag positive routes with a short domain tag (e.g. "users", "orders").
+- When the success routes for one resource form a CRUD family (GET list + GET by :id + POST/PUT/PATCH/DELETE), give every route in the family the SAME "stateful" field (collection = resource name, idParam = the path's :param name, seed of 3-5 coherent items — each including the id field — on the GET list route only). Never add "stateful" to negative-flow routes or to endpoints outside a CRUD family.
+
+Return a JSON array of route objects.
+
+${ROUTE_FORMAT_INSTRUCTIONS}
+
+${censusSection}`;
+}
+
+/** User-facing error when even the census produced no mockable routes. */
+export const CENSUS_NO_ROUTES_MESSAGE =
+  'No API usage was found in this workspace — even a language-agnostic census scan produced nothing to mock. Use "AI: Generate Mock Server from Description" instead.';
+
+// ---------------------------------------------------------------------------
+// Shared recon (vscode-coupled)
+// ---------------------------------------------------------------------------
+
+/**
+ * Profile the workspace and run the deterministic directional seed scan —
+ * the shared recon both scan strategies start from. The ScanOrchestrator
+ * calls this ONCE and hands the result to CodebaseMockGenerator.generate and
+ * AgenticScanner.generate via their `recon` option; calling generate without
+ * a recon keeps the original self-computing behavior (messages and progress
+ * fractions unchanged).
+ */
+export async function collectWorkspaceRecon(options?: {
+  token?: vscode.CancellationToken;
+  onProgress?: (progress: CodebaseScanProgress) => void;
+}): Promise<WorkspaceRecon> {
+  const vsc = vs();
+  const report = (message: string, fraction: number) =>
+    options?.onProgress?.({ message, fraction });
+
+  // 0. Profile the workspace — graceful: any failure falls back to the
+  // original profile-less flow.
+  report('Profiling workspace projects…', 0.01);
+  let profiles: ProjectProfile[] = [];
+  const workspaceRoot = vsc.workspace.workspaceFolders?.[0]?.uri;
+  if (workspaceRoot) {
+    try {
+      profiles = await profileWorkspace(workspaceRoot);
+    } catch (error) {
+      console.error('Mocklify: workspace profiling failed:', error);
+    }
+  }
+  if (options?.token?.isCancellationRequested) {
+    throw new vsc.CancellationError();
+  }
+
+  // 1. Deterministic discovery — no AI, no cost. Inclusive: every text file
+  // is a candidate (shouldScanPath blocklist + binary sniff) instead of the
+  // legacy extension whitelist, sampled breadth-fairly under the same read
+  // budget; scoring combines the marker heuristics with the language-agnostic
+  // universal signals so unknown stacks can seed too.
+  report('Scanning workspace for API calls…', 0.02);
+  // Two-pass enumeration: known source extensions first (never crowded out of
+  // the cap by assets/fixtures), then '**/*' for unknown extensions.
+  const uris = await enumerateScanCandidates(MAX_FILES_TO_ENUMERATE);
+  const uriByPath = new Map<string, vscode.Uri>();
+  for (const uri of uris) {
+    const relativePath = vsc.workspace.asRelativePath(uri);
+    if (shouldScanPath(relativePath)) {
+      uriByPath.set(relativePath, uri);
+    }
+  }
+  const candidates = pickScanCandidates([...uriByPath.keys()], MAX_FILES_TO_READ);
+
+  const files: ReconFile[] = [];
+  let scanned = 0;
+  for (const relativePath of candidates) {
+    if (options?.token?.isCancellationRequested) {
+      throw new vsc.CancellationError();
+    }
+    scanned++;
+    if (scanned % 100 === 0) {
+      report(
+        `Scanning workspace for API calls… (${scanned}/${candidates.length} files)`,
+        0.02 + 0.11 * (scanned / candidates.length)
+      );
+    }
+    try {
+      const uri = uriByPath.get(relativePath) as vscode.Uri;
+      const stat = await vsc.workspace.fs.stat(uri);
+      if (stat.size > MAX_FILE_BYTES) {
+        continue;
+      }
+      const data = await vsc.workspace.fs.readFile(uri);
+      if (!isProbablyTextFile(data.subarray(0, TEXT_SNIFF_BYTES))) {
+        continue;
+      }
+      const content = Buffer.from(data).toString('utf-8');
+      const { clientScore, serverScore, universalScore, universalDirection } = scoreFileUniversal(
+        content,
+        relativePath
+      );
+      if (Math.max(clientScore, serverScore, universalScore) >= MIN_SCORE) {
+        const refs = extractModelReferences(content, relativePath);
+        // Marker-based snippets first; for unknown languages fall back to
+        // the universal signals themselves as the teaser.
+        const snippet =
+          extractApiSnippets(content) || universalSeedSnippet(detectUniversalSignals(content));
+        files.push({
+          path: relativePath,
+          score: Math.max(clientScore, serverScore, universalScore),
+          clientScore,
+          serverScore,
+          universalScore,
+          universalDirection,
+          snippet,
+          importPaths: refs.importPaths,
+          typeNames: refs.typeNames,
+        });
+      }
+    } catch {
+      // Unreadable file — skip
+    }
+  }
+
+  return {
+    appName: vsc.workspace.workspaceFolders?.[0]?.name ?? 'App',
+    profiles,
+    files,
+    scannedFileCount: scanned,
+  };
+}
+
 /**
  * Scans the workspace codebase (clients: Android, iOS, web, Flutter, … and
  * backends: Spring, Express, FastAPI, Rails, …) for HTTP API usage and asks
@@ -409,120 +710,79 @@ export class CodebaseMockGenerator {
   async generate(options?: {
     token?: vscode.CancellationToken;
     onProgress?: (progress: CodebaseScanProgress) => void;
+    /**
+     * Pre-computed recon (from the ScanOrchestrator) — skips the profiling
+     * and seed-scan steps so shared recon is never recomputed. Direct callers
+     * omit it and get the original self-computing behavior.
+     */
+    recon?: WorkspaceRecon;
   }): Promise<CodebaseScanSummary> {
     const vsc = vs();
     const report = (message: string, fraction: number) =>
       options?.onProgress?.({ message, fraction });
 
-    // 0. Profile the workspace — graceful: any failure falls back to the
-    // original profile-less flow.
-    report('Profiling workspace projects…', 0.01);
-    let profiles: ProjectProfile[] | undefined;
-    const workspaceRoot = vsc.workspace.workspaceFolders?.[0]?.uri;
-    if (workspaceRoot) {
-      try {
-        const detected = await profileWorkspace(workspaceRoot);
-        profiles = detected.length > 0 ? detected : undefined;
-      } catch (error) {
-        console.error('Mocklify: workspace profiling failed:', error);
-      }
-    }
+    // 0-1. Shared recon: workspace profiling + deterministic seed scan.
+    const recon = options?.recon ?? (await collectWorkspaceRecon(options));
     if (options?.token?.isCancellationRequested) {
       throw new vsc.CancellationError();
     }
+    const profiles = recon.profiles.length > 0 ? recon.profiles : undefined;
     const profileSummary = profiles ? describeProfiles(profiles) : undefined;
     const specFiles = profiles
       ? [...new Set(profiles.flatMap((profile) => profile.specFiles))]
       : [];
+    const scored = recon.files;
+    const scanned = recon.scannedFileCount;
+    const appName = recon.appName;
 
-    // 1. Deterministic discovery — no AI, no cost
-    report('Scanning workspace for API calls…', 0.02);
-    const uris = await vsc.workspace.findFiles(
-      API_FILE_GLOB,
-      SCAN_EXCLUDE_GLOB,
-      MAX_FILES_TO_READ
-    );
-
-    const scored: MatchedFile[] = [];
-    let scanned = 0;
-    for (const uri of uris) {
-      if (options?.token?.isCancellationRequested) {
-        throw new vsc.CancellationError();
-      }
-      scanned++;
-      if (scanned % 100 === 0) {
-        report(`Scanning workspace for API calls… (${scanned}/${uris.length} files)`, 0.02 + 0.11 * (scanned / uris.length));
-      }
-      try {
-        const stat = await vsc.workspace.fs.stat(uri);
-        if (stat.size > MAX_FILE_BYTES) {
-          continue;
-        }
-        const content = Buffer.from(await vsc.workspace.fs.readFile(uri)).toString('utf-8');
-        const relativePath = vsc.workspace.asRelativePath(uri);
-        const { clientScore, serverScore } = scoreApiContentDirectional(content, relativePath);
-        if (Math.max(clientScore, serverScore) >= MIN_SCORE) {
-          const refs = extractModelReferences(content, relativePath);
-          scored.push({
-            path: relativePath,
-            score: Math.max(clientScore, serverScore),
-            clientScore,
-            serverScore,
-            snippet: extractApiSnippets(content),
-            importPaths: refs.importPaths,
-            typeNames: refs.typeNames,
-          });
-        }
-      } catch {
-        // Unreadable file — skip
-      }
-    }
-
-    if (scored.length === 0) {
-      const specHint =
-        specFiles.length > 0
-          ? ` However, an API spec file was found (${specFiles[0]}) — importing it directly will give exact routes.`
-          : '';
-      throw new Error(
-        `No API calls were found in this workspace. Mocklify looked for fetch/axios/Retrofit/URLSession/Dio/HttpClient and similar patterns in source files.${specHint}`
-      );
-    }
-
-    // 2. Resolve referenced data models so response bodies match real shapes
-    report('Resolving data models…', 0.15);
     let modelSection = '';
-    try {
-      modelSection = await this.buildModelContext(
-        scored,
-        profiles?.some((profile) => profile.kind === 'kmp') ?? false,
-        options?.token
-      );
-    } catch (error) {
-      if (error instanceof vsc.CancellationError) {
-        throw error;
-      }
-      console.error('Mocklify: data-model resolution failed:', error);
-    }
-
-    // 3. Pack snippets into prompt-sized chunks, leaving room for models.
-    // With profiles: one group per project, each with its own direction.
-    const chunkBudget = CHUNK_CHAR_BUDGET - modelSection.length;
     let chunks: PlannedChunk[];
     let chunkGroups: ProjectChunkGroup[] | undefined;
-    if (profiles) {
-      const plan = planProjectChunks(scored, profiles, chunkBudget);
-      chunks = plan.chunks;
-      chunkGroups = plan.groups;
+
+    if (scored.length === 0) {
+      // Census-chunk mode: a workspace without a single deterministic seed
+      // (unknown language/framework) no longer errors — a census of the file
+      // inventory plus the most promising file heads goes into one prompt.
+      report('No known API patterns matched — building a workspace census…', 0.14);
+      const censusSection = await this.collectCensusSection(specFiles, options?.token, report);
+      chunks = [{ text: censusSection, mode: 'client', rootPath: '', census: true }];
     } else {
-      chunks = chunkScoredFiles(scored, chunkBudget).map((text) => ({
-        text,
-        mode: 'client' as const,
-        rootPath: '',
-      }));
+      // 2. Resolve referenced data models so response bodies match real shapes
+      report('Resolving data models…', 0.15);
+      try {
+        modelSection = await this.buildModelContext(
+          scored,
+          profiles?.some((profile) => profile.kind === 'kmp') ?? false,
+          options?.token
+        );
+      } catch (error) {
+        if (error instanceof vsc.CancellationError) {
+          throw error;
+        }
+        console.error('Mocklify: data-model resolution failed:', error);
+      }
+
+      // 3. Pack snippets into prompt-sized chunks, leaving room for models.
+      // With profiles: one group per project, each with its own direction.
+      const chunkBudget = CHUNK_CHAR_BUDGET - modelSection.length;
+      if (profiles) {
+        const plan = planProjectChunks(scored, profiles, chunkBudget);
+        chunks = plan.chunks;
+        chunkGroups = plan.groups;
+      } else {
+        // Profile-less flow: the original client-mode prompt, except when the
+        // whole seed set is universal-only (unknown language) and its shapes
+        // lean server-side — a route table must not be prompted as a client.
+        const mode: ScanDirection = universalLean(scored) === 'serves' ? 'server' : 'client';
+        chunks = chunkScoredFiles(scored, chunkBudget).map((text) => ({
+          text,
+          mode,
+          rootPath: '',
+        }));
+      }
     }
 
     // 4. AI analysis per chunk — extract endpoints and generate routes
-    const appName = vsc.workspace.workspaceFolders?.[0]?.name ?? 'App';
     const allRoutes: Omit<RouteConfig, 'id'>[] = [];
     // Which projects' chunks produced each route key. ALL producing roots are
     // kept (not just the first) so an endpoint shared by several projects —
@@ -560,6 +820,19 @@ export class CodebaseMockGenerator {
       } catch (error) {
         // One failed chunk shouldn't lose the whole scan — unless it's the only one
         if (chunks.length === 1) {
+          // A census chunk answered with a genuinely EMPTY array means "no API
+          // usage here" — validateRoutes reports that as '… expected format:
+          // empty result'. Only that exact outcome becomes the friendly
+          // explanation; malformed/invalid routes from a workspace that DOES
+          // have an API stay real, retryable errors.
+          if (
+            chunks[i].census &&
+            error instanceof Error &&
+            error.message.includes('did not match the expected format') &&
+            error.message.includes('empty result')
+          ) {
+            throw new Error(CENSUS_NO_ROUTES_MESSAGE);
+          }
           throw error;
         }
         console.error(`Mocklify: codebase scan chunk ${i + 1} failed:`, error);
@@ -639,7 +912,7 @@ export class CodebaseMockGenerator {
    * source sets are searched first — that is where KMP models live.
    */
   private async buildModelContext(
-    scored: MatchedFile[],
+    scored: ReconFile[],
     kmp: boolean,
     token?: vscode.CancellationToken
   ): Promise<string> {
@@ -759,6 +1032,85 @@ export class CodebaseMockGenerator {
     return formatModelSection(blocks, MODEL_CONTEXT_MAX_CHARS);
   }
 
+  /**
+   * Build the census section for the census-chunk prompt: the workspace
+   * census (scan/census.ts — tree, file types, README/manifest heads) plus
+   * the heads of the most promising scannable files, ranked by combined
+   * universal + heuristic scores. Throws the original "no API calls" error
+   * when the workspace has nothing scannable at all.
+   */
+  private async collectCensusSection(
+    specFiles: string[],
+    token: vscode.CancellationToken | undefined,
+    report: (message: string, fraction: number) => void
+  ): Promise<string> {
+    const vsc = vs();
+    const noApiError = (): Error => {
+      const specHint =
+        specFiles.length > 0
+          ? ` However, an API spec file was found (${specFiles[0]}) — importing it directly will give exact routes.`
+          : '';
+      return new Error(
+        `No API calls were found in this workspace. Mocklify looked for fetch/axios/Retrofit/URLSession/Dio/HttpClient and similar patterns in source files.${specHint}`
+      );
+    };
+
+    const root = vsc.workspace.workspaceFolders?.[0]?.uri;
+    if (!root) {
+      throw noApiError();
+    }
+    const census = await censusWorkspace(root);
+    if (census.totalFiles === 0) {
+      throw noApiError();
+    }
+    if (token?.isCancellationRequested) {
+      throw new vsc.CancellationError();
+    }
+
+    // Most promising file heads: sample scannable paths breadth-fairly,
+    // read + sniff them, rank with pickCensusHeads. Two-pass enumeration so
+    // assets cannot crowd source files out of the findFiles cap.
+    const uris = await enumerateScanCandidates(CENSUS_FIND_LIMIT);
+    const uriByPath = new Map<string, vscode.Uri>();
+    for (const uri of uris) {
+      const relativePath = vsc.workspace.asRelativePath(uri);
+      if (shouldScanPath(relativePath)) {
+        uriByPath.set(relativePath, uri);
+      }
+    }
+    const candidates = pickScanCandidates([...uriByPath.keys()], CENSUS_READ_LIMIT);
+    const contents: { path: string; content: string }[] = [];
+    let read = 0;
+    for (const path of candidates) {
+      if (token?.isCancellationRequested) {
+        throw new vsc.CancellationError();
+      }
+      read++;
+      if (read % 20 === 0) {
+        report(
+          `Reading census candidates… (${read}/${candidates.length})`,
+          0.14 + 0.04 * (read / candidates.length)
+        );
+      }
+      try {
+        const uri = uriByPath.get(path) as vscode.Uri;
+        const stat = await vsc.workspace.fs.stat(uri);
+        if (stat.size > MAX_FILE_BYTES) {
+          continue;
+        }
+        const bytes = await vsc.workspace.fs.readFile(uri);
+        if (!isProbablyTextFile(bytes.subarray(0, TEXT_SNIFF_BYTES))) {
+          continue;
+        }
+        contents.push({ path, content: Buffer.from(bytes).toString('utf-8') });
+      } catch {
+        // Unreadable candidate — skip
+      }
+    }
+
+    return `${describeCensus(census)}${formatCensusHeads(pickCensusHeads(contents))}`;
+  }
+
   private async analyzeChunk(
     appName: string,
     chunk: PlannedChunk,
@@ -766,13 +1118,15 @@ export class CodebaseMockGenerator {
     profileSummary: string | undefined,
     options?: AiRequestOptions
   ): Promise<Omit<RouteConfig, 'id'>[]> {
-    const prompt = buildChunkPrompt({
-      appName,
-      chunk: chunk.text,
-      modelSection,
-      mode: chunk.mode,
-      profileSummary,
-    });
+    const prompt = chunk.census
+      ? buildCensusChunkPrompt({ appName, censusSection: chunk.text, profileSummary })
+      : buildChunkPrompt({
+          appName,
+          chunk: chunk.text,
+          modelSection,
+          mode: chunk.mode,
+          profileSummary,
+        });
 
     const raw = await this.ai.sendJsonRequest(
       prompt,

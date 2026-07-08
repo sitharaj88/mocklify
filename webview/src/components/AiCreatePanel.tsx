@@ -199,7 +199,7 @@ export function AiCreatePanel() {
                     ))}
                   </span>
                 </>
-              ) : (
+              ) : aiGeneration.serverName ? (
                 <>
                   Created <strong>{aiGeneration.serverName}</strong> with{' '}
                   {aiGeneration.routeCount} routes
@@ -210,17 +210,25 @@ export function AiCreatePanel() {
                     </>
                   ) : null}
                 </>
-              )}
+              ) : null}
               {aiGeneration.message ? (
-                <span className="block text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1">
+                <span
+                  className={
+                    aiGeneration.serverName || (aiGeneration.servers?.length ?? 0) > 1
+                      ? 'block text-xs text-emerald-700/80 dark:text-emerald-400/80 mt-1'
+                      : 'block'
+                  }
+                >
                   {aiGeneration.message}
                 </span>
               ) : null}
             </span>
-            <Button variant="secondary" size="sm" onClick={handleViewServer}>
-              View Routes
-              <ArrowRight size={14} />
-            </Button>
+            {aiGeneration.serverId ? (
+              <Button variant="secondary" size="sm" onClick={handleViewServer}>
+                View Routes
+                <ArrowRight size={14} />
+              </Button>
+            ) : null}
             <button
               onClick={() => setAiGeneration({ status: 'idle' })}
               className="focus-ring ml-auto p-1 rounded hover:bg-surface-700/50 text-surface-400 transition-colors duration-150"

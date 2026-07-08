@@ -1,5 +1,6 @@
 import type * as vscode from 'vscode';
 import { SCAN_EXCLUDE_GLOB } from './heuristics.js';
+import { ECOSYSTEMS, manifestRulesForFile, matchesManifestFile } from './ecosystems.js';
 
 /**
  * Project profiling: figure out what kind of project(s) a workspace contains
@@ -128,7 +129,7 @@ export function findSpecFiles(paths: string[]): string[] {
 }
 
 // ---------------------------------------------------------------------------
-// Manifest classification tables
+// Manifest classification tables — derived from the ecosystem registry
 // ---------------------------------------------------------------------------
 
 interface FrameworkRule {
@@ -136,46 +137,45 @@ interface FrameworkRule {
   name: string;
 }
 
-const NODE_BACKEND_DEPS: FrameworkRule[] = [
-  { test: /^express$/, name: 'Express' },
-  { test: /^koa$/, name: 'Koa' },
-  { test: /^fastify$/, name: 'Fastify' },
-  { test: /^@nestjs\//, name: 'NestJS' },
-  { test: /^(@hapi\/hapi|hapi)$/, name: 'hapi' },
-];
+/**
+ * Framework rules for a manifest file, in registry order, optionally
+ * narrowed by the owning pack's direction/kind. Computed on demand so packs
+ * added via registerEcosystem participate in profiling too.
+ */
+function frameworkRulesFor(
+  fileName: string,
+  filter?: { direction?: ApiDirection; kind?: ProjectKind }
+): FrameworkRule[] {
+  const rules: FrameworkRule[] = [];
+  for (const rule of manifestRulesForFile(fileName, filter)) {
+    if (rule.contentPattern !== undefined) {
+      rules.push({ test: rule.contentPattern, name: rule.framework });
+    }
+  }
+  return rules;
+}
 
-const NODE_WEB_DEPS: FrameworkRule[] = [
-  { test: /^(react|react-dom)$/, name: 'React' },
-  { test: /^vue$/, name: 'Vue' },
-  { test: /^@angular\/core$/, name: 'Angular' },
-  { test: /^svelte$/, name: 'Svelte' },
-];
+const nodeBackendDeps = (): FrameworkRule[] =>
+  frameworkRulesFor('package.json', { direction: 'serves' });
+const nodeWebDeps = (): FrameworkRule[] =>
+  frameworkRulesFor('package.json', { direction: 'consumes', kind: 'web' });
+const goFrameworks = (): FrameworkRule[] => frameworkRulesFor('go.mod');
+const pythonFrameworks = (): FrameworkRule[] => frameworkRulesFor('requirements.txt');
+const androidHttpLibs = (): FrameworkRule[] =>
+  frameworkRulesFor('build.gradle', { direction: 'consumes' });
+const iosHttpLibs = (): FrameworkRule[] => frameworkRulesFor('Podfile');
 
-const GO_FRAMEWORKS: FrameworkRule[] = [
-  { test: /gin-gonic\/gin/, name: 'Gin' },
-  { test: /labstack\/echo/, name: 'Echo' },
-  { test: /go-chi\/chi/, name: 'Chi' },
-  { test: /gorilla\/mux/, name: 'Gorilla Mux' },
-  { test: /gofiber\/fiber/, name: 'Fiber' },
-];
-
-const PYTHON_FRAMEWORKS: FrameworkRule[] = [
-  { test: /\bdjango\b/i, name: 'Django' },
-  { test: /\bflask\b/i, name: 'Flask' },
-  { test: /\bfastapi\b/i, name: 'FastAPI' },
-];
-
-const ANDROID_HTTP_LIBS: FrameworkRule[] = [
-  { test: /retrofit/i, name: 'Retrofit' },
-  { test: /okhttp/i, name: 'OkHttp' },
-  { test: /io\.ktor/, name: 'Ktor' },
-  { test: /volley/i, name: 'Volley' },
-];
-
-const IOS_HTTP_LIBS: FrameworkRule[] = [
-  { test: /Alamofire/, name: 'Alamofire' },
-  { test: /\bMoya\b/, name: 'Moya' },
-];
+/** Manifest content pattern of a specific pack — the registry must have it. */
+function requiredPattern(packId: string, fileName: string): RegExp {
+  const pack = ECOSYSTEMS.find((p) => p.id === packId);
+  const rule = pack?.manifestRules.find(
+    (r) => matchesManifestFile(r.file, fileName) && r.contentPattern !== undefined
+  );
+  if (!rule?.contentPattern) {
+    throw new Error(`ecosystem registry is missing the '${packId}' manifest rule for ${fileName}`);
+  }
+  return rule.contentPattern;
+}
 
 function matchedFrameworks(rules: FrameworkRule[], probe: (rule: FrameworkRule) => boolean): string[] {
   const names: string[] = [];
@@ -337,8 +337,8 @@ function classifyNode(candidate: Candidate, hasNestedNodeProjects: boolean): Pro
     ]);
   }
 
-  const backend = matchedFrameworks(NODE_BACKEND_DEPS, (rule) => has(rule.test));
-  const web = matchedFrameworks(NODE_WEB_DEPS, (rule) => has(rule.test));
+  const backend = matchedFrameworks(nodeBackendDeps(), (rule) => has(rule.test));
+  const web = matchedFrameworks(nodeWebDeps(), (rule) => has(rule.test));
   if (backend.length > 0 && web.length > 0) {
     return makeProfile(candidate.dir, 'web', [...web, ...backend], 'both', 'medium', [
       `${at} mixes client (${web.join(', ')}) and server (${backend.join(', ')}) dependencies`,
@@ -369,9 +369,9 @@ function classifyGradle(candidate: Candidate): ProjectProfile {
   // Multi-module folding merges every module's build text into this
   // candidate, so an app family and a server family can both match. Picking
   // one direction would silently drop the other API surface — report 'both'.
-  const serverFamily = /spring-boot|org\.springframework\.boot/.test(text)
+  const serverFamily = requiredPattern('spring', 'build.gradle').test(text)
     ? 'Spring Boot'
-    : /ktor-server/.test(text)
+    : requiredPattern('ktor-server', 'build.gradle').test(text)
       ? 'Ktor server'
       : undefined;
   if (multiplatform || candidate.hasCommonMain) {
@@ -404,7 +404,7 @@ function classifyGradle(candidate: Candidate): ProjectProfile {
       return makeProfile(
         candidate.dir,
         'backend',
-        ['Spring Boot', ...contentFrameworks(ANDROID_HTTP_LIBS, text)],
+        ['Spring Boot', ...contentFrameworks(androidHttpLibs(), text)],
         'both',
         'medium',
         evidence
@@ -425,7 +425,7 @@ function classifyGradle(candidate: Candidate): ProjectProfile {
     return makeProfile(
       candidate.dir,
       'mobile-android',
-      contentFrameworks(ANDROID_HTTP_LIBS, text),
+      contentFrameworks(androidHttpLibs(), text),
       'consumes',
       candidate.hasAndroidManifest ? 'high' : 'medium',
       evidence
@@ -439,7 +439,7 @@ function classifyGradle(candidate: Candidate): ProjectProfile {
 function classifyPom(candidate: Candidate): ProjectProfile {
   const text = candidate.pomTexts.join('\n');
   const at = describeDir(candidate.dir);
-  if (/spring-boot/.test(text)) {
+  if (requiredPattern('spring', 'pom.xml').test(text)) {
     return makeProfile(candidate.dir, 'backend', ['Spring Boot'], 'serves', 'high', [
       `pom.xml at ${at} uses Spring Boot`,
     ]);
@@ -465,7 +465,7 @@ function classifyIos(candidate: Candidate): ProjectProfile {
   return makeProfile(
     candidate.dir,
     'mobile-ios',
-    contentFrameworks(IOS_HTTP_LIBS, text),
+    contentFrameworks(iosHttpLibs(), text),
     'consumes',
     packageSwiftOnly ? 'medium' : 'high',
     [`${markers.join(' + ')} at ${describeDir(candidate.dir)}`]
@@ -476,13 +476,7 @@ function classifyFlutter(candidate: Candidate): ProjectProfile {
   const raw = candidate.names.get('pubspec.yaml') ?? '';
   const at = describeDir(candidate.dir);
   const usesFlutter = /(^|\n)\s*flutter\s*:/.test(raw) || /sdk:\s*flutter/.test(raw);
-  const frameworks: string[] = [];
-  if (/(^|\n)\s{2,}dio\s*:/.test(raw)) {
-    frameworks.push('Dio');
-  }
-  if (/(^|\n)\s{2,}http\s*:/.test(raw)) {
-    frameworks.push('http');
-  }
+  const frameworks = contentFrameworks(frameworkRulesFor('pubspec.yaml'), raw);
   return makeProfile(candidate.dir, 'flutter', frameworks, 'consumes', usesFlutter ? 'high' : 'medium', [
     usesFlutter ? `pubspec.yaml at ${at} uses the Flutter SDK` : `pubspec.yaml at ${at} (Dart package)`,
   ]);
@@ -491,7 +485,7 @@ function classifyFlutter(candidate: Candidate): ProjectProfile {
 function classifyGo(candidate: Candidate): ProjectProfile {
   const text = candidate.names.get('go.mod') ?? '';
   const at = describeDir(candidate.dir);
-  const frameworks = contentFrameworks(GO_FRAMEWORKS, text);
+  const frameworks = contentFrameworks(goFrameworks(), text);
   if (frameworks.length > 0) {
     return makeProfile(candidate.dir, 'backend', frameworks, 'serves', 'high', [
       `go.mod at ${at} requires ${frameworks.join(', ')}`,
@@ -505,7 +499,7 @@ function classifyGo(candidate: Candidate): ProjectProfile {
 function classifyPython(candidate: Candidate): ProjectProfile {
   const text = `${candidate.names.get('requirements.txt') ?? ''}\n${candidate.names.get('pyproject.toml') ?? ''}`;
   const at = describeDir(candidate.dir);
-  const frameworks = contentFrameworks(PYTHON_FRAMEWORKS, text);
+  const frameworks = contentFrameworks(pythonFrameworks(), text);
   if (frameworks.length > 0) {
     return makeProfile(candidate.dir, 'backend', frameworks, 'serves', 'high', [
       `Python dependencies at ${at} include ${frameworks.join(', ')}`,
@@ -519,7 +513,7 @@ function classifyPython(candidate: Candidate): ProjectProfile {
 function classifyRuby(candidate: Candidate): ProjectProfile {
   const text = candidate.names.get('Gemfile') ?? '';
   const at = describeDir(candidate.dir);
-  if (/\bgem\s+['"]rails['"]/.test(text)) {
+  if (requiredPattern('rails', 'Gemfile').test(text)) {
     return makeProfile(candidate.dir, 'backend', ['Rails'], 'serves', 'high', [
       `Gemfile at ${at} includes rails`,
     ]);
@@ -532,7 +526,7 @@ function classifyRuby(candidate: Candidate): ProjectProfile {
 function classifyCsproj(candidate: Candidate): ProjectProfile {
   const text = candidate.csprojTexts.join('\n');
   const at = describeDir(candidate.dir);
-  if (/Microsoft\.AspNetCore|Sdk="Microsoft\.NET\.Sdk\.Web"/.test(text)) {
+  if (requiredPattern('aspnet', 'project.csproj').test(text)) {
     return makeProfile(candidate.dir, 'backend', ['ASP.NET Core'], 'serves', 'high', [
       `.csproj at ${at} targets ASP.NET Core`,
     ]);
@@ -547,7 +541,8 @@ function classifyComposer(candidate: Candidate): ProjectProfile {
   const pkg = parseJsonObject(candidate.names.get('composer.json'));
   const requires =
     pkg && typeof pkg.require === 'object' && pkg.require !== null ? Object.keys(pkg.require) : [];
-  if (requires.includes('laravel/framework')) {
+  const laravelPattern = requiredPattern('laravel', 'composer.json');
+  if (requires.some((key) => laravelPattern.test(key))) {
     return makeProfile(candidate.dir, 'backend', ['Laravel'], 'serves', 'high', [
       `composer.json at ${at} requires laravel/framework`,
     ]);

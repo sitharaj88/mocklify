@@ -674,15 +674,17 @@
         "mocklify.ai.scanMode": {
           "type": "string",
           "enum": [
+            "auto",
             "fast",
             "agentic"
           ],
           "enumDescriptions": [
-            "One-shot analysis of heuristically extracted snippets. Cheapest and quickest; good default.",
+            "Picks the best strategy per project: existing spec > agentic exploration > fast scan. Recommended.",
+            "One-shot analysis of heuristically extracted snippets. Cheapest and quickest. Escalates to agentic exploration only when no API patterns match anywhere in the workspace (and the provider supports tools).",
             "The AI explores the codebase itself with read-only tools (reads files, follows imports to data models, finds auth/error conventions). Higher-quality routes, but slower (up to 8 minutes, 16 on multi-project workspaces) and uses substantially more AI tokens."
           ],
-          "default": "fast",
-          "markdownDescription": "How **Mocklify: AI: Generate Mock Server from Codebase** analyzes the workspace. `fast` sends heuristically extracted snippets in one shot; `agentic` lets the AI explore the code itself with read-only tools for deeper, higher-quality routes at more AI cost and time."
+          "default": "auto",
+          "markdownDescription": "How **Mocklify: AI: Generate Mock Server from Codebase** analyzes the workspace. `auto` picks the best strategy per project: existing spec > agentic exploration > fast scan. `fast` forces one-shot analysis of heuristically extracted snippets (escalating to agentic exploration only when no API patterns match anywhere in the workspace); `agentic` forces AI exploration with read-only tools for deeper, higher-quality routes at more AI cost and time."
         },
         "mocklify.ai.driftWatch": {
           "type": "boolean",

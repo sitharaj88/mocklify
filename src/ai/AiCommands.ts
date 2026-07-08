@@ -14,8 +14,8 @@ import { AiProviderId, AiUnavailableError } from './providers/types.js';
 import { ApiKeyManager } from './providers/ApiKeyManager.js';
 import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
-import { CodebaseMockGenerator, CodebaseScanProgress, CodebaseScanSummary } from './CodebaseMockGenerator.js';
-import { AgenticScanner, AgenticScanUnavailableError } from './AgenticScanner.js';
+import { CENSUS_NO_ROUTES_MESSAGE, CodebaseScanProgress } from './CodebaseMockGenerator.js';
+import { ScanOrchestrator } from './ScanOrchestrator.js';
 import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 import { MODEL_CATALOG, ModelProviderId } from './modelCatalog.js';
 import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
@@ -519,11 +519,6 @@ export function registerAiCommands(
       return;
     }
 
-    const scanMode = vscode.workspace
-      .getConfiguration('mocklify')
-      .get<'fast' | 'agentic'>('ai.scanMode', 'fast');
-    const codebaseGenerator = new CodebaseMockGenerator(ai);
-
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
@@ -541,26 +536,11 @@ export function registerAiCommands(
             lastFraction = Math.max(lastFraction, fraction);
           };
 
-          let summary: CodebaseScanSummary;
-          if (scanMode === 'agentic') {
-            try {
-              summary = await new AgenticScanner(ai).generate({ token, onProgress });
-            } catch (error) {
-              const unavailable =
-                error instanceof AgenticScanUnavailableError ||
-                (error instanceof Error && error.name === 'AgenticScanUnavailableError');
-              if (!unavailable) {
-                throw error;
-              }
-              const label = (await ai.getActiveProviderLabel()) ?? 'The active AI provider';
-              vscode.window.showInformationMessage(
-                `Mocklify: ${label} does not support agentic scanning — using fast scan.`
-              );
-              summary = await codebaseGenerator.generate({ token, onProgress });
-            }
-          } else {
-            summary = await codebaseGenerator.generate({ token, onProgress });
-          }
+          // The orchestrator runs recon once, picks the best strategy per API
+          // surface (spec > agentic > fast > census, honoring the scanMode
+          // setting), and falls back to the fast scan itself when the
+          // provider cannot run the agentic loop.
+          const summary = await new ScanOrchestrator(ai).generate({ token, onProgress });
           if (token.isCancellationRequested) {
             return;
           }
@@ -576,6 +556,29 @@ export function registerAiCommands(
               }
             }
           }
+
+          // Zero-route agentic completion: the agent explored the workspace
+          // and concluded there is nothing to mock — an informational
+          // outcome, never an error.
+          if (summary.noApiSurfaceReason) {
+            const followUp = await vscode.window.showInformationMessage(
+              `Mocklify explored the workspace and found no API surface to mock: ${summary.noApiSurfaceReason}`,
+              'Generate from Description'
+            );
+            if (followUp === 'Generate from Description') {
+              await vscode.commands.executeCommand('mocklify.aiGenerateServer');
+            }
+            return;
+          }
+
+          const strategyBySurface = new Map(
+            (summary.strategies ?? []).map((entry) => [entry.surface, entry.strategy])
+          );
+          const strategyNote = summary.strategies?.length
+            ? ` Scan strategy: ${summary.strategies
+                .map((entry) => `${entry.surface} → ${entry.strategy}`)
+                .join(', ')}.`
+            : '';
 
           const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
           const verificationNote =
@@ -605,7 +608,9 @@ export function registerAiCommands(
             const lines = planned.map(({ surface, port: plannedPort }) => {
               const negative = surface.routes.filter((r) => r.tags?.includes('negative')).length;
               const positive = surface.routes.length - negative;
-              return `${surface.name} [${surface.direction}]: ${surface.routes.length} routes (${positive} success + ${negative} failure) — port ${plannedPort}`;
+              const strategy = strategyBySurface.get(surface.name);
+              const via = strategy ? ` · ${strategy === 'spec' ? 'spec found' : `${strategy} scan`}` : '';
+              return `${surface.name} [${surface.direction}${via}]: ${surface.routes.length} routes (${positive} success + ${negative} failure) — port ${plannedPort}`;
             });
             const confirm = await vscode.window.showInformationMessage(
               `Found ${surfaces.length} API surfaces in ${summary.matchedFileCount} of ${summary.scannedFileCount} scanned files — Mocklify will create one mock server per surface.`,
@@ -654,7 +659,8 @@ export function registerAiCommands(
               `Create "${workspaceName} Mock API" with ${summary.routes.length} routes — ` +
               `${summary.positiveCount} success + ${summary.negativeCount} failure routes? ` +
               `(Failure routes are disabled; enable one to simulate that error in your app.)` +
-              verificationNote,
+              verificationNote +
+              strategyNote,
             { modal: true },
             'Create',
             'Create & Start'
@@ -676,6 +682,12 @@ export function registerAiCommands(
           }
         } catch (error) {
           if (error instanceof vscode.CancellationError) {
+            return;
+          }
+          // Even the census scan found nothing to mock — an informational
+          // outcome (empty workspace), not a failure.
+          if (error instanceof Error && error.message === CENSUS_NO_ROUTES_MESSAGE) {
+            vscode.window.showInformationMessage(`Mocklify: ${error.message}`);
             return;
           }
           showAiError(error);

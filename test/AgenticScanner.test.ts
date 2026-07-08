@@ -2,9 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   AGENT_MAX_TOOL_CALLS,
   AGENTIC_SCAN_BUDGET_MS,
+  LANGUAGE_UNKNOWN_NOTE,
+  LOW_CONFIDENCE_SEED_SCORE,
   MAX_SUBMIT_REJECTIONS,
   MAX_TOOL_CALLS_CAP,
   MULTI_PROJECT_READ_BUDGET_BYTES,
+  NO_API_SURFACE_ACK,
+  NO_API_SURFACE_FALLBACK_REASON,
+  NO_API_SURFACE_REASON_MAX_CHARS,
   PROGRESS_NOTE_MAX_CHARS,
   REPORT_PROGRESS_TOOL,
   ROUTES_ALREADY_ACCEPTED,
@@ -16,8 +21,13 @@ import {
   SUBMIT_ROUTES_TOOL,
   SURFACE_ROUTES_JSON_SCHEMA,
   buildMissionPrompt,
+  buildReconFirstPrompt,
   buildSurfaceSeeds,
   createSubmitState,
+  languageUnknownNote,
+  noApiSurfaceReason,
+  selectMissionVariant,
+  universalSeedSnippet,
   describeToolCall,
   formatRejectionResult,
   formatSeedSection,
@@ -41,6 +51,7 @@ import { ROUTES_JSON_SCHEMA } from '../src/ai/MockGenerator';
 import { DEFAULT_READ_BUDGET_BYTES } from '../src/ai/agent/workspaceTools';
 import type { ProjectProfile } from '../src/ai/scan/projectProfile';
 import type { ScoredFile } from '../src/ai/scan/heuristics';
+import type { UniversalSignals } from '../src/ai/scan/universalSignals';
 import type { RouteConfig } from '../src/types/core';
 
 function makeRoute(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -363,6 +374,23 @@ describe('buildSurfaceSeeds', () => {
     expect(seeds[0].direction).toBe('consumes');
     expect(seeds[0].matchedFileCount).toBe(1);
     expect(seeds[0].seedSection).toContain('src/api.ts');
+  });
+
+  it('flips the profile-less default surface to serves for a universal-only serves-shaped seed set', () => {
+    const routeTable: DirectionalScoredFile = {
+      path: 'src/routes.sin',
+      score: 22,
+      snippet: 'get "/users" do',
+      clientScore: 0,
+      serverScore: 0,
+      universalScore: 22,
+      universalDirection: 'serves',
+    };
+    expect(buildSurfaceSeeds([], [routeTable], 'App')[0].direction).toBe('serves');
+    // Any real marker confidence keeps today's consumes default.
+    expect(
+      buildSurfaceSeeds([], [routeTable, directionalFile('src/api.ts', 40, 0)], 'App')[0].direction
+    ).toBe('consumes');
   });
 
   it('assigns files to the deepest enclosing project root', () => {
@@ -916,5 +944,196 @@ describe('groupRoutesBySurface', () => {
     expect(surfaces).toHaveLength(1);
     expect(surfaces[0].name).toBe('API');
     expect(surfaces[0].direction).toBe('consumes');
+  });
+});
+
+describe('selectMissionVariant', () => {
+  it('picks recon-first for an empty seed set', () => {
+    expect(selectMissionVariant([])).toBe('recon-first');
+  });
+
+  it('picks recon-first when every seed is below the confidence bar', () => {
+    const weak = [{ score: 10 }, { score: LOW_CONFIDENCE_SEED_SCORE - 1 }];
+    expect(selectMissionVariant(weak)).toBe('recon-first');
+  });
+
+  it('picks the seeded mission once one seed reaches the confidence bar', () => {
+    expect(selectMissionVariant([{ score: LOW_CONFIDENCE_SEED_SCORE }])).toBe('seeded');
+    expect(selectMissionVariant([{ score: 10 }, { score: 40 }])).toBe('seeded');
+  });
+});
+
+describe('languageUnknownNote', () => {
+  it('returns nothing for an empty seed set (census path, not language note)', () => {
+    expect(languageUnknownNote([])).toBeUndefined();
+  });
+
+  it('returns the note when every seed owes its place to universal signals', () => {
+    const seeds = [
+      { clientScore: 0, serverScore: 0 },
+      { clientScore: 4, serverScore: 2 }, // weak markers only — below MIN_SCORE
+    ];
+    expect(languageUnknownNote(seeds)).toBe(LANGUAGE_UNKNOWN_NOTE);
+    expect(LANGUAGE_UNKNOWN_NOTE).toContain('language-agnostic');
+  });
+
+  it('returns nothing when any seed was found by the marker heuristics', () => {
+    const seeds = [
+      { clientScore: 0, serverScore: 0 },
+      { clientScore: 20, serverScore: 0 },
+    ];
+    expect(languageUnknownNote(seeds)).toBeUndefined();
+  });
+});
+
+describe('universalSeedSnippet', () => {
+  const signals = (over: Partial<UniversalSignals> = {}): UniversalSignals => ({
+    urlPaths: [],
+    absoluteUrls: [],
+    methodHints: 0,
+    jsonShapes: 0,
+    authHints: 0,
+    score: 0,
+    ...over,
+  });
+
+  it('lists detected paths and urls', () => {
+    const snippet = universalSeedSnippet(
+      signals({ urlPaths: ['/api/users', '/api/orders'], absoluteUrls: ['https://api.x.dev/v1'] })
+    );
+    expect(snippet).toBe('paths: /api/users /api/orders\nurls: https://api.x.dev/v1');
+  });
+
+  it('caps the listing and returns empty for empty signals', () => {
+    const paths = Array.from({ length: 10 }, (_, i) => `/api/p${i}`);
+    const snippet = universalSeedSnippet(signals({ urlPaths: paths }));
+    expect(snippet).toContain('/api/p5');
+    expect(snippet).not.toContain('/api/p6');
+    expect(universalSeedSnippet(signals())).toBe('');
+  });
+});
+
+describe('noApiSurfaceReason', () => {
+  it('falls back when the agent gave no reason', () => {
+    expect(noApiSurfaceReason('')).toBe(NO_API_SURFACE_FALLBACK_REASON);
+    expect(noApiSurfaceReason('  \n ')).toBe(NO_API_SURFACE_FALLBACK_REASON);
+  });
+
+  it('flattens whitespace into one paragraph', () => {
+    expect(noApiSurfaceReason(' This repo\nis a CSS\ttheme. ')).toBe('This repo is a CSS theme.');
+  });
+
+  it('caps very long reasons with an ellipsis', () => {
+    const reason = noApiSurfaceReason('y'.repeat(NO_API_SURFACE_REASON_MAX_CHARS + 100));
+    expect(reason).toBe(`${'y'.repeat(NO_API_SURFACE_REASON_MAX_CHARS)}…`);
+  });
+});
+
+describe('buildReconFirstPrompt', () => {
+  const census = '## Workspace census (42 files)\n### Directory tree (top 3 levels)\n. (42 files)';
+
+  it('embeds the census and the recon-first exploration instructions', () => {
+    const prompt = buildReconFirstPrompt('MysteryApp', 'Detected: no recognizable projects.', census, '', false);
+    expect(prompt).toContain('"MysteryApp"');
+    expect(prompt).toContain('No known API patterns were detected');
+    expect(prompt).toContain('Detected: no recognizable projects.');
+    expect(prompt).toContain('## Workspace census (42 files)');
+    expect(prompt).toContain('what kind of project this is');
+    expect(prompt).toContain('ANY language');
+    expect(prompt).toContain('report_progress');
+    expect(prompt).toContain('submit_routes EXACTLY ONCE');
+    expect(prompt).toContain('## Route JSON shape');
+  });
+
+  it('allows a justified zero-route submission', () => {
+    const prompt = buildReconFirstPrompt('App', 'inv', census, '', false);
+    expect(prompt).toContain('genuinely no HTTP API surface');
+    expect(prompt).toContain('{"routes": []}');
+    expect(prompt).toContain('explaining why');
+  });
+
+  it('includes weak seed candidates only when present', () => {
+    const without = buildReconFirstPrompt('App', 'inv', census, '', false);
+    expect(without).not.toContain('## Weak candidate files');
+    const withSeeds = buildReconFirstPrompt('App', 'inv', census, '- maybe/api.xyz (score 10)', false);
+    expect(withSeeds).toContain('## Weak candidate files');
+    expect(withSeeds).toContain('- maybe/api.xyz (score 10)');
+  });
+
+  it('adds surface tagging rules only for multi-project recon', () => {
+    const single = buildReconFirstPrompt('App', 'inv', census, '', false, ['App']);
+    expect(single).not.toContain('## Multiple API surfaces');
+    const multi = buildReconFirstPrompt('App', 'inv', census, '', false, ['app', 'server']);
+    expect(multi).toContain('## Multiple API surfaces');
+    expect(multi).toContain('"app", "server"');
+    expect(multi).toContain('"surfaceNames"');
+  });
+
+  it('adds GraphQL guidance when flagged', () => {
+    expect(buildReconFirstPrompt('App', 'inv', census, '', true)).toContain('## GraphQL');
+    expect(buildReconFirstPrompt('App', 'inv', census, '', false)).not.toContain('## GraphQL');
+  });
+});
+
+describe('buildMissionPrompt extraNote', () => {
+  it('places the note under the recon inventory', () => {
+    const prompt = buildMissionPrompt('App', 'Detected: things.', [makeSeed()], false, LANGUAGE_UNKNOWN_NOTE);
+    expect(prompt).toContain(`Detected: things.\n\n${LANGUAGE_UNKNOWN_NOTE}`);
+  });
+
+  it('changes nothing when absent', () => {
+    const base = buildMissionPrompt('App', 'inv', [makeSeed()], false);
+    expect(base).toBe(buildMissionPrompt('App', 'inv', [makeSeed()], false, undefined));
+    expect(base).toBe(buildMissionPrompt('App', 'inv', [makeSeed()], false, ''));
+    expect(base).not.toContain('language-agnostic');
+  });
+});
+
+describe('handleSubmitRoutes with allowEmpty (recon-first missions)', () => {
+  it('accepts an explicit zero-route submission as a no-API-surface answer', () => {
+    const state = createSubmitState();
+    const result = handleSubmitRoutes(state, { routes: [] }, { allowEmpty: true });
+    expect(result).toBe(NO_API_SURFACE_ACK);
+    expect(state.done).toBe(true);
+    expect(state.noApiSurface).toBe(true);
+    expect(state.routes).toEqual([]);
+    expect(state.rejections).toBe(0);
+  });
+
+  it('rejects an empty submission when allowEmpty is off (seeded missions)', () => {
+    const state = createSubmitState();
+    const result = handleSubmitRoutes(state, { routes: [] });
+    expect(result).toContain('Submission rejected');
+    expect(state.done).toBe(false);
+    expect(state.noApiSurface).toBe(false);
+    expect(state.rejections).toBe(1);
+  });
+
+  it('prefers salvaged routes over a contradictory later empty claim', () => {
+    const state = createSubmitState();
+    handleSubmitRoutes(state, { routes: [makeRoute(), badNegativeRoute()] }, { allowEmpty: true });
+    expect(state.salvage).toHaveLength(1);
+    const result = handleSubmitRoutes(state, { routes: [] }, { allowEmpty: true });
+    expect(result).toBe(SUBMIT_ROUTES_ACCEPTED_ACK);
+    expect(state.done).toBe(true);
+    expect(state.noApiSurface).toBe(false);
+    expect(state.routes).toHaveLength(1);
+  });
+
+  it('handles non-empty submissions exactly as before', () => {
+    const state = createSubmitState();
+    const result = handleSubmitRoutes(state, { routes: [makeRoute()] }, { allowEmpty: true });
+    expect(result).toBe(SUBMIT_ROUTES_ACCEPTED_ACK);
+    expect(state.noApiSurface).toBe(false);
+    expect(state.routes).toHaveLength(1);
+  });
+
+  it('acknowledges idempotently after a zero-route acceptance', () => {
+    const state = createSubmitState();
+    handleSubmitRoutes(state, { routes: [] }, { allowEmpty: true });
+    expect(handleSubmitRoutes(state, { routes: [makeRoute()] }, { allowEmpty: true })).toBe(
+      ROUTES_ALREADY_ACCEPTED
+    );
+    expect(state.routes).toEqual([]);
   });
 });

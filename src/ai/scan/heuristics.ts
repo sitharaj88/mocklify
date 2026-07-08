@@ -1,4 +1,9 @@
 import type { RouteConfig } from '../../types/core.js';
+import {
+  EXTRA_CLIENT_MARKER_VIEW,
+  SERVER_MARKER_VIEW,
+  STRONG_CLIENT_MARKER_VIEW,
+} from './ecosystems.js';
 
 /**
  * Pure heuristics for scanning a client codebase (Android, iOS, web, Flutter,
@@ -14,130 +19,40 @@ export const API_FILE_GLOB =
 export const SCAN_EXCLUDE_GLOB =
   '{**/node_modules/**,**/dist/**,**/build/**,**/out/**,**/.git/**,**/target/**,**/Pods/**,**/vendor/**,**/.mocklify/**,**/coverage/**,**/__pycache__/**,**/*.min.js,**/*.d.ts,**/webview/dist/**}';
 
+/**
+ * Marker: the universal signal layer (./universalSignals.js) supersedes the
+ * API_FILE_GLOB extension whitelist as the scan gate. Callers that opt in
+ * discover candidates with a broad glob and filter through shouldScanPath /
+ * isProbablyTextFile / pickScanCandidates instead of API_FILE_GLOB, which
+ * stays exported unchanged for back-compat.
+ */
+export const INCLUSIVE_SCAN_MODE = true;
+
 /** Machine-readable API spec files (OpenAPI, Swagger, gRPC, GraphQL, Postman). */
 export const SPEC_FILE_GLOB =
   '**/{*openapi*.{json,yaml,yml},*swagger*.{json,yaml,yml},*.proto,*.graphql,*.graphqls,*.gql,*.postman_collection.json}';
 
-/** Strong signals that a line performs or declares an HTTP call. */
-const STRONG_MARKERS: RegExp[] = [
-  /\bfetch\s*\(/, // web fetch
-  /\baxios\b/, // axios
-  /\bXMLHttpRequest\b/,
-  /@(GET|POST|PUT|DELETE|PATCH|HEAD|Multipart|FormUrlEncoded)\b/, // Retrofit
-  /\bRetrofit\b/,
-  /\bOkHttpClient\b|\bokhttp3\b/,
-  /\bHttpURLConnection\b/,
-  /\bVolley\b|\bJsonObjectRequest\b/,
-  /\bURLSession\b/, // iOS
-  /\bAlamofire\b|\bAF\.request\b/,
-  /\bDio\b|\bdio\.(get|post|put|delete|patch)\b/, // Flutter
-  /\bhttp\.(get|post|put|delete|patch)\s*\(/, // dart http / go / generic
-  /\bHttpClient\b/, // Angular/.NET
-  /\bRestTemplate\b|\bWebClient\b|\bFeignClient\b/, // Java clients
-  /\brequests\.(get|post|put|delete|patch)\s*\(/, // python
-  /\$\.(ajax|get|post)\s*\(/, // jquery
-  /\bcreateApi\b|\bfetchBaseQuery\b/, // RTK Query
-  /\buseSWR\b|\buseQuery\b|\buseMutation\b/, // SWR / react-query
-  /\bky\.(get|post|put|delete|patch)\b|\bgot\.(get|post|put|delete|patch)\b/,
-  /\bcurl_init\b|\bGuzzle\b/, // php
-  /\bApolloClient\b|\bInMemoryCache\b|\buseLazyQuery\b/, // Apollo GraphQL
-  /\bgql\s*(?:`|\()/, // gql template tag
-  /\bGraphQLClient\b|['"`]graphql-request['"`]/, // graphql-request
-  /['"`]@?urql(?:\/[\w-]+)?['"`]/, // urql
-  /["'`][^"'`\s]*\/graphql\b/, // generic POST-to-/graphql endpoint
-];
+/**
+ * Strong signals that a line performs or declares an HTTP call. Derived from
+ * the ecosystem registry (see ecosystems.ts) at module load; registerEcosystem
+ * extends the shared view arrays in place, so this stays current.
+ */
+const STRONG_MARKERS: RegExp[] = STRONG_CLIENT_MARKER_VIEW;
 
 /**
  * Server-side route DECLARATIONS (as opposed to client HTTP calls). Every
  * pattern is word-boundary anchored and linear-time: single-level quantifiers
  * over disjoint character classes, no nested or overlapping quantifiers.
+ * Derived from the ecosystem registry (serverMarkers of every pack).
  */
-export const SERVER_MARKERS: RegExp[] = [
-  // Express / Koa / Fastify / restify route registration
-  /\b(?:app|router|fastify|server)\.(?:get|post|put|patch|delete|options|head|all)\s*\(\s*["'`]\//,
-  /\.route\s*\(\s*["'`]\/[^"'`\n]*["'`]\s*\)\s*\.(?:get|post|put|patch|delete)/,
-  // NestJS decorators (Retrofit uses uppercase @GET, so no overlap)
-  /@(?:Get|Post|Put|Patch|Delete|Head|Options|All)\s*\(/,
-  /@Controller\s*\(/,
-  // Spring MVC / WebFlux
-  /@(?:Get|Post|Put|Patch|Delete|Request)Mapping\b/,
-  /@RestController\b/,
-  // JAX-RS (leading slash distinguishes from Retrofit's @Path("id") params)
-  /\b(?:javax|jakarta)\.ws\.rs\b/,
-  /@Path\s*\(\s*["']\//,
-  // Ktor routing DSL (lookbehind rejects client.get(...) member calls)
-  /\brouting\s*\{/,
-  /(?<![.\w])(?:get|post|put|patch|delete)\s*\(\s*["']\/[^"'\n]*["']\s*\)\s*\{/,
-  // FastAPI decorators
-  /@(?:app|router)\.(?:get|post|put|patch|delete)\s*\(/,
-  // Flask @app.route / @bp.route
-  /@\w+\.route\s*\(\s*["']\//,
-  // Django URLconf
-  /\burlpatterns\s*=/,
-  /\b(?:path|re_path)\s*\(\s*r?["'][^"'\n]*["']\s*,/,
-  // Rails / Phoenix routing DSL
-  /\bresources\s+:\w+/,
-  /(?<![.\w])(?:get|post|put|patch|delete)\s+["']\/[^"'\n]*["']\s*,/,
-  /\broutes\.draw\b/,
-  /\bscope\s+["']\//,
-  // Laravel
-  /\bRoute::(?:get|post|put|patch|delete|any|match|resource|apiResource)\s*\(/,
-  // Go: gin/echo (r.GET), chi (r.Get), gorilla/mux, net/http mux
-  /\b\w+\.(?:GET|POST|PUT|PATCH|DELETE)\s*\(\s*"\//,
-  /\b\w+\.(?:Get|Post|Put|Patch|Delete)\s*\(\s*"\//,
-  /\bHandleFunc\s*\(\s*"\//,
-  /\.Methods\s*\(\s*"(?:GET|POST|PUT|PATCH|DELETE)"/,
-  // ASP.NET attribute routing and minimal APIs
-  /\[Http(?:Get|Post|Put|Patch|Delete|Head|Options)\b/,
-  /\[ApiController\]/,
-  /\bMap(?:Get|Post|Put|Patch|Delete|Methods)\s*\(\s*"/,
-  // Rust: actix-web attribute macros, axum/warp/Rocket routing
-  /#\[(?:get|post|put|patch|delete)\s*\(\s*"\//,
-  /\bRouter::new\s*\(\)|\.route\s*\(\s*"\/[^"]*"\s*,\s*(?:get|post|put|patch|delete)\s*\(/,
-  /\bwarp::path\b|\brocket::routes!/,
-  // Scala: Play routes DSL and Akka/Pekko HTTP directives
-  /\b(?:GET|POST|PUT|PATCH|DELETE)\s+\/\S*\s+controllers\./,
-  /\bpathPrefix\s*\(\s*"|\bcomplete\s*\(\s*StatusCodes\./,
-];
+export const SERVER_MARKERS: RegExp[] = SERVER_MARKER_VIEW;
 
-/** Client-call signals missing from STRONG_MARKERS (newer ecosystems). */
-export const CLIENT_MARKERS_EXTRA: RegExp[] = [
-  // Rust HTTP clients
-  /\breqwest::(?:Client|get)\b|\bClient::new\s*\(\)\s*\.\s*(?:get|post|put|patch|delete)\b/,
-  // Elixir HTTP clients
-  /\bHTTPoison\.(?:get|post|put|patch|delete)\b|\bTesla\.(?:get|post|put|patch|delete)\b|\bReq\.(?:get|post|put|patch|delete)!?\b|\bFinch\.build\b/,
-  // Scala sttp / Play WS
-  /\bbasicRequest\b|\bws\.url\s*\(/,
-  // Ktor HttpClient (KMM/KMP shared modules); also .NET HttpClient ctor
-  /\bHttpClient\s*\(/,
-  /\bio\.ktor\.client\b/,
-  /\bclient\.(?:get|post|put|patch|delete)\s*[(<{]/,
-  // Capacitor
-  /\bCapacitorHttp\b/,
-  /\bHttp\.(?:request|get|post|put|patch|del)\s*\(/,
-  // Angular HttpClient method calls (typed or via this.http)
-  /\bthis\.http\.(?:get|post|put|patch|delete|request)\s*\(/,
-  /\bhttp\.(?:get|post|put|patch|delete)\s*</,
-  // tRPC
-  /\bcreateTRPC(?:ProxyClient|Client|React|Next)\b/,
-  /\bhttpBatchLink\b|\bhttpLink\b/,
-  /['"`]@trpc\/[\w-]+['"`]/,
-  // Lookbehind (not \b): '$' is a non-word char inside [\w$], so \b would
-  // restart the match before every word char after a '$' — quadratic on long
-  // $-delimited identifier runs (e.g. mangled generated code).
-  /(?<![\w$])[\w$]+\.[\w$]+\.(?:useQuery|useMutation|useInfiniteQuery)\s*\(/,
-  // openapi-generator / openapi-typescript-codegen clients
-  /\bnew\s+Configuration\s*\(/,
-  /\bBASE_PATH\s*[:=]/,
-  /\bOpenAPI\.BASE\b/,
-  // Objective-C NSURLSession
-  /\bNSURLSession\b/,
-  /\bdataTaskWithRequest\b|\bdataTaskWithURL\b/,
-  // grpc-web / Connect
-  /\bcreatePromiseClient\b|\bcreateConnectTransport\b|\bcreateGrpcWebTransport\b/,
-  /\bGrpcWebClientBase\b/,
-  /['"`](?:grpc-web|@connectrpc\/[\w-]+|@bufbuild\/connect[\w-]*)['"`]/,
-];
+/**
+ * Client-call signals missing from STRONG_MARKERS (newer ecosystems).
+ * Derived from the ecosystem registry (untagged clientMarkers, including
+ * every pack added at runtime via registerEcosystem).
+ */
+export const CLIENT_MARKERS_EXTRA: RegExp[] = EXTRA_CLIENT_MARKER_VIEW;
 
 /** Weak signals — only meaningful alongside strong ones or in bulk. */
 const WEAK_MARKERS: RegExp[] = [

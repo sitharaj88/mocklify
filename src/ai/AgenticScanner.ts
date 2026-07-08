@@ -5,6 +5,7 @@ import type {
   CodebaseScanProgress,
   CodebaseScanSummary,
   ScanSurface,
+  WorkspaceRecon,
 } from './CodebaseMockGenerator.js';
 import { extractJson } from './extractJson.js';
 import {
@@ -13,14 +14,19 @@ import {
   ROUTES_JSON_SCHEMA,
   RejectedRoute,
 } from './MockGenerator.js';
+import { ScoredFile, extractApiSnippets, dedupeRoutes } from './scan/heuristics.js';
 import {
-  API_FILE_GLOB,
-  SCAN_EXCLUDE_GLOB,
-  ScoredFile,
-  scoreApiContentDirectional,
-  extractApiSnippets,
-  dedupeRoutes,
-} from './scan/heuristics.js';
+  detectUniversalSignals,
+  isProbablyTextFile,
+  pickScanCandidates,
+  scoreFileUniversal,
+  shouldScanPath,
+  universalLean,
+  type UniversalDirection,
+  type UniversalSignals,
+} from './scan/universalSignals.js';
+import { censusWorkspace, describeCensus } from './scan/census.js';
+import { enumerateScanCandidates } from './scan/enumerateFiles.js';
 import { hasGraphQlMarkers } from './scan/modelContext.js';
 import {
   describeProfiles,
@@ -47,10 +53,19 @@ import { DEFAULT_MAX_TOOL_CALLS } from './providers/toolLoop.js';
  * loaded lazily inside the class so the module imports cleanly under vitest.
  */
 
-// Seed scan — mirrors CodebaseMockGenerator's deterministic discovery.
+// Seed scan — inclusive text-file discovery gated by shouldScanPath (path
+// blocklist) + isProbablyTextFile (content sniff) instead of the legacy
+// API_FILE_GLOB extension whitelist, sampled by pickScanCandidates under the
+// same MAX_FILES_TO_READ budget the whitelist scan used.
+/** Paths enumerated at most before sampling. */
+export const MAX_FILES_TO_ENUMERATE = 4000;
 const MAX_FILES_TO_READ = 600;
 const MAX_FILE_BYTES = 262_144;
 const MIN_SCORE = 10;
+/** Bytes sniffed per file to reject binaries. */
+const TEXT_SNIFF_BYTES = 8192;
+/** Best seed score below which the whole seed set counts as low-confidence. */
+export const LOW_CONFIDENCE_SEED_SCORE = 12;
 
 /** Base tool-execution cap for a single-project scan (provider loop default). */
 export const AGENT_MAX_TOOL_CALLS = DEFAULT_MAX_TOOL_CALLS;
@@ -86,6 +101,11 @@ export const ROUTES_ALREADY_ACCEPTED =
   'Routes were already accepted — stop calling tools and reply "done".';
 export const TIME_BUDGET_NUDGE =
   'Time budget nearly exhausted — stop exploring and call submit_routes NOW with every route you have found.';
+export const NO_API_SURFACE_ACK =
+  'No-API-surface conclusion accepted. Reply now with one short paragraph explaining why this workspace has no HTTP API surface to mock (it will be shown to the user), then stop calling tools.';
+export const NO_API_SURFACE_FALLBACK_REASON =
+  'The agent explored the workspace and found no HTTP API calls or route declarations to mock.';
+export const NO_API_SURFACE_REASON_MAX_CHARS = 600;
 
 export { AgenticScanUnavailableError } from './providers/types.js';
 
@@ -192,6 +212,78 @@ export function progressNote(input: unknown): string {
 export interface DirectionalScoredFile extends ScoredFile {
   clientScore: number;
   serverScore: number;
+  /** Language-agnostic universal-signal score; absent on legacy callers. */
+  universalScore?: number;
+  /** Direction guess when only universal signals scored; absent on legacy callers. */
+  universalDirection?: UniversalDirection;
+}
+
+// ---------------------------------------------------------------------------
+// Mission variant selection (pure)
+// ---------------------------------------------------------------------------
+
+export type ScanMissionVariant = 'seeded' | 'recon-first';
+
+/**
+ * Which mission the agent runs: the seeded flow (today's behavior) when at
+ * least one seed carries real confidence, or the recon-first census flow when
+ * the seed scan came back empty or every hit is barely above the threshold.
+ */
+export function selectMissionVariant(seeds: { score: number }[]): ScanMissionVariant {
+  if (seeds.length === 0) {
+    return 'recon-first';
+  }
+  return seeds.every((seed) => seed.score < LOW_CONFIDENCE_SEED_SCORE) ? 'recon-first' : 'seeded';
+}
+
+export const LANGUAGE_UNKNOWN_NOTE =
+  'Note: every seed file below matched only language-agnostic API signals (literal URL paths, HTTP verbs, payload shapes) — no known framework markers fired, so the implementation language or stack may be unfamiliar. Read the seed files first and derive routes from the literal paths, verbs, and payload shapes you see; do not assume any particular framework.';
+
+/**
+ * The 'language-unknown' mission note: present when seeds exist but NONE of
+ * them was found by the ecosystem marker heuristics — i.e. every seed owes
+ * its place to the universal signal layer alone.
+ */
+export function languageUnknownNote(
+  seeds: { clientScore: number; serverScore: number }[]
+): string | undefined {
+  if (seeds.length === 0) {
+    return undefined;
+  }
+  const universalOnly = seeds.every(
+    (seed) => seed.clientScore < MIN_SCORE && seed.serverScore < MIN_SCORE
+  );
+  return universalOnly ? LANGUAGE_UNKNOWN_NOTE : undefined;
+}
+
+/**
+ * Seed teaser for files the marker-based snippet extractor came back empty
+ * on (unknown languages): the detected universal signals themselves.
+ */
+export function universalSeedSnippet(signals: UniversalSignals): string {
+  const parts: string[] = [];
+  if (signals.urlPaths.length > 0) {
+    parts.push(`paths: ${signals.urlPaths.slice(0, 6).join(' ')}`);
+  }
+  if (signals.absoluteUrls.length > 0) {
+    parts.push(`urls: ${signals.absoluteUrls.slice(0, 3).join(' ')}`);
+  }
+  return parts.join('\n');
+}
+
+/**
+ * The user-facing reason behind a zero-route completion: the agent's final
+ * text reply flattened to one paragraph and length-capped, or a generic
+ * fallback when the reply was empty.
+ */
+export function noApiSurfaceReason(finalText: string): string {
+  const flattened = finalText.replace(/\s+/g, ' ').trim();
+  if (flattened === '') {
+    return NO_API_SURFACE_FALLBACK_REASON;
+  }
+  return flattened.length > NO_API_SURFACE_REASON_MAX_CHARS
+    ? `${flattened.slice(0, NO_API_SURFACE_REASON_MAX_CHARS)}…`
+    : flattened;
 }
 
 /** First few non-empty snippet lines, trimmed and length-capped. */
@@ -265,13 +357,16 @@ export function buildSurfaceSeeds(
   appName: string
 ): SurfaceSeed[] {
   if (profiles.length === 0) {
+    // Universal-only seed sets (unknown languages) can override the default
+    // 'consumes': a workspace of route tables should be explored as a server.
+    const direction: ApiDirection = universalLean(files) === 'serves' ? 'serves' : 'consumes';
     return [
       {
         name: appName,
         rootPath: '',
         kind: 'unknown',
         frameworks: [],
-        direction: 'consumes',
+        direction,
         specFiles: [],
         seedSection: formatSeedSection(files),
         seedFileCount: Math.min(files.length, SEED_MAX_FILES),
@@ -413,6 +508,12 @@ export interface SubmitState {
   repairedCount: number;
   /** Routes still failing at acceptance time. */
   droppedCount: number;
+  /**
+   * True when the agent deliberately submitted ZERO routes to say the
+   * workspace has no HTTP API surface (recon-first missions only). The
+   * scanner turns this into a user-facing message instead of an error.
+   */
+  noApiSurface: boolean;
   /** Surface names declared across submissions (top-level + per-route). */
   surfaceNames: string[];
   /** routeSurfaceKey → declared surface name, latest submission wins. */
@@ -436,6 +537,7 @@ export function createSubmitState(): SubmitState {
     prevRejectedCount: 0,
     repairedCount: 0,
     droppedCount: 0,
+    noApiSurface: false,
     surfaceNames: [],
     surfaceByKey: new Map(),
     surfaceNamesByKey: new Map(),
@@ -553,12 +655,39 @@ function acceptRoutes(
  * Handle one submit_routes call: record surface declarations, validate +
  * verify, quote failures back for up to MAX_SUBMIT_REJECTIONS rounds, then
  * accept the valid subset. Mutates state; returns the tool result text.
+ *
+ * With options.allowEmpty (recon-first missions), an explicit {"routes": []}
+ * submission is a legitimate "this workspace has no API surface" answer: it
+ * completes the mission with zero routes (state.noApiSurface) instead of
+ * being rejected — unless earlier rounds salvaged validated routes, which
+ * then win over the contradictory empty claim.
  */
-export function handleSubmitRoutes(state: SubmitState, input: unknown): string {
+export function handleSubmitRoutes(
+  state: SubmitState,
+  input: unknown,
+  options?: { allowEmpty?: boolean }
+): string {
   if (state.done) {
     return ROUTES_ALREADY_ACCEPTED;
   }
   recordSurfaceInfo(state, input);
+
+  if (
+    options?.allowEmpty === true &&
+    input !== null &&
+    typeof input === 'object' &&
+    Array.isArray((input as Record<string, unknown>).routes) &&
+    ((input as Record<string, unknown>).routes as unknown[]).length === 0
+  ) {
+    if (state.salvage.length > 0) {
+      acceptRoutes(state, [], state.prevRejectedCount);
+      return SUBMIT_ROUTES_ACCEPTED_ACK;
+    }
+    state.done = true;
+    state.noApiSurface = true;
+    state.routes = [];
+    return NO_API_SURFACE_ACK;
+  }
 
   let valid: Omit<RouteConfig, 'id'>[];
   try {
@@ -606,6 +735,13 @@ export interface AgenticScanSummary extends CodebaseScanSummary {
   surfaces: ScanSurface[];
   /** API spec files recon found — a direct import is an alternative to these routes. */
   specFiles: string[];
+  /**
+   * Present ONLY when the agent explored the workspace and deliberately
+   * concluded there is no HTTP API surface to mock (routes/surfaces are empty
+   * then): the agent's own explanation, ready for a user-facing message. The
+   * command layer should surface it instead of treating the scan as failed.
+   */
+  noApiSurfaceReason?: string;
 }
 
 /**
@@ -714,41 +850,9 @@ function surfaceSection(seed: SurfaceSeed): string {
   return parts.join('\n');
 }
 
-/**
- * The recon-informed mission prompt: project inventory, one strategy section
- * per API surface (consumes → mock what it calls; serves → read handlers and
- * mock what it serves; spec files trump inference), multi-surface submission
- * rules, and the shared route-authoring contract.
- */
-export function buildMissionPrompt(
-  appName: string,
-  inventory: string,
-  surfaces: SurfaceSeed[],
-  graphQl: boolean
-): string {
-  const multi = surfaces.length > 1;
-  const surfaceSections = surfaces.map(surfaceSection).join('\n\n');
-  const multiBlock = multi
-    ? `\n\n## Multiple API surfaces
-This workspace has ${surfaces.length} distinct API surfaces (${surfaces
-        .map((s) => `"${s.name}"`)
-        .join(', ')}); each becomes its own mock server. Set "surface" on EVERY submitted route to exactly one of those names, and include a top-level "surfaceNames" array listing every name you used. Submit ALL surfaces' routes in the ONE submit_routes call.`
-    : '';
-
-  return `You are an expert API reverse-engineer exploring the workspace "${appName}" through read-only tools (list_files / read_file / search_code). A deterministic recon pass already profiled the projects in it and pre-scored the most likely API-related files.
-
-## Recon
-${inventory}
-
-Narrate milestones as you work by calling report_progress with a short one-line note (e.g. {"note": "Detected Spring backend, reading UserController…"}).
-
-## API surfaces (${surfaces.length})
-
-${surfaceSections}${multiBlock}
-
-When you have the full picture, call submit_routes EXACTLY ONCE with every route${multi ? ' across ALL surfaces' : ''}. If the result lists validation problems, fix them and call submit_routes again with the complete corrected set. Do not write route JSON in your text replies.
-
-For EVERY endpoint you find, create:
+/** Route-authoring contract shared by the seeded and recon-first missions. */
+function routeAuthoringSection(graphQl: boolean): string {
+  return `For EVERY endpoint you find, create:
 1. A success route (\`"enabled": true\`) whose response body matches EXACTLY the real contract — for consumed APIs the shape the client code parses, for served APIs the shape the handlers actually return (serializers, DTOs, fixtures). Never guess field names when you can read the model or handler. Use realistic, domain-appropriate example data.
 2. Negative-flow routes (\`"enabled": false\`) for realistic failures: 400 validation error (for endpoints with request bodies), 401 unauthorized (when the code involves auth headers/tokens), 403 forbidden (for authenticated endpoints where a role or permission check could fail), 404 not found (for endpoints with path parameters), 429 rate limit (for the most important endpoints — include "Retry-After": "30" in the response headers), and 500 server error (for the most important endpoints). Shape the error bodies the way the code's error handling produces or expects them. Tag every negative route with "negative" plus its status, e.g. "tags": ["negative", "401"]. Also give them names like "GET /api/users/:id — 404 not found".
 3. For the 1-3 most critical endpoints, a slow-response simulation route (\`"enabled": false\`) that mirrors the success response (same status and body) but adds "delay": { "type": "fixed", "value": 10000 }, tagged ["negative", "timeout"], named like "GET /api/orders — slow response (10s)".
@@ -761,7 +865,94 @@ Rules:
 
 ## Route JSON shape (for the submit_routes input)
 
-${ROUTE_FORMAT_INSTRUCTIONS}
+${ROUTE_FORMAT_INSTRUCTIONS}`;
+}
+
+/**
+ * The recon-informed mission prompt: project inventory, one strategy section
+ * per API surface (consumes → mock what it calls; serves → read handlers and
+ * mock what it serves; spec files trump inference), multi-surface submission
+ * rules, and the shared route-authoring contract. `extraNote` (e.g. the
+ * language-unknown note) lands right under the recon inventory.
+ */
+export function buildMissionPrompt(
+  appName: string,
+  inventory: string,
+  surfaces: SurfaceSeed[],
+  graphQl: boolean,
+  extraNote?: string
+): string {
+  const multi = surfaces.length > 1;
+  const surfaceSections = surfaces.map(surfaceSection).join('\n\n');
+  const noteBlock = extraNote !== undefined && extraNote !== '' ? `\n\n${extraNote}` : '';
+  const multiBlock = multi
+    ? `\n\n## Multiple API surfaces
+This workspace has ${surfaces.length} distinct API surfaces (${surfaces
+        .map((s) => `"${s.name}"`)
+        .join(', ')}); each becomes its own mock server. Set "surface" on EVERY submitted route to exactly one of those names, and include a top-level "surfaceNames" array listing every name you used. Submit ALL surfaces' routes in the ONE submit_routes call.`
+    : '';
+
+  return `You are an expert API reverse-engineer exploring the workspace "${appName}" through read-only tools (list_files / read_file / search_code). A deterministic recon pass already profiled the projects in it and pre-scored the most likely API-related files.
+
+## Recon
+${inventory}${noteBlock}
+
+Narrate milestones as you work by calling report_progress with a short one-line note (e.g. {"note": "Detected Spring backend, reading UserController…"}).
+
+## API surfaces (${surfaces.length})
+
+${surfaceSections}${multiBlock}
+
+When you have the full picture, call submit_routes EXACTLY ONCE with every route${multi ? ' across ALL surfaces' : ''}. If the result lists validation problems, fix them and call submit_routes again with the complete corrected set. Do not write route JSON in your text replies.
+
+${routeAuthoringSection(graphQl)}
+
+(The routes go into the submit_routes tool input as {"routes": [...]}${multi ? ' with a "surface" name on each route and a top-level "surfaceNames" array' : ''} — never into your text reply.)`;
+}
+
+/**
+ * The recon-first mission prompt for workspaces where the deterministic scan
+ * found nothing (or only weak hits): hands the agent a workspace census and
+ * asks it to work out what the project is and where its API surface lives —
+ * and explicitly allows a justified zero-route submission, so the scan never
+ * dead-ends in an unexplained "nothing found".
+ */
+export function buildReconFirstPrompt(
+  appName: string,
+  inventory: string,
+  censusText: string,
+  weakSeedSection: string,
+  graphQl: boolean,
+  surfaceNames: string[] = []
+): string {
+  const multi = surfaceNames.length > 1;
+  const weakBlock = weakSeedSection
+    ? `\n\n## Weak candidate files\nThe deterministic scan found only weak, low-confidence signals in these files — verify them with read_file before trusting them:\n${weakSeedSection}`
+    : '';
+  const multiBlock = multi
+    ? `\n\n## Multiple API surfaces\nRecon detected ${surfaceNames.length} projects (${surfaceNames
+        .map((name) => `"${name}"`)
+        .join(
+          ', '
+        )}); each becomes its own mock server. Set "surface" on EVERY submitted route to exactly one of those names, and include a top-level "surfaceNames" array listing every name you used.`
+    : '';
+
+  return `You are an expert API reverse-engineer exploring the workspace "${appName}" through read-only tools (list_files / read_file / search_code).
+
+No known API patterns were detected in this workspace by the deterministic scan. Here is a census of the workspace. Explore with your tools to determine (a) what kind of project this is, and (b) where its API surface lives — the HTTP calls it makes or the routes it serves — then mock that API surface. Source files may be in ANY language; judge them by the literal URL paths, HTTP verbs, and payload shapes they contain, not by framework names.
+
+## Recon
+${inventory}
+
+${censusText}${weakBlock}${multiBlock}
+
+Narrate milestones as you work by calling report_progress with a short one-line note (e.g. {"note": "This looks like a Lua service, reading src/http.lua…"}).
+
+When you have the full picture, call submit_routes EXACTLY ONCE with every route you found. If the result lists validation problems, fix them and call submit_routes again with the complete corrected set. Do not write route JSON in your text replies.
+
+If after exploring you conclude there is genuinely no HTTP API surface in this workspace, call submit_routes with {"routes": []} and then reply with one short paragraph explaining why — it will be shown to the user.
+
+${routeAuthoringSection(graphQl)}
 
 (The routes go into the submit_routes tool input as {"routes": [...]}${multi ? ' with a "surface" name on each route and a top-level "surfaceNames" array' : ''} — never into your text reply.)`;
 }
@@ -783,6 +974,13 @@ export class AgenticScanner {
   async generate(options?: {
     token?: vscode.CancellationToken;
     onProgress?: (progress: CodebaseScanProgress) => void;
+    /**
+     * Pre-computed recon (from the ScanOrchestrator) — skips the profiling
+     * and seed-scan steps so shared recon is never recomputed. A recon with
+     * zero or only weak seed files is fine: the recon-first census mission
+     * covers it, exactly as it does for the self-computed path.
+     */
+    recon?: WorkspaceRecon;
   }): Promise<AgenticScanSummary> {
     // Lazy so the pure exports above stay importable outside the extension host.
     // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -803,67 +1001,116 @@ export class AgenticScanner {
       throw new Error('Open a workspace folder to scan for API calls.');
     }
 
-    // 1. Recon: profile the projects (best-effort), then the directional
-    //    seed scan — identical file heuristics to the fast path.
-    report('Profiling workspace projects…', 0.02);
+    // 1. Recon: shared from the ScanOrchestrator when provided (never
+    //    recomputed); otherwise profile the projects (best-effort), then run
+    //    the inclusive seed scan.
     let profiles: ProjectProfile[] = [];
-    try {
-      profiles = await profileWorkspace(root);
-    } catch {
-      // Recon is advisory — a plain single-surface scan still works.
-    }
-
-    report('Scanning workspace for API usage…', 0.04);
-    const uris = await vs.workspace.findFiles(API_FILE_GLOB, SCAN_EXCLUDE_GLOB, MAX_FILES_TO_READ);
-
-    const scored: DirectionalScoredFile[] = [];
+    let scored: DirectionalScoredFile[] = [];
     let scanned = 0;
-    for (const uri of uris) {
-      if (options?.token?.isCancellationRequested) {
-        throw new vs.CancellationError();
-      }
-      scanned++;
-      if (scanned % 100 === 0) {
-        report(
-          `Scanning workspace for API usage… (${scanned}/${uris.length} files)`,
-          0.04 + 0.09 * (scanned / uris.length)
-        );
-      }
+    if (options?.recon) {
+      profiles = options.recon.profiles;
+      scored = options.recon.files;
+      scanned = options.recon.scannedFileCount;
+    } else {
+      report('Profiling workspace projects…', 0.02);
       try {
-        const stat = await vs.workspace.fs.stat(uri);
-        if (stat.size > MAX_FILE_BYTES) {
-          continue;
-        }
-        const content = Buffer.from(await vs.workspace.fs.readFile(uri)).toString('utf-8');
-        const relativePath = vs.workspace.asRelativePath(uri);
-        const { clientScore, serverScore } = scoreApiContentDirectional(content, relativePath);
-        const score = Math.max(clientScore, serverScore);
-        if (score >= MIN_SCORE) {
-          scored.push({
-            path: relativePath,
-            score,
-            clientScore,
-            serverScore,
-            snippet: extractApiSnippets(content),
-          });
-        }
+        profiles = await profileWorkspace(root);
       } catch {
-        // Unreadable file — skip
+        // Recon is advisory — a plain single-surface scan still works.
+      }
+
+      report('Scanning workspace for API usage…', 0.04);
+      // Inclusive discovery: every text file is a candidate (path blocklist +
+      // binary sniff) instead of the legacy extension whitelist, sampled
+      // breadth-fairly under the same read budget the whitelist scan used.
+      // Two-pass enumeration keeps known source extensions in the pool even
+      // when assets/fixtures outnumber the findFiles cap.
+      const uris = await enumerateScanCandidates(MAX_FILES_TO_ENUMERATE);
+      const uriByPath = new Map<string, vscode.Uri>();
+      for (const uri of uris) {
+        const relativePath = vs.workspace.asRelativePath(uri);
+        if (shouldScanPath(relativePath)) {
+          uriByPath.set(relativePath, uri);
+        }
+      }
+      const candidates = pickScanCandidates([...uriByPath.keys()], MAX_FILES_TO_READ);
+
+      for (const relativePath of candidates) {
+        if (options?.token?.isCancellationRequested) {
+          throw new vs.CancellationError();
+        }
+        scanned++;
+        if (scanned % 100 === 0) {
+          report(
+            `Scanning workspace for API usage… (${scanned}/${candidates.length} files)`,
+            0.04 + 0.09 * (scanned / candidates.length)
+          );
+        }
+        try {
+          const uri = uriByPath.get(relativePath) as vscode.Uri;
+          const stat = await vs.workspace.fs.stat(uri);
+          if (stat.size > MAX_FILE_BYTES) {
+            continue;
+          }
+          const data = await vs.workspace.fs.readFile(uri);
+          if (!isProbablyTextFile(data.subarray(0, TEXT_SNIFF_BYTES))) {
+            continue;
+          }
+          const content = Buffer.from(data).toString('utf-8');
+          const { clientScore, serverScore, universalScore, universalDirection } =
+            scoreFileUniversal(content, relativePath);
+          const score = Math.max(clientScore, serverScore, universalScore);
+          if (score >= MIN_SCORE) {
+            // Marker-based snippets first; for unknown languages fall back to
+            // the universal signals themselves as the teaser.
+            const snippet =
+              extractApiSnippets(content) || universalSeedSnippet(detectUniversalSignals(content));
+            scored.push({
+              path: relativePath,
+              score,
+              clientScore,
+              serverScore,
+              universalScore,
+              universalDirection,
+              snippet,
+            });
+          }
+        } catch {
+          // Unreadable file — skip
+        }
       }
     }
 
-    if (scored.length === 0) {
-      throw new Error(
-        'No API calls were found in this workspace. Mocklify looked for fetch/axios/Retrofit/URLSession/Dio/HttpClient calls and server route declarations in source files.'
-      );
-    }
-
-    // 2. Mission prompt from the recon inventory + per-surface seeds
-    report(`Preparing the exploration agent (${provider.label})…`, 0.16);
-    const appName = vs.workspace.workspaceFolders?.[0]?.name ?? 'App';
+    // 2. Mission prompt. Seeds with real confidence run today's seeded
+    //    mission; an empty or all-low-confidence seed set runs the
+    //    recon-first census mission instead of erroring out.
+    const appName = options?.recon?.appName ?? vs.workspace.workspaceFolders?.[0]?.name ?? 'App';
     const graphQl = scored.some((file) => hasGraphQlMarkers(file.snippet));
     const surfaces = buildSurfaceSeeds(profiles, scored, appName);
-    const prompt = buildMissionPrompt(appName, describeProfiles(profiles), surfaces, graphQl);
+    const reconFirst = selectMissionVariant(scored) === 'recon-first';
+
+    let prompt: string;
+    if (reconFirst) {
+      report('No strong API signals found — taking a workspace census…', 0.14);
+      const census = await censusWorkspace(root);
+      prompt = buildReconFirstPrompt(
+        appName,
+        describeProfiles(profiles),
+        describeCensus(census),
+        scored.length > 0 ? formatSeedSection(scored) : '',
+        graphQl,
+        surfaces.map((surface) => surface.name)
+      );
+    } else {
+      prompt = buildMissionPrompt(
+        appName,
+        describeProfiles(profiles),
+        surfaces,
+        graphQl,
+        languageUnknownNote(scored)
+      );
+    }
+    report(`Preparing the exploration agent (${provider.label})…`, 0.16);
 
     const projectCount = Math.max(1, profiles.length);
     const maxToolCalls = scaleMaxToolCalls(projectCount);
@@ -889,10 +1136,12 @@ export class AgenticScanner {
 
     const execute: AiToolExecutor = async (call) => {
       if (call.name === SUBMIT_ROUTES_TOOL.name) {
-        const result = handleSubmitRoutes(state, call.input);
-        if (state.done) {
+        const result = handleSubmitRoutes(state, call.input, { allowEmpty: reconFirst });
+        if (state.done && !state.noApiSurface) {
           loopCancel.cancel(); // accepted — end the loop after this batch
         }
+        // A no-API-surface conclusion keeps the loop alive for one more turn
+        // so the model can reply with the user-facing reason.
         return result;
       }
       if (call.name === REPORT_PROGRESS_TOOL.name) {
@@ -957,7 +1206,7 @@ export class AgenticScanner {
     let routes = state.done ? state.routes : state.salvage;
     let droppedCount = state.done ? state.droppedCount : state.prevRejectedCount;
     const repairedCount = state.done ? state.repairedCount : 0;
-    if (routes.length === 0 && finalText) {
+    if (routes.length === 0 && finalText && !state.noApiSurface) {
       try {
         routes = MockGenerator.verifyRoutes(
           dedupeRoutes(MockGenerator.validateRoutes(extractJson(finalText)))
@@ -968,7 +1217,26 @@ export class AgenticScanner {
       }
     }
 
+    const specFiles = [...new Set(surfaces.flatMap((s) => s.specFiles))];
+
     if (routes.length === 0) {
+      if (state.noApiSurface) {
+        // The agent explored and deliberately concluded there is nothing to
+        // mock — a clear user-facing answer, not an exception.
+        return {
+          scannedFileCount: scanned,
+          matchedFileCount: scored.length,
+          chunkCount: 1,
+          routes: [],
+          positiveCount: 0,
+          negativeCount: 0,
+          repairedCount: 0,
+          droppedCount: 0,
+          surfaces: [],
+          specFiles,
+          noApiSurfaceReason: noApiSurfaceReason(finalText),
+        };
+      }
       throw new Error(
         Date.now() >= deadline
           ? `The agentic scan hit its ${Math.round(budgetMs / 60_000)}-minute budget before any valid routes were submitted. Try again, or switch mocklify.ai.scanMode to "fast".`
@@ -988,7 +1256,6 @@ export class AgenticScanner {
     }
 
     const negativeCount = routes.filter((r) => r.tags?.includes('negative')).length;
-    const specFiles = [...new Set(surfaces.flatMap((s) => s.specFiles))];
 
     return {
       scannedFileCount: scanned,

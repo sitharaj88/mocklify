@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buildCensusChunkPrompt,
   buildChunkPrompt,
   buildRouteSurfaces,
   chunkModeForProject,
   directionalChunkScore,
+  formatCensusHeads,
+  pickCensusHeads,
   planProjectChunks,
   routeProjectKey,
+  CENSUS_HEAD_CHARS,
+  CENSUS_MAX_HEADS,
   DirectionalScoredFile,
   ProjectChunkGroup,
 } from '../src/ai/CodebaseMockGenerator';
@@ -51,6 +56,26 @@ describe('directionalChunkScore', () => {
     const b = directionalChunkScore({ clientScore: 100, serverScore: 20 }, 'serves');
     expect(a).toBeGreaterThan(b);
   });
+
+  it('keeps the universal ranking for universal-only files instead of collapsing to 0', () => {
+    expect(
+      directionalChunkScore(
+        { clientScore: 0, serverScore: 0, universalScore: 27, universalDirection: 'consumes' },
+        undefined
+      )
+    ).toBe(27);
+    // A serves-shaped universal-only file earns the serves boost too.
+    const boosted = directionalChunkScore(
+      { clientScore: 0, serverScore: 0, universalScore: 15, universalDirection: 'serves' },
+      'serves'
+    );
+    const clientOnly = directionalChunkScore({ clientScore: 900, serverScore: 0 }, 'serves');
+    expect(boosted).toBeGreaterThan(clientOnly);
+    // Marker scores still win when present.
+    expect(
+      directionalChunkScore({ clientScore: 12, serverScore: 0, universalScore: 40 }, undefined)
+    ).toBe(12);
+  });
 });
 
 describe('chunkModeForProject', () => {
@@ -65,6 +90,22 @@ describe('chunkModeForProject', () => {
     expect(chunkModeForProject('both', { clientScore: 25, serverScore: 25 })).toBe('client');
     expect(chunkModeForProject(undefined, { clientScore: 5, serverScore: 50 })).toBe('server');
     expect(chunkModeForProject(undefined, { clientScore: 0, serverScore: 0 })).toBe('client');
+  });
+
+  it('breaks marker-score ties with the universal lean (unknown-language route tables)', () => {
+    expect(chunkModeForProject(undefined, { clientScore: 0, serverScore: 0 }, 'serves')).toBe(
+      'server'
+    );
+    expect(chunkModeForProject(undefined, { clientScore: 0, serverScore: 0 }, 'consumes')).toBe(
+      'client'
+    );
+    // The lean never overrides real marker or profile signals.
+    expect(chunkModeForProject(undefined, { clientScore: 40, serverScore: 10 }, 'serves')).toBe(
+      'client'
+    );
+    expect(chunkModeForProject('consumes', { clientScore: 0, serverScore: 0 }, 'serves')).toBe(
+      'client'
+    );
   });
 });
 
@@ -209,6 +250,27 @@ describe('planProjectChunks', () => {
     const { chunks, groups } = planProjectChunks([], profiles);
     expect(chunks).toEqual([]);
     expect(groups).toHaveLength(1);
+  });
+
+  it('prompts a universal-only serves-shaped group as a server (unknown-language route table)', () => {
+    const routeTable: DirectionalScoredFile = {
+      path: 'src/routes.sin',
+      score: 22,
+      snippet: 'get "/users" do',
+      clientScore: 0,
+      serverScore: 0,
+      universalScore: 22,
+      universalDirection: 'serves',
+    };
+    const noProfiles = planProjectChunks([routeTable], []);
+    expect(noProfiles.chunks[0]?.mode).toBe('server');
+    expect(noProfiles.groups[0]?.direction).toBe('serves');
+
+    const bothProfile = planProjectChunks(
+      [routeTable],
+      [{ rootPath: '', kind: 'unknown', direction: 'both', frameworks: [] }]
+    );
+    expect(bothProfile.chunks[0]?.mode).toBe('server');
   });
 });
 
@@ -403,5 +465,91 @@ describe('buildChunkPrompt', () => {
     expect(client).toContain('These snippets use a GraphQL client.');
     const server = buildChunkPrompt({ ...base, chunk: gqlChunk, mode: 'server' });
     expect(server).toContain('These snippets define a GraphQL API.');
+  });
+});
+
+describe('pickCensusHeads', () => {
+  const apiLua = [
+    'local url = "https://api.shop.example/v1"',
+    'http.request("GET", "/api/products/{id}")',
+    'http.request("POST", "/api/orders")',
+    'headers["Authorization"] = "Bearer " .. token',
+  ].join('\n');
+  const prose = 'This project bakes bread. It has no networking whatsoever, just flour and water.';
+
+  it('ranks API-looking content above prose and truncates long heads', () => {
+    const heads = pickCensusHeads([
+      { path: 'README.txt', content: prose },
+      { path: 'src/http.lua', content: apiLua },
+    ]);
+    expect(heads[0].path).toBe('src/http.lua');
+    expect(heads[1].path).toBe('README.txt');
+
+    const long = pickCensusHeads([{ path: 'big.lua', content: 'x'.repeat(CENSUS_HEAD_CHARS + 50) }]);
+    expect(long[0].head).toHaveLength(CENSUS_HEAD_CHARS + 1); // + ellipsis
+    expect(long[0].head.endsWith('…')).toBe(true);
+  });
+
+  it('caps the number of heads and breaks score ties deterministically by path', () => {
+    const files = Array.from({ length: CENSUS_MAX_HEADS + 5 }, (_, i) => ({
+      path: `file-${String(i).padStart(2, '0')}.txt`,
+      content: prose,
+    })).reverse(); // input order must not matter
+    const heads = pickCensusHeads(files);
+    expect(heads).toHaveLength(CENSUS_MAX_HEADS);
+    expect(heads.map((h) => h.path)).toEqual([...heads.map((h) => h.path)].sort());
+    expect(heads[0].path).toBe('file-00.txt');
+  });
+
+  it('keeps zero-scoring files — any head beats none in a seedless workspace', () => {
+    const heads = pickCensusHeads([{ path: 'notes.txt', content: prose }]);
+    expect(heads).toHaveLength(1);
+  });
+});
+
+describe('formatCensusHeads', () => {
+  it('returns an empty string for no heads', () => {
+    expect(formatCensusHeads([])).toBe('');
+  });
+
+  it('formats each head under a File header', () => {
+    const section = formatCensusHeads([
+      { path: 'src/a.lua', head: 'local x = 1' },
+      { path: 'src/b.lua', head: 'local y = 2' },
+    ]);
+    expect(section).toContain('### Most promising file heads');
+    expect(section).toContain('#### File: src/a.lua\nlocal x = 1');
+    expect(section).toContain('#### File: src/b.lua\nlocal y = 2');
+  });
+});
+
+describe('buildCensusChunkPrompt', () => {
+  const censusSection = '## Workspace census (3 files)\n### Directory tree (top 3 levels)\n. (3 files)';
+
+  it('frames the zero-seed census scan and embeds the census section verbatim', () => {
+    const prompt = buildCensusChunkPrompt({ appName: 'Shop', censusSection });
+    expect(prompt).toContain('NO known API client/server patterns in the workspace "Shop"');
+    expect(prompt).toContain(censusSection);
+    expect(prompt).toContain(ROUTE_FORMAT_INSTRUCTIONS);
+    expect(prompt).toContain('Return a JSON array of route objects.');
+    expect(prompt).not.toContain('## Workspace profile');
+  });
+
+  it('is direction-neutral and allows an honest empty result', () => {
+    const prompt = buildCensusChunkPrompt({ appName: 'Shop', censusSection });
+    expect(prompt).toContain('calls or serves');
+    expect(prompt).toContain('return an empty JSON array []');
+    // Shared negative-flow contract survives in census mode
+    expect(prompt).toContain('"tags": ["negative", "401"]');
+    expect(prompt).toContain('"delay": { "type": "fixed", "value": 10000 }');
+  });
+
+  it('includes the workspace profile section when a summary is provided', () => {
+    const prompt = buildCensusChunkPrompt({
+      appName: 'Shop',
+      censusSection,
+      profileSummary: 'Detected: library at workspace root',
+    });
+    expect(prompt).toContain('## Workspace profile\nDetected: library at workspace root');
   });
 });

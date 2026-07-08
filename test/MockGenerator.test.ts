@@ -57,6 +57,23 @@ describe('MockGenerator.validateRoutes', () => {
     );
   });
 
+  it('distinguishes a genuinely empty answer from invalid routes in the error message', () => {
+    // The census-chunk flow relies on this contract: only a true empty array
+    // reads as "no API usage found"; invalid routes stay real, retryable errors.
+    expect(() => MockGenerator.validateRoutes([])).toThrow(/empty result/);
+    expect(() => MockGenerator.validateRoutes({ routes: [] })).toThrow(/empty result/);
+    let message = '';
+    try {
+      MockGenerator.validateRoutes([
+        { ...validRoute, response: { ...validRoute.response, statusCode: '200' } },
+      ]);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('did not match the expected format');
+    expect(message).not.toContain('empty result');
+  });
+
   it('defaults enabled to true when the model omits it', () => {
     const { enabled: _omitted, ...withoutEnabled } = validRoute;
     const routes = MockGenerator.validateRoutes([withoutEnabled]);

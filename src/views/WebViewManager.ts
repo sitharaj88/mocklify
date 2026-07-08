@@ -9,14 +9,10 @@ import {
   buildOpenApiYaml,
   buildPostmanCollection,
 } from '../services/CollectionExportService.js';
-import { AiUnavailableError, AiProviderId, AgenticScanUnavailableError } from '../ai/providers/types.js';
+import { AiUnavailableError, AiProviderId } from '../ai/providers/types.js';
 import { MODEL_CATALOG, ModelProviderId } from '../ai/modelCatalog.js';
-import {
-  CodebaseMockGenerator,
-  CodebaseScanProgress,
-  CodebaseScanSummary,
-} from '../ai/CodebaseMockGenerator.js';
-import { AgenticScanner } from '../ai/AgenticScanner.js';
+import { CENSUS_NO_ROUTES_MESSAGE, CodebaseScanProgress } from '../ai/CodebaseMockGenerator.js';
+import { ScanOrchestrator } from '../ai/ScanOrchestrator.js';
 import { offerSpecImport, importWorkspaceSpec } from '../ai/AiCommands.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
@@ -662,8 +658,9 @@ export class WebViewManager {
 
   /**
    * Dashboard-driven codebase scan with live progress: streams scan/analyze
-   * progress into the AI panel (message + fraction), honors the scanMode
-   * setting with agentic → fast fallback, and creates the server directly
+   * progress into the AI panel (message + fraction), delegates strategy
+   * selection to the ScanOrchestrator (spec > agentic > fast > census per
+   * surface, honoring the scanMode setting), and creates the server directly
    * (the panel's result card replaces the command flow's modal confirm).
    */
   private async aiGenerateFromCodebase(data?: { autoStart?: boolean }): Promise<void> {
@@ -697,33 +694,11 @@ export class WebViewManager {
         });
       };
 
-      const scanMode = vscode.workspace
-        .getConfiguration('mocklify')
-        .get<'fast' | 'agentic'>('ai.scanMode', 'fast');
-
-      let summary: CodebaseScanSummary;
-      if (scanMode === 'agentic') {
-        try {
-          summary = await new AgenticScanner(this.aiService).generate({ token, onProgress });
-        } catch (error) {
-          const unavailable =
-            error instanceof AgenticScanUnavailableError ||
-            (error instanceof Error && error.name === 'AgenticScanUnavailableError');
-          if (!unavailable) {
-            throw error;
-          }
-          onProgress({
-            message: `${provider ?? 'The provider'} does not support agentic scanning — using fast scan.`,
-            fraction: 0.02,
-          });
-          summary = await new CodebaseMockGenerator(this.aiService).generate({
-            token,
-            onProgress,
-          });
-        }
-      } else {
-        summary = await new CodebaseMockGenerator(this.aiService).generate({ token, onProgress });
-      }
+      // The orchestrator runs recon once, picks the best strategy per API
+      // surface (spec > agentic > fast > census, honoring the scanMode
+      // setting), and falls back to the fast scan itself when the provider
+      // cannot run the agentic loop.
+      const summary = await new ScanOrchestrator(this.aiService).generate({ token, onProgress });
       if (token.isCancellationRequested) {
         this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
         return;
@@ -741,6 +716,17 @@ export class WebViewManager {
             return;
           }
         }
+      }
+
+      // Zero-route agentic completion: the agent explored the workspace and
+      // concluded there is nothing to mock — informational, never an error.
+      if (summary.noApiSurfaceReason) {
+        this.panel?.webview.postMessage({
+          type: 'aiStatus',
+          status: 'done',
+          message: `Mocklify explored the workspace and found no API surface to mock: ${summary.noApiSurfaceReason}`,
+        });
+        return;
       }
 
       const servers = await this.manager.getServers();
@@ -793,6 +779,11 @@ export class WebViewManager {
               .map(({ server }) => `"${server.name}" on port ${server.port}`)
               .join(', ')}). `
           : '';
+      const strategyNote = summary.strategies?.length
+        ? `Scan strategy: ${summary.strategies
+            .map((entry) => `${entry.surface} → ${entry.strategy}`)
+            .join(', ')}. `
+        : '';
       this.panel?.webview.postMessage({
         type: 'aiStatus',
         status: 'done',
@@ -806,11 +797,17 @@ export class WebViewManager {
           port: server.port,
           routeCount,
         })),
-        message: `${surfaceNote}${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
+        message: `${surfaceNote}${strategyNote}${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
       });
     } catch (error) {
       if (error instanceof vscode.CancellationError || token.isCancellationRequested) {
         this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
+        return;
+      }
+      // Even the census scan found nothing to mock — an informational
+      // outcome (empty workspace), not an error card.
+      if (error instanceof Error && error.message === CENSUS_NO_ROUTES_MESSAGE) {
+        this.panel?.webview.postMessage({ type: 'aiStatus', status: 'done', message: error.message });
         return;
       }
       this.sendAiStatus('error', this.describeAiError(error));
