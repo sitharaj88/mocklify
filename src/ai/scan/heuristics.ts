@@ -8,7 +8,7 @@ import type { RouteConfig } from '../../types/core.js';
 
 /** Source extensions worth scanning for API calls. */
 export const API_FILE_GLOB =
-  '**/*.{kt,java,swift,m,mm,ts,tsx,js,jsx,dart,vue,svelte,py,cs,go,rb,php}';
+  '**/*.{kt,java,swift,m,mm,ts,tsx,js,jsx,dart,vue,svelte,py,cs,go,rb,php,ex,exs,rs,scala}';
 
 /** Directories and files that never contain the app's own API calls. */
 export const SCAN_EXCLUDE_GLOB =
@@ -91,10 +91,23 @@ export const SERVER_MARKERS: RegExp[] = [
   /\[Http(?:Get|Post|Put|Patch|Delete|Head|Options)\b/,
   /\[ApiController\]/,
   /\bMap(?:Get|Post|Put|Patch|Delete|Methods)\s*\(\s*"/,
+  // Rust: actix-web attribute macros, axum/warp/Rocket routing
+  /#\[(?:get|post|put|patch|delete)\s*\(\s*"\//,
+  /\bRouter::new\s*\(\)|\.route\s*\(\s*"\/[^"]*"\s*,\s*(?:get|post|put|patch|delete)\s*\(/,
+  /\bwarp::path\b|\brocket::routes!/,
+  // Scala: Play routes DSL and Akka/Pekko HTTP directives
+  /\b(?:GET|POST|PUT|PATCH|DELETE)\s+\/\S*\s+controllers\./,
+  /\bpathPrefix\s*\(\s*"|\bcomplete\s*\(\s*StatusCodes\./,
 ];
 
 /** Client-call signals missing from STRONG_MARKERS (newer ecosystems). */
 export const CLIENT_MARKERS_EXTRA: RegExp[] = [
+  // Rust HTTP clients
+  /\breqwest::(?:Client|get)\b|\bClient::new\s*\(\)\s*\.\s*(?:get|post|put|patch|delete)\b/,
+  // Elixir HTTP clients
+  /\bHTTPoison\.(?:get|post|put|patch|delete)\b|\bTesla\.(?:get|post|put|patch|delete)\b|\bReq\.(?:get|post|put|patch|delete)!?\b|\bFinch\.build\b/,
+  // Scala sttp / Play WS
+  /\bbasicRequest\b|\bws\.url\s*\(/,
   // Ktor HttpClient (KMM/KMP shared modules); also .NET HttpClient ctor
   /\bHttpClient\s*\(/,
   /\bio\.ktor\.client\b/,

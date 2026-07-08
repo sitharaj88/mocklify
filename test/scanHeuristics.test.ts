@@ -9,7 +9,8 @@ import {
   extractTypeDefinitions,
   SERVER_MARKERS,
   CLIENT_MARKERS_EXTRA,
-  SPEC_FILE_GLOB,
+  SPEC_FILE_GLOB,,
+  API_FILE_GLOB,
 } from '../src/ai/scan/heuristics';
 import type { RouteConfig } from '../src/types/core';
 
@@ -693,5 +694,47 @@ describe('dedupeRoutes', () => {
   it('distinguishes different methods on the same path', () => {
     const result = dedupeRoutes([route('GET', '/api/users', 200), route('POST', '/api/users', 200)]);
     expect(result).toHaveLength(2);
+  });
+});
+
+describe('rust / elixir / scala ecosystems', () => {
+  it('scores actix-web attribute routes as server', () => {
+    const code = '#[get("/api/users")]\nasync fn users() -> impl Responder { HttpResponse::Ok() }';
+    const { serverScore } = scoreApiContentDirectional(code, 'src/handlers.rs');
+    expect(serverScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('scores axum Router.route as server', () => {
+    const code = 'let app = Router::new().route("/api/items", get(list_items));';
+    const { serverScore } = scoreApiContentDirectional(code, 'src/main.rs');
+    expect(serverScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('scores reqwest client calls as client', () => {
+    const code = 'let resp = reqwest::Client::new().get("https://api.example.com/users").send().await?;';
+    const { clientScore } = scoreApiContentDirectional(code, 'src/api.rs');
+    expect(clientScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('scores Phoenix router scope as server in .ex files', () => {
+    const code = 'scope "/api", MyAppWeb do\n  pipe_through :api\n  get "/users", UserController, :index\nend';
+    const { serverScore } = scoreApiContentDirectional(code, 'lib/my_app_web/router.ex');
+    expect(serverScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('scores HTTPoison/Tesla calls as client', () => {
+    const code = '{:ok, resp} = HTTPoison.get("https://api.example.com/users", headers)';
+    const { clientScore } = scoreApiContentDirectional(code, 'lib/client.ex');
+    expect(clientScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('scores Play routes DSL as server', () => {
+    const code = 'GET /api/users controllers.UserController.list()';
+    const { serverScore } = scoreApiContentDirectional(code, 'conf/routes.scala');
+    expect(serverScore).toBeGreaterThanOrEqual(10);
+  });
+
+  it('includes ex/rs/scala in API_FILE_GLOB', () => {
+    expect(API_FILE_GLOB).toContain('ex,exs,rs,scala');
   });
 });
