@@ -188,7 +188,7 @@ export class AiService {
           throw new Error(
             `${provider.label} stopped responding (no data for ${Math.round(timeoutMs / 1000)}s). ` +
               (provider.id === 'copilot'
-                ? 'Check that GitHub Copilot is signed in and reachable, then try again.'
+                ? 'If VS Code is showing a Copilot consent dialog, approve it and retry. Otherwise check that GitHub Copilot is signed in and reachable.'
                 : `If you use a custom endpoint, verify the mocklify.ai.${provider.id}BaseUrl setting points at a reachable ${provider.label} compatible gateway; otherwise try again or switch providers.`)
           );
         }

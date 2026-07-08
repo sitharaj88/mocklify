@@ -180,7 +180,7 @@ export function RouteList() {
                       </Badge>
                       <Badge variant="default">{route.response.type}</Badge>
                     </div>
-                    <code className="block text-xs font-mono text-surface-200 break-all">
+                    <code className="block w-fit max-w-full text-xs font-mono break-all rounded px-1.5 py-0.5 bg-surface-950 text-surface-100 border border-surface-700/60">
                       {route.path}
                     </code>
                     {route.name && route.name !== route.path && (
@@ -261,7 +261,7 @@ export function RouteList() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs font-mono text-surface-300">
+                        <code className="text-xs font-mono rounded px-1.5 py-0.5 bg-surface-950 text-surface-100 border border-surface-700/60">
                           {route.path}
                         </code>
                       </TableCell>

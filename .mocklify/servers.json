@@ -1,4 +1,1223 @@
 {
   "version": "1.0",
-  "servers": []
+  "servers": [
+    {
+      "id": "b7d22ecd-868b-4519-b606-6229deb1dec8",
+      "name": "E-commerce API",
+      "port": 3000,
+      "protocol": "http",
+      "enabled": true,
+      "routes": [
+        {
+          "id": "462b81eb-9bd5-4019-9411-f76549641bbe",
+          "name": "List all products",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "products": [
+                  {
+                    "id": "prod_1",
+                    "name": "Wireless Bluetooth Headphones",
+                    "description": "Premium noise-cancelling over-ear headphones with 30-hour battery life",
+                    "price": 199.99,
+                    "currency": "USD",
+                    "category": "Electronics",
+                    "inventory": 45,
+                    "images": [
+                      "https://example.com/images/headphones-1.jpg"
+                    ],
+                    "rating": 4.5,
+                    "reviews": 128
+                  },
+                  {
+                    "id": "prod_2",
+                    "name": "Organic Cotton T-Shirt",
+                    "description": "Comfortable and sustainable crew neck t-shirt",
+                    "price": 29.99,
+                    "currency": "USD",
+                    "category": "Clothing",
+                    "inventory": 200,
+                    "images": [
+                      "https://example.com/images/tshirt-1.jpg"
+                    ],
+                    "rating": 4.2,
+                    "reviews": 89
+                  },
+                  {
+                    "id": "prod_3",
+                    "name": "Stainless Steel Water Bottle",
+                    "description": "Insulated 32oz water bottle keeps drinks cold for 24 hours",
+                    "price": 34.99,
+                    "currency": "USD",
+                    "category": "Home & Kitchen",
+                    "inventory": 156,
+                    "images": [
+                      "https://example.com/images/bottle-1.jpg"
+                    ],
+                    "rating": 4.8,
+                    "reviews": 312
+                  }
+                ],
+                "total": 3,
+                "page": 1,
+                "limit": 20
+              }
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "468c36fe-dd11-4b41-97b8-67ec952df816",
+          "name": "Get product by ID",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "prod_1",
+                "name": "Wireless Bluetooth Headphones",
+                "description": "Premium noise-cancelling over-ear headphones with 30-hour battery life",
+                "price": 199.99,
+                "currency": "USD",
+                "category": "Electronics",
+                "inventory": 45,
+                "images": [
+                  "https://example.com/images/headphones-1.jpg",
+                  "https://example.com/images/headphones-2.jpg"
+                ],
+                "rating": 4.5,
+                "reviews": 128,
+                "specifications": {
+                  "brand": "AudioTech",
+                  "connectivity": "Bluetooth 5.0",
+                  "batteryLife": "30 hours",
+                  "weight": "250g"
+                }
+              }
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "43728eaf-4cdc-4423-9ed3-3b06359727a1",
+          "name": "Create new product",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/products",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"name\":\"{{request.body.name}}\",\"description\":\"{{request.body.description}}\",\"price\":{{request.body.price}},\"currency\":\"USD\",\"category\":\"{{request.body.category}}\",\"inventory\":{{request.body.inventory}},\"images\":[],\"rating\":0,\"reviews\":0,\"createdAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "239fe2f6-092e-42f4-88b6-4f6ca441da2c",
+          "name": "Update product",
+          "enabled": true,
+          "method": "PUT",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "prod_1",
+                "name": "Wireless Bluetooth Headphones Pro",
+                "description": "Premium noise-cancelling over-ear headphones with 30-hour battery life",
+                "price": 229.99,
+                "currency": "USD",
+                "category": "Electronics",
+                "inventory": 45,
+                "images": [
+                  "https://example.com/images/headphones-1.jpg"
+                ],
+                "rating": 4.5,
+                "reviews": 128,
+                "updatedAt": "2024-01-15T10:30:00Z"
+              }
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "3e41370b-8df2-4b75-a53b-020afe080c50",
+          "name": "Delete product",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "75f7050e-5df5-46fd-bb69-05dce7ee9277",
+          "name": "Product not found",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products/invalid_id",
+          "response": {
+            "type": "static",
+            "statusCode": 404,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Product not found",
+                "message": "No product exists with the provided ID",
+                "statusCode": 404
+              }
+            }
+          },
+          "tags": [
+            "products",
+            "errors"
+          ]
+        },
+        {
+          "id": "5e774fa2-fd4e-45a2-92df-e1ae731d5b0d",
+          "name": "Get current cart",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/cart",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "cart_abc123",
+                "userId": "user_456",
+                "items": [
+                  {
+                    "id": "item_1",
+                    "productId": "prod_1",
+                    "productName": "Wireless Bluetooth Headphones",
+                    "quantity": 1,
+                    "price": 199.99,
+                    "subtotal": 199.99,
+                    "image": "https://example.com/images/headphones-1.jpg"
+                  },
+                  {
+                    "id": "item_2",
+                    "productId": "prod_3",
+                    "productName": "Stainless Steel Water Bottle",
+                    "quantity": 2,
+                    "price": 34.99,
+                    "subtotal": 69.98,
+                    "image": "https://example.com/images/bottle-1.jpg"
+                  }
+                ],
+                "subtotal": 269.97,
+                "tax": 21.6,
+                "shipping": 0,
+                "total": 291.57,
+                "currency": "USD",
+                "updatedAt": "2024-01-15T09:45:00Z"
+              }
+            }
+          },
+          "tags": [
+            "cart"
+          ]
+        },
+        {
+          "id": "16f8d194-118f-496b-9b0a-1677f4a6f2c5",
+          "name": "Add item to cart",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/cart/items",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"productId\":\"{{request.body.productId}}\",\"productName\":\"Product Name\",\"quantity\":{{request.body.quantity}},\"price\":99.99,\"subtotal\":99.99,\"addedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "cart"
+          ]
+        },
+        {
+          "id": "53a675f8-0087-4812-bf38-2f65d1bfd141",
+          "name": "Update cart item quantity",
+          "enabled": true,
+          "method": "PATCH",
+          "path": "/api/cart/items/:itemId",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "item_1",
+                "productId": "prod_1",
+                "productName": "Wireless Bluetooth Headphones",
+                "quantity": 2,
+                "price": 199.99,
+                "subtotal": 399.98,
+                "updatedAt": "2024-01-15T10:15:00Z"
+              }
+            }
+          },
+          "tags": [
+            "cart"
+          ]
+        },
+        {
+          "id": "7f25df15-326c-4586-bcec-1bada2209d47",
+          "name": "Remove item from cart",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/cart/items/:itemId",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "cart"
+          ]
+        },
+        {
+          "id": "f480abdd-2ae1-42d9-aebd-9e0432e31c47",
+          "name": "Clear cart",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/cart",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "cart"
+          ]
+        },
+        {
+          "id": "1a6b7902-8354-4394-b07d-24453c2b7eda",
+          "name": "Invalid cart item",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/cart/items/validate",
+          "response": {
+            "type": "static",
+            "statusCode": 400,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Invalid cart item",
+                "message": "Product ID is required and quantity must be greater than 0",
+                "statusCode": 400,
+                "validationErrors": [
+                  {
+                    "field": "productId",
+                    "message": "Product ID is required"
+                  },
+                  {
+                    "field": "quantity",
+                    "message": "Quantity must be at least 1"
+                  }
+                ]
+              }
+            }
+          },
+          "tags": [
+            "cart",
+            "errors"
+          ]
+        },
+        {
+          "id": "a35afdee-cb77-4361-8d38-e4ff363352d2",
+          "name": "List all orders",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "orders": [
+                  {
+                    "id": "order_789xyz",
+                    "userId": "user_456",
+                    "status": "delivered",
+                    "items": [
+                      {
+                        "productId": "prod_2",
+                        "productName": "Organic Cotton T-Shirt",
+                        "quantity": 3,
+                        "price": 29.99,
+                        "subtotal": 89.97
+                      }
+                    ],
+                    "subtotal": 89.97,
+                    "tax": 7.2,
+                    "shipping": 5.99,
+                    "total": 103.16,
+                    "currency": "USD",
+                    "shippingAddress": {
+                      "street": "742 Evergreen Terrace",
+                      "city": "Springfield",
+                      "state": "IL",
+                      "postalCode": "62704",
+                      "country": "USA"
+                    },
+                    "createdAt": "2024-01-10T14:22:00Z",
+                    "deliveredAt": "2024-01-13T09:15:00Z"
+                  },
+                  {
+                    "id": "order_456def",
+                    "userId": "user_456",
+                    "status": "shipped",
+                    "items": [
+                      {
+                        "productId": "prod_1",
+                        "productName": "Wireless Bluetooth Headphones",
+                        "quantity": 1,
+                        "price": 199.99,
+                        "subtotal": 199.99
+                      }
+                    ],
+                    "subtotal": 199.99,
+                    "tax": 16,
+                    "shipping": 0,
+                    "total": 215.99,
+                    "currency": "USD",
+                    "shippingAddress": {
+                      "street": "742 Evergreen Terrace",
+                      "city": "Springfield",
+                      "state": "IL",
+                      "postalCode": "62704",
+                      "country": "USA"
+                    },
+                    "trackingNumber": "1Z999AA10123456784",
+                    "createdAt": "2024-01-14T11:30:00Z",
+                    "shippedAt": "2024-01-15T08:00:00Z"
+                  }
+                ],
+                "total": 2,
+                "page": 1,
+                "limit": 20
+              }
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "42aefc7a-6217-4a13-9d2e-dc0f2c5c9335",
+          "name": "Get order by ID",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "order_789xyz",
+                "userId": "user_456",
+                "status": "delivered",
+                "items": [
+                  {
+                    "productId": "prod_2",
+                    "productName": "Organic Cotton T-Shirt",
+                    "quantity": 3,
+                    "price": 29.99,
+                    "subtotal": 89.97,
+                    "image": "https://example.com/images/tshirt-1.jpg"
+                  }
+                ],
+                "subtotal": 89.97,
+                "tax": 7.2,
+                "shipping": 5.99,
+                "total": 103.16,
+                "currency": "USD",
+                "paymentMethod": "credit_card",
+                "paymentStatus": "paid",
+                "shippingAddress": {
+                  "name": "Homer Simpson",
+                  "street": "742 Evergreen Terrace",
+                  "city": "Springfield",
+                  "state": "IL",
+                  "postalCode": "62704",
+                  "country": "USA"
+                },
+                "billingAddress": {
+                  "name": "Homer Simpson",
+                  "street": "742 Evergreen Terrace",
+                  "city": "Springfield",
+                  "state": "IL",
+                  "postalCode": "62704",
+                  "country": "USA"
+                },
+                "createdAt": "2024-01-10T14:22:00Z",
+                "paidAt": "2024-01-10T14:23:00Z",
+                "shippedAt": "2024-01-11T10:00:00Z",
+                "deliveredAt": "2024-01-13T09:15:00Z"
+              }
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "d32a3ddf-6f10-42dc-9ec8-48fbbcf557fc",
+          "name": "Create order from cart",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/orders",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"userId\":\"{{request.body.userId}}\",\"status\":\"pending\",\"items\":[],\"subtotal\":0.00,\"tax\":0.00,\"shipping\":0.00,\"total\":0.00,\"currency\":\"USD\",\"paymentMethod\":\"{{request.body.paymentMethod}}\",\"paymentStatus\":\"pending\",\"shippingAddress\":{{json request.body.shippingAddress}},\"createdAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "64dec1e1-99b9-4f90-9d22-849bca917d00",
+          "name": "Update order status",
+          "enabled": true,
+          "method": "PATCH",
+          "path": "/api/orders/:id/status",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "order_456def",
+                "status": "delivered",
+                "updatedAt": "2024-01-16T14:30:00Z",
+                "deliveredAt": "2024-01-16T14:30:00Z"
+              }
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "7d43c1d8-6553-4707-b1ca-33595f68b24b",
+          "name": "Cancel order",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/orders/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "id": "order_456def",
+                "status": "cancelled",
+                "cancelledAt": "2024-01-15T16:45:00Z",
+                "refundStatus": "pending",
+                "message": "Order has been cancelled successfully"
+              }
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "34bdd6f7-77f1-42e3-aa1d-9131ef90cf51",
+          "name": "Order not found",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders/invalid_order",
+          "response": {
+            "type": "static",
+            "statusCode": 404,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Order not found",
+                "message": "No order exists with the provided ID",
+                "statusCode": 404
+              }
+            }
+          },
+          "tags": [
+            "orders",
+            "errors"
+          ]
+        }
+      ],
+      "settings": {
+        "cors": {
+          "enabled": true
+        },
+        "logging": {
+          "enabled": true,
+          "includeBody": true
+        }
+      },
+      "createdAt": "2026-07-08T08:14:35.849Z",
+      "updatedAt": "2026-07-08T08:14:35.876Z"
+    },
+    {
+      "id": "1ad04b25-8ca7-471d-b37a-7e5151d77c17",
+      "name": "E-commerce API",
+      "port": 3000,
+      "protocol": "http",
+      "enabled": true,
+      "routes": [
+        {
+          "id": "f9af7093-8602-43a7-b177-52cd03c9e0a2",
+          "name": "List all products",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "products": [
+                  {
+                    "id": "prod_1",
+                    "name": "Wireless Bluetooth Headphones",
+                    "description": "Premium noise-cancelling headphones with 30-hour battery life",
+                    "price": 149.99,
+                    "currency": "USD",
+                    "category": "Electronics",
+                    "stock": 45,
+                    "imageUrl": "https://images.example.com/headphones.jpg",
+                    "createdAt": "2024-01-15T10:30:00Z"
+                  },
+                  {
+                    "id": "prod_2",
+                    "name": "Organic Cotton T-Shirt",
+                    "description": "Comfortable crew neck t-shirt made from 100% organic cotton",
+                    "price": 29.99,
+                    "currency": "USD",
+                    "category": "Clothing",
+                    "stock": 120,
+                    "imageUrl": "https://images.example.com/tshirt.jpg",
+                    "createdAt": "2024-01-20T14:22:00Z"
+                  },
+                  {
+                    "id": "prod_3",
+                    "name": "Stainless Steel Water Bottle",
+                    "description": "Insulated 32oz water bottle keeps drinks cold for 24 hours",
+                    "price": 34.99,
+                    "currency": "USD",
+                    "category": "Home & Kitchen",
+                    "stock": 78,
+                    "imageUrl": "https://images.example.com/bottle.jpg",
+                    "createdAt": "2024-02-01T09:15:00Z"
+                  }
+                ],
+                "total": 3,
+                "page": 1,
+                "pageSize": 20
+              }
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "2bdaec60-fea9-4f7f-80a2-59a7d5f59224",
+          "name": "Get product by ID",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"name\":\"{{faker 'commerce.productName'}}\",\"description\":\"{{faker 'commerce.productDescription'}}\",\"price\":{{faker 'commerce.price'}},\"currency\":\"USD\",\"category\":\"{{faker 'commerce.department'}}\",\"stock\":{{faker 'number.int' min=0 max=200}},\"imageUrl\":\"https://images.example.com/{{faker 'string.uuid'}}.jpg\",\"createdAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "a565a0ea-f4d5-420a-b5a9-69c7b820cd5a",
+          "name": "Create new product",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/products",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"name\":\"{{request.body.name}}\",\"description\":\"{{request.body.description}}\",\"price\":{{request.body.price}},\"currency\":\"USD\",\"category\":\"{{request.body.category}}\",\"stock\":{{request.body.stock}},\"imageUrl\":\"{{request.body.imageUrl}}\",\"createdAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "5bbc189c-3e7d-480e-99f4-c3335385a5e1",
+          "name": "Update product",
+          "enabled": true,
+          "method": "PUT",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"name\":\"{{request.body.name}}\",\"description\":\"{{request.body.description}}\",\"price\":{{request.body.price}},\"currency\":\"USD\",\"category\":\"{{request.body.category}}\",\"stock\":{{request.body.stock}},\"imageUrl\":\"{{request.body.imageUrl}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "1e134863-adb9-420c-98c3-41e33bffeed8",
+          "name": "Delete product",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/products/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "products"
+          ]
+        },
+        {
+          "id": "a6e6419d-729a-417b-8c31-6c47d90ed20d",
+          "name": "Get cart",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/carts/:id",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"userId\":\"user_{{faker 'string.alphanumeric' length=8}}\",\"items\":[{\"productId\":\"prod_1\",\"productName\":\"Wireless Bluetooth Headphones\",\"quantity\":1,\"price\":149.99,\"subtotal\":149.99},{\"productId\":\"prod_3\",\"productName\":\"Stainless Steel Water Bottle\",\"quantity\":2,\"price\":34.99,\"subtotal\":69.98}],\"subtotal\":219.97,\"tax\":17.60,\"total\":237.57,\"currency\":\"USD\",\"createdAt\":\"{{now}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "b1bee71a-af11-4a95-9750-4e58c256e233",
+          "name": "Create cart",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/carts",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"userId\":\"{{request.body.userId}}\",\"items\":[],\"subtotal\":0,\"tax\":0,\"total\":0,\"currency\":\"USD\",\"createdAt\":\"{{now}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "06ee35bc-e8a7-4115-8dc8-79c7a04050ff",
+          "name": "Add item to cart",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/carts/:id/items",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"userId\":\"user_{{faker 'string.alphanumeric' length=8}}\",\"items\":[{\"productId\":\"{{request.body.productId}}\",\"productName\":\"{{faker 'commerce.productName'}}\",\"quantity\":{{request.body.quantity}},\"price\":{{faker 'commerce.price'}},\"subtotal\":{{faker 'commerce.price' min=50 max=500}}}],\"subtotal\":{{faker 'commerce.price' min=100 max=1000}},\"tax\":{{faker 'number.float' min=10 max=100 precision=0.01}},\"total\":{{faker 'commerce.price' min=110 max=1100}},\"currency\":\"USD\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "2eff6d79-ee3c-4ec9-894a-bb7c10f3188d",
+          "name": "Update cart item quantity",
+          "enabled": true,
+          "method": "PATCH",
+          "path": "/api/carts/:cartId/items/:productId",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.cartId}}\",\"userId\":\"user_{{faker 'string.alphanumeric' length=8}}\",\"items\":[{\"productId\":\"{{request.params.productId}}\",\"productName\":\"{{faker 'commerce.productName'}}\",\"quantity\":{{request.body.quantity}},\"price\":{{faker 'commerce.price'}},\"subtotal\":{{faker 'commerce.price' min=50 max=500}}}],\"subtotal\":{{faker 'commerce.price' min=100 max=1000}},\"tax\":{{faker 'number.float' min=10 max=100 precision=0.01}},\"total\":{{faker 'commerce.price' min=110 max=1100}},\"currency\":\"USD\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "c4677b0c-559d-4bfb-bd7c-d1227c87c1cc",
+          "name": "Remove item from cart",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/carts/:cartId/items/:productId",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "3a347aa0-8cea-4d06-b2ef-ba2c34633778",
+          "name": "Clear cart",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/carts/:id",
+          "response": {
+            "type": "static",
+            "statusCode": 204,
+            "headers": {},
+            "body": {
+              "contentType": "application/json",
+              "content": {}
+            }
+          },
+          "tags": [
+            "carts"
+          ]
+        },
+        {
+          "id": "29b1c0a9-85e5-4049-b69c-84e185db7892",
+          "name": "List all orders",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders",
+          "response": {
+            "type": "static",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "orders": [
+                  {
+                    "id": "order_abc123",
+                    "userId": "user_xyz789",
+                    "status": "delivered",
+                    "items": [
+                      {
+                        "productId": "prod_1",
+                        "productName": "Wireless Bluetooth Headphones",
+                        "quantity": 1,
+                        "price": 149.99,
+                        "subtotal": 149.99
+                      }
+                    ],
+                    "subtotal": 149.99,
+                    "tax": 12,
+                    "shipping": 5.99,
+                    "total": 167.98,
+                    "currency": "USD",
+                    "shippingAddress": {
+                      "street": "123 Main St",
+                      "city": "San Francisco",
+                      "state": "CA",
+                      "zipCode": "94102",
+                      "country": "USA"
+                    },
+                    "paymentMethod": "credit_card",
+                    "createdAt": "2024-02-10T14:30:00Z",
+                    "updatedAt": "2024-02-15T10:22:00Z"
+                  },
+                  {
+                    "id": "order_def456",
+                    "userId": "user_xyz789",
+                    "status": "processing",
+                    "items": [
+                      {
+                        "productId": "prod_2",
+                        "productName": "Organic Cotton T-Shirt",
+                        "quantity": 3,
+                        "price": 29.99,
+                        "subtotal": 89.97
+                      }
+                    ],
+                    "subtotal": 89.97,
+                    "tax": 7.2,
+                    "shipping": 5.99,
+                    "total": 103.16,
+                    "currency": "USD",
+                    "shippingAddress": {
+                      "street": "123 Main St",
+                      "city": "San Francisco",
+                      "state": "CA",
+                      "zipCode": "94102",
+                      "country": "USA"
+                    },
+                    "paymentMethod": "paypal",
+                    "createdAt": "2024-03-01T09:15:00Z",
+                    "updatedAt": "2024-03-01T09:15:00Z"
+                  }
+                ],
+                "total": 2,
+                "page": 1,
+                "pageSize": 20
+              }
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "346366dc-2b84-4d50-a802-3f95e58c4d2f",
+          "name": "Get order by ID",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders/:id",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"userId\":\"user_{{faker 'string.alphanumeric' length=8}}\",\"status\":\"processing\",\"items\":[{\"productId\":\"prod_{{faker 'string.alphanumeric' length=6}}\",\"productName\":\"{{faker 'commerce.productName'}}\",\"quantity\":{{faker 'number.int' min=1 max=5}},\"price\":{{faker 'commerce.price'}},\"subtotal\":{{faker 'commerce.price' min=50 max=500}}}],\"subtotal\":{{faker 'commerce.price' min=100 max=1000}},\"tax\":{{faker 'number.float' min=10 max=100 precision=0.01}},\"shipping\":5.99,\"total\":{{faker 'commerce.price' min=115 max=1105}},\"currency\":\"USD\",\"shippingAddress\":{\"street\":\"{{faker 'location.streetAddress'}}\",\"city\":\"{{faker 'location.city'}}\",\"state\":\"{{faker 'location.state' abbreviated=true}}\",\"zipCode\":\"{{faker 'location.zipCode'}}\",\"country\":\"USA\"},\"paymentMethod\":\"credit_card\",\"createdAt\":\"{{now}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "6e700812-8d44-41ab-84ac-edb26c9297f5",
+          "name": "Create order",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/orders",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 201,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{uuid}}\",\"userId\":\"{{request.body.userId}}\",\"status\":\"pending\",\"items\":{{request.body.items}},\"subtotal\":{{request.body.subtotal}},\"tax\":{{request.body.tax}},\"shipping\":{{request.body.shipping}},\"total\":{{request.body.total}},\"currency\":\"USD\",\"shippingAddress\":{{request.body.shippingAddress}},\"paymentMethod\":\"{{request.body.paymentMethod}}\",\"createdAt\":\"{{now}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "32851fe1-ada5-4a87-a298-b58f5ca335fc",
+          "name": "Update order status",
+          "enabled": true,
+          "method": "PATCH",
+          "path": "/api/orders/:id/status",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"status\":\"{{request.body.status}}\",\"updatedAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "1a8efd48-7c0e-480d-b165-1137c4d192b4",
+          "name": "Cancel order",
+          "enabled": true,
+          "method": "DELETE",
+          "path": "/api/orders/:id",
+          "response": {
+            "type": "dynamic",
+            "statusCode": 200,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "template": {
+              "engine": "handlebars",
+              "template": "{\"id\":\"{{request.params.id}}\",\"status\":\"cancelled\",\"cancelledAt\":\"{{now}}\"}"
+            }
+          },
+          "tags": [
+            "orders"
+          ]
+        },
+        {
+          "id": "cffcaf72-c53f-4ea9-a3b8-68d27a24802c",
+          "name": "Product not found",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/products/notfound",
+          "response": {
+            "type": "static",
+            "statusCode": 404,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Product not found",
+                "message": "The requested product does not exist",
+                "code": "PRODUCT_NOT_FOUND"
+              }
+            }
+          },
+          "tags": [
+            "products",
+            "errors"
+          ]
+        },
+        {
+          "id": "2a2b62bf-79db-4cfe-8283-c256250b75ce",
+          "name": "Invalid product data",
+          "enabled": true,
+          "method": "POST",
+          "path": "/api/products/invalid",
+          "response": {
+            "type": "static",
+            "statusCode": 400,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Validation failed",
+                "message": "Invalid product data provided",
+                "code": "VALIDATION_ERROR",
+                "details": [
+                  {
+                    "field": "price",
+                    "message": "Price must be a positive number"
+                  },
+                  {
+                    "field": "name",
+                    "message": "Product name is required"
+                  }
+                ]
+              }
+            }
+          },
+          "tags": [
+            "products",
+            "errors"
+          ]
+        },
+        {
+          "id": "4e3ae9af-021f-4cdc-88e8-a8f4d69bbe21",
+          "name": "Cart not found",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/carts/notfound",
+          "response": {
+            "type": "static",
+            "statusCode": 404,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Cart not found",
+                "message": "The requested cart does not exist",
+                "code": "CART_NOT_FOUND"
+              }
+            }
+          },
+          "tags": [
+            "carts",
+            "errors"
+          ]
+        },
+        {
+          "id": "e7dcefbd-cfee-495c-87b7-c5c7426e32ca",
+          "name": "Order not found",
+          "enabled": true,
+          "method": "GET",
+          "path": "/api/orders/notfound",
+          "response": {
+            "type": "static",
+            "statusCode": 404,
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "contentType": "application/json",
+              "content": {
+                "error": "Order not found",
+                "message": "The requested order does not exist",
+                "code": "ORDER_NOT_FOUND"
+              }
+            }
+          },
+          "tags": [
+            "orders",
+            "errors"
+          ]
+        }
+      ],
+      "settings": {
+        "cors": {
+          "enabled": true
+        },
+        "logging": {
+          "enabled": true,
+          "includeBody": true
+        }
+      },
+      "createdAt": "2026-07-08T08:14:37.353Z",
+      "updatedAt": "2026-07-08T08:14:37.413Z"
+    }
+  ]
 }
