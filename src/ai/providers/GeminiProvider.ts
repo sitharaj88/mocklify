@@ -41,7 +41,18 @@ export class GeminiProvider implements AiProvider {
   constructor(private keys: ApiKeyManager) {}
 
   async isAvailable(): Promise<boolean> {
-    return this.keys.hasKey('gemini');
+    // A configured gateway endpoint counts as available: many corporate
+    // gateways authenticate upstream and need no Gemini key.
+    return (await this.keys.hasKey('gemini')) || this.baseUrl !== DEFAULT_BASE_URL;
+  }
+
+  /** Stored key, or a placeholder when a gateway endpoint handles auth. */
+  private async resolveApiKey(): Promise<string | undefined> {
+    const key = await this.keys.getKey('gemini');
+    if (key) {
+      return key;
+    }
+    return this.baseUrl !== DEFAULT_BASE_URL ? 'mocklify-gateway' : undefined;
   }
 
   private get model(): string {
@@ -60,10 +71,10 @@ export class GeminiProvider implements AiProvider {
     prompt: string,
     options?: AiRequestOptions
   ): AsyncGenerator<string, void, undefined> {
-    const apiKey = await this.keys.getKey('gemini');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No Google Gemini API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No Google Gemini API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.geminiBaseUrl to use a company gateway.',
         'gemini'
       );
     }
@@ -158,10 +169,10 @@ export class GeminiProvider implements AiProvider {
     execute: AiToolExecutor,
     options?: AiToolLoopOptions
   ): Promise<string> {
-    const apiKey = await this.keys.getKey('gemini');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No Google Gemini API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No Google Gemini API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.geminiBaseUrl to use a company gateway.',
         'gemini'
       );
     }

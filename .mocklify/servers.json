@@ -1,43 +1,4 @@
 {
   "version": "1.0",
-  "servers": [
-    {
-      "id": "c67a621c-0f36-40a5-8a03-b1ff75150eaa",
-      "name": "hello",
-      "port": 3000,
-      "protocol": "http",
-      "enabled": true,
-      "routes": [
-        {
-          "id": "2c2bd5ef-6ffb-429d-8a35-7dec3d966ee8",
-          "name": "/",
-          "enabled": true,
-          "method": "GET",
-          "path": "/",
-          "response": {
-            "type": "static",
-            "statusCode": 200,
-            "headers": {
-              "Content-Type": "application/json"
-            },
-            "body": {
-              "contentType": "application/json",
-              "content": {}
-            }
-          }
-        }
-      ],
-      "settings": {
-        "cors": {
-          "enabled": true
-        },
-        "logging": {
-          "enabled": true,
-          "includeBody": true
-        }
-      },
-      "createdAt": "2026-03-01T03:30:14.722Z",
-      "updatedAt": "2026-03-01T03:30:26.280Z"
-    }
-  ]
+  "servers": []
 }

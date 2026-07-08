@@ -34,7 +34,18 @@ export class ClaudeProvider implements AiProvider {
   constructor(private keys: ApiKeyManager) {}
 
   async isAvailable(): Promise<boolean> {
-    return this.keys.hasKey('claude');
+    // A configured gateway endpoint counts as available: many corporate
+    // gateways authenticate upstream and need no Anthropic key.
+    return (await this.keys.hasKey('claude')) || this.baseUrl !== undefined;
+  }
+
+  /** Stored key, or a placeholder when a gateway endpoint handles auth. */
+  private async resolveApiKey(): Promise<string | undefined> {
+    const key = await this.keys.getKey('claude');
+    if (key) {
+      return key;
+    }
+    return this.baseUrl ? 'mocklify-gateway' : undefined;
   }
 
   private get model(): string {
@@ -53,10 +64,10 @@ export class ClaudeProvider implements AiProvider {
     prompt: string,
     options?: AiRequestOptions
   ): AsyncGenerator<string, void, undefined> {
-    const apiKey = await this.keys.getKey('claude');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No Anthropic API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No Anthropic API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.claudeBaseUrl to use a company gateway.',
         'claude'
       );
     }
@@ -123,10 +134,10 @@ export class ClaudeProvider implements AiProvider {
     execute: AiToolExecutor,
     options?: AiToolLoopOptions
   ): Promise<string> {
-    const apiKey = await this.keys.getKey('claude');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No Anthropic API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No Anthropic API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.claudeBaseUrl to use a company gateway.',
         'claude'
       );
     }

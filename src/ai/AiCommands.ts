@@ -712,10 +712,11 @@ export function registerAiCommands(
       .update('ai.provider', picked.value, vscode.ConfigurationTarget.Global);
 
     if (picked.value !== 'auto' && picked.value !== 'copilot') {
-      const hasKey = await keys.hasKey(picked.value as AiProviderId);
-      if (!hasKey) {
+      // A configured gateway endpoint makes the provider usable without a key.
+      const available = await ai.getProvider(picked.value as AiProviderId).isAvailable();
+      if (!available) {
         const action = await vscode.window.showInformationMessage(
-          `Mocklify: ${picked.label} selected. An API key is required.`,
+          `Mocklify: ${picked.label} selected. An API key (or a gateway endpoint in mocklify.ai.${picked.value}BaseUrl) is required.`,
           'Set API Key'
         );
         if (action === 'Set API Key') {

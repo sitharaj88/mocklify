@@ -39,7 +39,18 @@ export class OpenAiProvider implements AiProvider {
   constructor(private keys: ApiKeyManager) {}
 
   async isAvailable(): Promise<boolean> {
-    return this.keys.hasKey('openai');
+    // A configured gateway endpoint counts as available: many corporate
+    // gateways authenticate upstream and need no OpenAI key.
+    return (await this.keys.hasKey('openai')) || this.baseUrl !== DEFAULT_BASE_URL;
+  }
+
+  /** Stored key, or a placeholder when a gateway endpoint handles auth. */
+  private async resolveApiKey(): Promise<string | undefined> {
+    const key = await this.keys.getKey('openai');
+    if (key) {
+      return key;
+    }
+    return this.baseUrl !== DEFAULT_BASE_URL ? 'mocklify-gateway' : undefined;
   }
 
   private get model(): string {
@@ -58,10 +69,10 @@ export class OpenAiProvider implements AiProvider {
     prompt: string,
     options?: AiRequestOptions
   ): AsyncGenerator<string, void, undefined> {
-    const apiKey = await this.keys.getKey('openai');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No OpenAI API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No OpenAI API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.openaiBaseUrl to use a company gateway.',
         'openai'
       );
     }
@@ -162,10 +173,10 @@ export class OpenAiProvider implements AiProvider {
     execute: AiToolExecutor,
     options?: AiToolLoopOptions
   ): Promise<string> {
-    const apiKey = await this.keys.getKey('openai');
+    const apiKey = await this.resolveApiKey();
     if (!apiKey) {
       throw new AiUnavailableError(
-        'No OpenAI API key configured. Run "Mocklify: Set AI Provider API Key" to add one.',
+        'No OpenAI API key configured. Run "Mocklify: Set AI Provider API Key" to add one, or set mocklify.ai.openaiBaseUrl to use a company gateway.',
         'openai'
       );
     }

@@ -276,6 +276,11 @@ export class WebViewManager {
           await vscode.workspace
             .getConfiguration('mocklify')
             .update(setting, baseUrl.trim(), vscode.ConfigurationTarget.Global);
+          this.sendSuccess(
+            baseUrl.trim()
+              ? `${provider} endpoint saved — requests now go to ${baseUrl.trim()}`
+              : `${provider} endpoint cleared — using the official API`
+          );
         }
         await this.sendAiConfig();
         break;

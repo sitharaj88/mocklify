@@ -44,10 +44,15 @@ const ENDPOINT_HINTS: Record<string, string> = {
 
 function ProviderStatus({ info }: { info: AiProviderInfo }) {
   if (info.available) {
+    const label = !info.requiresKey
+      ? 'Detected'
+      : info.hasKey
+        ? 'Key configured'
+        : 'Gateway configured';
     return (
       <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 size={12} />
-        {info.requiresKey ? 'Key configured' : 'Detected'}
+        {label}
       </span>
     );
   }
