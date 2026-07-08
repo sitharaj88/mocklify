@@ -9,7 +9,7 @@ import {
   extractTypeDefinitions,
   SERVER_MARKERS,
   CLIENT_MARKERS_EXTRA,
-  SPEC_FILE_GLOB,,
+  SPEC_FILE_GLOB,
   API_FILE_GLOB,
 } from '../src/ai/scan/heuristics';
 import type { RouteConfig } from '../src/types/core';
