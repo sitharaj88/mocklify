@@ -17,7 +17,6 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-!dist/**
 esbuild.config.js
 *.vsix
 .mockserver/**
@@ -28,6 +27,8 @@ vitest.config.ts
 *.md
 !README.md
 dist/*.map
+# The CLI ships to npm as @mocklify/cli; the extension never runs it.
+dist/cli.js
 .DS_Store
 sharp/**
 .github/**

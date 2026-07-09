@@ -2,18 +2,44 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
-## [Unreleased]
+## [0.4.0] - 2026-07-10
+
+First stable release. Everything from the 0.3.x pre-releases, plus a headless CLI,
+an end-to-end test harness, contract validation, and diagnostics.
 
 ### Added
 
-- **Universal codebase scanning**: the codebase scan now profiles the workspace first (web, Android, iOS, Kotlin Multiplatform, React Native, Flutter, Ionic, and backends — Spring Boot, Express/NestJS, FastAPI/Django/Flask, Rails, Go, Laravel, ASP.NET Core, …). Backends are scanned in the *serves* direction: route declarations and handler code become the mocked contract for frontend teams
+- **Headless CLI** — published separately as [`@mocklify/cli`](https://www.npmjs.com/package/@mocklify/cli) (Node 18+). `mocklify serve | validate | list` runs the same mock engine outside VS Code, so CI boots the exact mocks your team designs in the dashboard. Streams one log line per request, clean `SIGINT` shutdown, exit codes `0` OK / `1` config error / `2` port in use
+- **Contract validation** — give a server an OpenAPI spec (`contract: { specPath, mode }`): `warn` logs violations on each request, `enforce` answers non-conforming requests with `400`. Works in the extension and the CLI. New command `Mocklify: Configure Contract Validation`
+- **Report Issue** (`Mocklify: Report Issue`) — a diagnostics report with version, provider, scan strategy and last error, redacting API keys, bearer tokens, gateway URLs and absolute paths; copy it or open a pre-filled GitHub issue
+- **Per-route chaos** — a route may override its server's chaos config; `enabled: false` on a route exempts it from server-wide chaos
+- **GraphQL-native routes** — match on `operationName` and operation type instead of body matchers
+- **Agentic scan graph** (LangGraph orchestration): parallel per-surface exploration, a fresh-context critic agent that verifies generated routes against your code, one bounded repair round, human-in-the-loop questions (`ask_user`), resumable scans, and workspace scan memory. Copilot, gateways, watchdogs and the hardened read-only tools are unchanged — graph nodes call Mocklify's own AI layer
+- **End-to-end test suite** running in a real VS Code host with an offline fake AI provider
+
+### Added — universal codebase scanning
+
+- **Workspace profiling**: the codebase scan now profiles the workspace first (web, Android, iOS, Kotlin Multiplatform, React Native, Flutter, Ionic, and backends — Spring Boot, Express/NestJS, FastAPI/Django/Flask, Rails, Go, Laravel, ASP.NET Core, …). Backends are scanned in the *serves* direction: route declarations and handler code become the mocked contract for frontend teams
 - **One mock server per API surface**: monorepos and multi-app workspaces get a per-surface confirmation (name, direction, success/failure route counts, auto-assigned ports) and one mock server per surface, in both the command and the dashboard "From Codebase" flow; single-app repos behave exactly as before
 - **Spec-first shortcut**: when the scan finds API spec files (OpenAPI/Swagger, proto, GraphQL, Postman), Mocklify offers to import the spec directly for exact routes — instead of or alongside the AI scan results; OpenAPI/Swagger imports reuse the full import pipeline
 - Agentic scans on multi-project workspaces scale their budgets (up to 60 tool calls, 16 minutes, 1 MB read budget) and narrate progress milestones live
 
+- **Any project, any language**: the extension-whitelist gate is gone. Language-agnostic API signals (REST paths, URLs, HTTP verbs, JSON shapes, auth vocabulary) seed the scan even for stacks Mocklify has never seen, and a workspace with no matches falls back to census-guided exploration instead of a dead end
+- **`mocklify.ai.scanMode: "auto"`** (new default) picks the best strategy per surface: an existing spec > agentic exploration > fast scan > census
+- Ecosystem knowledge is now a declarative registry of 39 framework packs, so adding a stack is a data entry
+
 ### Changed
 
 - Drift watch now also recognizes server-route declarations (Express, Spring, FastAPI, and other backend frameworks), so backend files are watched for uncovered endpoints too
+
+### Fixed
+
+- GraphQL matching read the *first* operation in a multi-operation document instead of the one selected by `operationName`; documents starting with a fragment yielded no operation name at all
+- Chaos delay was unbounded and awaited inside the request handler — an untrusted `servers.json` could hang every request. Now clamped to 60s
+- Stateful collections grew without bound; capped with oldest-entry eviction
+- Diagnostics redaction missed JSON-quoted secret values (`"apiKey": "sk-…"`)
+- The search bar, filters and three dialogs rendered as unstyled native controls in both themes
+- Route path chips were unreadable in light mode
 
 ## [0.3.2] - 2026-07-07 (pre-release)
 
