@@ -469,13 +469,15 @@ Mocklify stores configuration in a `.mocklify` folder in your workspace:
 
 The same mock engine runs from the command line, so your CI can boot the exact mocks your team designs in the dashboard. The `.mocklify/servers.json` you commit is the CLI's config.
 
+The CLI ships as a separate npm package, [`@mocklify/cli`](https://www.npmjs.com/package/@mocklify/cli) (Node 18+). Installing it globally or as a dev dependency gives you a plain `mocklify` command.
+
 ```bash
 # From a workspace that has a .mocklify/servers.json:
-npx mocklify serve            # start every enabled server, stream one line per request
-npx mocklify serve --all      # include disabled servers too
-npx mocklify serve --server "Payments API" --port 4010
-npx mocklify list             # name / protocol / port / route count
-npx mocklify validate         # zod-validate the config; exit 1 on error
+npx @mocklify/cli serve            # start every enabled server, stream one line per request
+npx @mocklify/cli serve --all      # include disabled servers too
+npx @mocklify/cli serve --server "Payments API" --port 4010
+npx @mocklify/cli list             # name / protocol / port / route count
+npx @mocklify/cli validate         # zod-validate the config; exit 1 on error
 ```
 
 Exit codes: `0` OK · `1` config/validation error · `2` port already in use. `serve` shuts down cleanly on `SIGINT`/`SIGTERM`.
@@ -493,7 +495,7 @@ jobs:
           node-version: 20
       - run: npm ci
       # Start the mocks in the background, wait for the port, run your tests.
-      - run: npx mocklify serve --quiet &
+      - run: npx @mocklify/cli serve --quiet &
       - run: npx wait-on tcp:3000
       - run: npm test          # your app under test, pointed at http://localhost:3000
 ```

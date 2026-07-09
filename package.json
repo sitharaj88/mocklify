@@ -732,7 +732,9 @@
     "test:e2e": "vscode-test",
     "test:all": "npm run test:unit && npm run compile:e2e && npm run test:e2e",
     "lint": "eslint src --ext ts",
-    "package": "vsce package"
+    "package": "vsce package",
+    "prepare:npm": "node scripts/prepare-npm.mjs",
+    "release:cli": "npm run build && npm run prepare:npm && cd npm-dist && npm publish"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",

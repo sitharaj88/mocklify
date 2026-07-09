@@ -32,3 +32,5 @@ dist/*.map
 sharp/**
 .github/**
 .claude/**
+npm-dist/**
+scripts/**

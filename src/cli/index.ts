@@ -22,6 +22,13 @@ const io: ServeIO = {
 };
 
 /**
+ * Manifests this CLI may take its version from: the extension repo when running
+ * from source, and the published npm package. Matching on name means a stray
+ * package.json in some parent directory never answers for us.
+ */
+const CLI_PACKAGE_NAMES = new Set(['mocklify', '@mocklify/cli']);
+
+/**
  * Read the CLI's own version from the bundled package.json. Walks up from the
  * compiled file location; version.ts is avoided since it is populated by the
  * extension host, not the CLI.
@@ -32,7 +39,7 @@ export function readCliVersion(startDir: string): string {
     const candidate = path.join(dir, 'package.json');
     try {
       const pkg = JSON.parse(fs.readFileSync(candidate, 'utf-8'));
-      if (pkg && pkg.name === 'mocklify' && typeof pkg.version === 'string') {
+      if (pkg && CLI_PACKAGE_NAMES.has(pkg.name) && typeof pkg.version === 'string') {
         return pkg.version;
       }
     } catch {

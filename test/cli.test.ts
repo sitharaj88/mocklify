@@ -6,6 +6,7 @@ import * as http from 'node:http';
 import * as net from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { parseCliArgs } from '../src/cli/args.js';
+import { readCliVersion } from '../src/cli/index.js';
 import {
   resolveConfigFile,
   loadConfig,
@@ -431,5 +432,43 @@ describe('startSelectedServers (integration)', () => {
     } finally {
       await started.stop();
     }
+  });
+});
+
+/**
+ * The published package is named @mocklify/cli, not mocklify. Matching only the
+ * repo name made the shipped CLI report 0.0.0 forever.
+ */
+describe('readCliVersion', () => {
+  const made: string[] = [];
+  afterEach(() => {
+    for (const dir of made.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  const withManifest = (manifest: unknown): string => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mocklify-ver-'));
+    made.push(dir);
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(manifest));
+    return dir;
+  };
+
+  it('reads the version from the extension repo manifest', () => {
+    expect(readCliVersion(withManifest({ name: 'mocklify', version: '1.2.3' }))).toBe('1.2.3');
+  });
+
+  it('reads the version from the published npm manifest', () => {
+    expect(readCliVersion(withManifest({ name: '@mocklify/cli', version: '4.5.6' }))).toBe('4.5.6');
+  });
+
+  it('ignores an unrelated package.json rather than reporting its version', () => {
+    expect(readCliVersion(withManifest({ name: 'some-other-app', version: '9.9.9' }))).toBe('0.0.0');
+  });
+
+  it('falls back to 0.0.0 when no manifest is found', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mocklify-ver-'));
+    made.push(dir);
+    expect(readCliVersion(dir)).toBe('0.0.0');
   });
 });
