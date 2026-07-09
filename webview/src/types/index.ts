@@ -54,6 +54,19 @@ export interface DatabaseResponseConfig {
   filter?: Record<string, unknown>;
 }
 
+export interface ChaosConfig {
+  enabled: boolean;
+  failureRate?: number;
+  failureStatus?: number;
+  minDelayMs?: number;
+  maxDelayMs?: number;
+}
+
+export interface GraphQlRoute {
+  operationName: string;
+  operationType: 'query' | 'mutation' | 'subscription';
+}
+
 export interface RouteConfig {
   id: string;
   name: string;
@@ -65,6 +78,8 @@ export interface RouteConfig {
   delay?: DelayConfig;
   priority?: number;
   tags?: string[];
+  chaos?: ChaosConfig;
+  graphql?: GraphQlRoute;
 }
 
 export interface CorsSettings {
@@ -154,6 +169,11 @@ export interface RequestLogEntry {
     duration: number;
   };
   matched: boolean;
+  validation?: {
+    mode: 'warn' | 'enforce';
+    ok: boolean;
+    violations: { field: string; message: string }[];
+  };
 }
 
 export interface AppState {

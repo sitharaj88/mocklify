@@ -122,6 +122,36 @@ export const StatefulConfigSchema = z.object({
 });
 export type StatefulConfig = z.infer<typeof StatefulConfigSchema>;
 
+// Chaos Configuration - random latency and failure injection.
+// Declared before RouteConfig so a route may carry its own override; the
+// effective chaos for a request is `matchedRoute?.chaos ?? server.chaos`
+// (see HttpMockServer). A route override fully REPLACES server chaos for that
+// route — `{ enabled: false }` therefore exempts the route from server chaos.
+export const ChaosConfigSchema = z.object({
+  enabled: z.boolean(),
+  failureRate: z.number().min(0).max(1).optional(), // probability per request
+  failureStatus: z.number().min(100).max(599).optional(), // default 503
+  minDelayMs: z.number().min(0).optional(),
+  maxDelayMs: z.number().min(0).optional(),
+});
+export type ChaosConfig = z.infer<typeof ChaosConfigSchema>;
+
+// GraphQL-native route - matches a POST body's operation instead of a REST path
+export const GraphQlRouteSchema = z.object({
+  operationName: z.string().min(1),
+  operationType: z.enum(['query', 'mutation', 'subscription']),
+});
+export type GraphQlRoute = z.infer<typeof GraphQlRouteSchema>;
+
+// Contract config (server-level request validation against an API spec)
+export const ContractModeSchema = z.enum(['off', 'warn', 'enforce']);
+export type ContractMode = z.infer<typeof ContractModeSchema>;
+export const ContractConfigSchema = z.object({
+  specPath: z.string().min(1),
+  mode: ContractModeSchema,
+});
+export type ContractConfig = z.infer<typeof ContractConfigSchema>;
+
 // Route Configuration
 export const RouteConfigSchema = z.object({
   id: z.string().uuid(),
@@ -135,8 +165,34 @@ export const RouteConfigSchema = z.object({
   priority: z.number().optional(),
   tags: z.array(z.string()).optional(),
   stateful: StatefulConfigSchema.optional(),
+  chaos: ChaosConfigSchema.optional(), // route-level override; REPLACES server chaos for this route
+  graphql: GraphQlRouteSchema.optional(),
 });
 export type RouteConfig = z.infer<typeof RouteConfigSchema>;
+
+// --- Contract validation hook (E5 declares & calls; validator injected externally) ---
+export interface ContractViolation {
+  field: string;
+  message: string;
+}
+export type ValidationResult =
+  | { ok: true }
+  | { ok: false; violations: ContractViolation[] };
+
+/** vscode-free, pure request view handed to the validator. */
+export interface ValidatedRequest {
+  method: string;
+  path: string; // path only, no query string
+  params: Record<string, string>; // matched path params
+  query: Record<string, string | string[] | undefined>;
+  headers: Record<string, string | string[] | undefined>;
+  body?: unknown;
+}
+
+/** Synchronous and pure: no I/O, no vscode. Spec parsing happens in the factory. */
+export interface RequestValidator {
+  validate(req: ValidatedRequest, route: RouteConfig): ValidationResult;
+}
 
 // Environment Configuration
 export const EnvironmentConfigSchema = z.object({
@@ -169,16 +225,6 @@ export type ServerSettings = z.infer<typeof ServerSettingsSchema>;
 export const ServerProtocolSchema = z.enum(['http', 'graphql', 'websocket']);
 export type ServerProtocol = z.infer<typeof ServerProtocolSchema>;
 
-// Chaos Configuration - server-wide random latency and failure injection
-export const ChaosConfigSchema = z.object({
-  enabled: z.boolean(),
-  failureRate: z.number().min(0).max(1).optional(), // probability per request
-  failureStatus: z.number().min(100).max(599).optional(), // default 503
-  minDelayMs: z.number().min(0).optional(),
-  maxDelayMs: z.number().min(0).optional(),
-});
-export type ChaosConfig = z.infer<typeof ChaosConfigSchema>;
-
 // Mock Server Configuration
 export const MockServerConfigSchema = z.object({
   id: z.string().uuid(),
@@ -189,6 +235,7 @@ export const MockServerConfigSchema = z.object({
   routes: z.array(RouteConfigSchema),
   settings: ServerSettingsSchema.optional(),
   chaos: ChaosConfigSchema.optional(),
+  contract: ContractConfigSchema.optional(),
   createdAt: z.string().datetime().optional(),
   updatedAt: z.string().datetime().optional(),
 });
@@ -225,6 +272,8 @@ export interface RequestLogEntry {
     duration: number;
   };
   matched: boolean;
+  // Set on the matched-route entry whenever a contract validator ran (mode !== 'off').
+  validation?: { mode: 'warn' | 'enforce'; ok: boolean; violations: ContractViolation[] };
 }
 
 // Extension Configuration

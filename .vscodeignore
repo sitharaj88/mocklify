@@ -1,5 +1,8 @@
 .vscode/**
 .vscode-test/**
+.vscode-test.mjs
+out-test/**
+tsconfig.e2e.json
 src/**
 test/**
 webview/**

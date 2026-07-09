@@ -7,6 +7,12 @@ export type StatefulOperation = 'list' | 'get' | 'insert' | 'update' | 'replace'
 
 export const DEFAULT_ID_PARAM = 'id';
 
+// Cap on live items per collection. The store is in-memory and the CLI binds
+// 0.0.0.0, so an unauthenticated client POSTing in a loop could otherwise grow
+// a collection until the process OOMs. At the cap the oldest item is evicted
+// (bounded memory, insert never fails) — far above any realistic mock dataset.
+export const MAX_COLLECTION_SIZE = 100_000;
+
 /**
  * Derive the CRUD operation from HTTP method + whether the matched path bound the id param.
  * Returns null when no stateful semantics apply (route falls back to its configured response).
@@ -104,6 +110,9 @@ export class StatefulStore {
     const item: StatefulItem = isPlainObject(body) ? { ...body } : {};
     if (isEmptyId(item[idKey]) && isEmptyId(item[DEFAULT_ID_PARAM])) {
       item[DEFAULT_ID_PARAM] = uuidv4();
+    }
+    if (items.length >= MAX_COLLECTION_SIZE) {
+      items.shift(); // evict oldest to keep memory bounded under abusive load
     }
     items.push(item);
     return item;

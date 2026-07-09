@@ -1,4 +1,13 @@
 import { RouteConfig, RequestMatcher as RequestMatcherConfig, HttpMethod } from '../types/core.js';
+import { matchesGraphQlRoute } from './graphqlMatch.js';
+
+/**
+ * Score a graphql-native route contributes on top of its path score when its
+ * operation matches. Sits ABOVE the body-matcher bonus (10) so a graphql route
+ * out-ranks a generic `matcher.body` route sharing the same path, and below a
+ * named path param's additive contribution.
+ */
+export const GRAPHQL_MATCH_SCORE = 15;
 
 export interface MatchResult {
   matched: boolean;
@@ -52,6 +61,16 @@ export class RequestMatcher {
     }
 
     let score = pathResult.score;
+
+    // GraphQL-native route: the parsed POST body operation must match. A route
+    // with `graphql` set that does NOT match the operation is not a match at all
+    // (score -1) — it never silently degrades to a path-only match.
+    if (route.graphql) {
+      if (!matchesGraphQlRoute(request.method, request.body, route.graphql)) {
+        return { matched: false, params: {}, score: -1 };
+      }
+      score += GRAPHQL_MATCH_SCORE;
+    }
 
     // Check matcher conditions if present
     if (route.matcher) {

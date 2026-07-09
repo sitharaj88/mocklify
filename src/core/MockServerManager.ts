@@ -1,9 +1,13 @@
 import * as vscode from 'vscode';
+import { statSync } from 'node:fs';
+import { isAbsolute, resolve as resolvePath, dirname, basename } from 'node:path';
 import { v4 as uuidv4 } from 'uuid';
 import {
   ChaosConfig,
+  ContractConfig,
   MockServerConfig,
   RouteConfig,
+  RequestValidator,
   ServerRuntimeState,
   EventHandler,
   ServerEvent,
@@ -11,6 +15,7 @@ import {
   IRequestLogger,
   IMockServer,
 } from '../types/core.js';
+import { createRequestValidator } from '../services/ContractValidator.js';
 import { ConfigurationStore } from '../storage/ConfigurationStore.js';
 import { HttpMockServer } from '../servers/HttpMockServer.js';
 import { GraphQLMockServer } from '../servers/GraphQLMockServer.js';
@@ -37,6 +42,13 @@ export class MockServerManager {
   private postmanService: PostmanService;
   private exportService: ExportService;
   private workspaceRoot: string | undefined;
+
+  // Contract validation. Validators are cached per resolved spec path + mtime so
+  // multiple servers sharing a spec parse it once, and an edited spec is picked
+  // up on the next rebuild. A per-server FileSystemWatcher recreates the running
+  // instance (re-injecting a fresh validator) when its spec file changes on disk.
+  private validatorCache = new Map<string, { mtimeMs: number; validator: RequestValidator | undefined }>();
+  private contractWatchers = new Map<string, vscode.FileSystemWatcher>();
 
   constructor(workspaceRoot: string | undefined) {
     this.workspaceRoot = workspaceRoot;
@@ -121,6 +133,7 @@ export class MockServerManager {
       this.servers.delete(serverId);
     }
 
+    this.disposeContractWatcher(serverId);
     await this.configStore.deleteServer(serverId);
     this.requestLogger.clear(serverId);
     this._onDidChangeServers.fire();
@@ -379,6 +392,134 @@ export class MockServerManager {
   }
 
   /**
+   * Set or clear a server's contract (OpenAPI request validation) config.
+   * Persisted, then the server instance is recreated so a fresh validator is
+   * injected (the engine reads its validator at construction time).
+   */
+  async setServerContract(serverId: string, contract: ContractConfig | undefined): Promise<void> {
+    const config = await this.configStore.getServer(serverId);
+    if (!config) {
+      throw new Error(`Server not found: ${serverId}`);
+    }
+
+    if (contract) {
+      config.contract = contract;
+    } else {
+      delete config.contract;
+    }
+    await this.configStore.saveServer(config);
+    await this.recreateServerInstance(serverId);
+  }
+
+  /** Resolve a (possibly workspace-relative) spec path to an absolute one. */
+  private resolveSpecPath(specPath: string): string {
+    return isAbsolute(specPath)
+      ? specPath
+      : resolvePath(this.workspaceRoot ?? process.cwd(), specPath);
+  }
+
+  /**
+   * Build (or reuse a cached) contract validator for a config. Returns
+   * `undefined` when contract is absent, mode is 'off', or the spec can't be
+   * loaded/parsed — in every such case the engine degrades to no validation.
+   * Also (re)arms a FileSystemWatcher on the spec so on-disk edits invalidate
+   * the cache and recreate the running instance.
+   */
+  private buildContractValidator(config: MockServerConfig): RequestValidator | undefined {
+    const contract = config.contract;
+    if (!contract || contract.mode === 'off') {
+      this.disposeContractWatcher(config.id);
+      return undefined;
+    }
+
+    const abs = this.resolveSpecPath(contract.specPath);
+    let mtimeMs = 0;
+    try {
+      mtimeMs = statSync(abs).mtimeMs;
+    } catch {
+      mtimeMs = 0;
+    }
+
+    const cached = this.validatorCache.get(abs);
+    let validator: RequestValidator | undefined;
+    if (cached && cached.mtimeMs === mtimeMs) {
+      validator = cached.validator;
+    } else {
+      validator = createRequestValidator(contract, { workspaceRoot: this.workspaceRoot });
+      this.validatorCache.set(abs, { mtimeMs, validator });
+    }
+
+    this.watchContractSpec(config.id, abs);
+    return validator;
+  }
+
+  /** Watch a server's spec file; on change, drop the cache and recreate it. */
+  private watchContractSpec(serverId: string, absSpecPath: string): void {
+    this.disposeContractWatcher(serverId);
+    let watcher: vscode.FileSystemWatcher;
+    try {
+      watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(dirname(absSpecPath), basename(absSpecPath))
+      );
+    } catch {
+      return; // watching is best-effort; a bad path just means no live reload
+    }
+    const onChange = () => {
+      this.validatorCache.delete(absSpecPath);
+      void this.recreateServerInstance(serverId);
+    };
+    watcher.onDidChange(onChange);
+    watcher.onDidCreate(onChange);
+    watcher.onDidDelete(onChange);
+    this.contractWatchers.set(serverId, watcher);
+  }
+
+  private disposeContractWatcher(serverId: string): void {
+    const existing = this.contractWatchers.get(serverId);
+    if (existing) {
+      existing.dispose();
+      this.contractWatchers.delete(serverId);
+    }
+  }
+
+  /**
+   * Tear down and rebuild a server instance from its persisted config
+   * (preserving running state). Used when a change can't be applied via
+   * updateConfig alone — e.g. a validator must be re-injected at construction.
+   */
+  private async recreateServerInstance(serverId: string): Promise<void> {
+    const existing = this.servers.get(serverId);
+    const wasRunning = existing?.state.status === 'running';
+    if (existing) {
+      try {
+        if (existing.state.status === 'running') {
+          await existing.stop();
+        }
+      } catch (error) {
+        console.error(`Failed to stop server ${serverId} for rebuild:`, error);
+      }
+      this.servers.delete(serverId);
+    }
+
+    const config = await this.configStore.getServer(serverId);
+    if (!config) {
+      this.disposeContractWatcher(serverId);
+      this._onDidChangeServers.fire();
+      return;
+    }
+
+    this.createServerInstance(config);
+    if (wasRunning) {
+      try {
+        await this.servers.get(serverId)?.start();
+      } catch (error) {
+        console.error(`Failed to restart server ${serverId} after rebuild:`, error);
+      }
+    }
+    this._onDidChangeServers.fire();
+  }
+
+  /**
    * Reset a server's stateful in-memory data (collections re-seed on next request).
    * Only meaningful while the server is running; safe no-op otherwise.
    */
@@ -434,7 +575,10 @@ export class MockServerManager {
         break;
       case 'http':
       default:
-        server = new HttpMockServer(config);
+        // Contract validation is HTTP-only. A validator is built (and the spec
+        // watched) only when contract mode !== 'off'; otherwise the engine runs
+        // byte-identical to before with zero validation overhead.
+        server = new HttpMockServer(config, this.buildContractValidator(config));
         break;
     }
 
@@ -564,6 +708,10 @@ export class MockServerManager {
   async dispose(): Promise<void> {
     await this.stopAll();
     await this.databaseService.disconnectAll();
+    for (const watcher of this.contractWatchers.values()) {
+      watcher.dispose();
+    }
+    this.contractWatchers.clear();
     this._onDidChangeServers.dispose();
   }
 }

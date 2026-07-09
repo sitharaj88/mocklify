@@ -8,6 +8,8 @@ import {
   RequestLogEntry,
   EventHandler,
   ServerEvent,
+  RequestValidator,
+  ContractViolation,
 } from '../types/core.js';
 import { RequestMatcher, RequestInfo } from '../matching/RequestMatcher.js';
 import { ResponseGenerator, ResponseContext, GeneratedResponse } from '../response/ResponseGenerator.js';
@@ -15,6 +17,12 @@ import { StatefulStore, executeStateful } from '../core/StatefulStore.js';
 import { responseStateManager } from '../state/ResponseStateManager.js';
 
 export const CHAOS_DEFAULT_FAILURE_STATUS = 503;
+
+// Upper bound on injected chaos latency. The delay is awaited inside the request
+// handler before any reply is sent, so an unbounded value from an untrusted
+// config would hold sockets/timers open indefinitely (setTimeout accepts up to
+// ~2^31 ms ≈ 24 days). 60s is far beyond any realistic latency simulation.
+export const CHAOS_MAX_DELAY_MS = 60_000;
 
 export interface ChaosDecision {
   delayMs: number;
@@ -37,8 +45,8 @@ export function decideChaos(
 
   let delayMs = 0;
   if (chaos.minDelayMs !== undefined || chaos.maxDelayMs !== undefined) {
-    const lo = Math.max(0, chaos.minDelayMs ?? 0);
-    const hi = Math.max(lo, chaos.maxDelayMs ?? lo); // inverted bounds clamp to lo
+    const lo = Math.min(CHAOS_MAX_DELAY_MS, Math.max(0, chaos.minDelayMs ?? 0));
+    const hi = Math.min(CHAOS_MAX_DELAY_MS, Math.max(lo, chaos.maxDelayMs ?? lo)); // inverted bounds clamp to lo
     delayMs = Math.round(lo + random() * (hi - lo));
   }
 
@@ -65,9 +73,14 @@ export class HttpMockServer implements IMockServer {
   private responseGenerator: ResponseGenerator;
   private statefulStore: StatefulStore = new StatefulStore();
   private eventHandlers: Set<EventHandler> = new Set();
+  // Contract validator is injected (undefined ⇒ validation skipped entirely).
+  // Kept as a constructor arg so every existing `new HttpMockServer(config)`
+  // call remains byte-identical in behavior.
+  private validator?: RequestValidator;
 
-  constructor(config: MockServerConfig) {
+  constructor(config: MockServerConfig, validator?: RequestValidator) {
     this._config = config;
+    this.validator = validator;
     this._state = {
       id: config.id,
       status: 'stopped',
@@ -258,9 +271,21 @@ export class HttpMockServer implements IMockServer {
       body: request.body,
     };
 
+    // Match FIRST so a matched route's own chaos override can win. This reorders
+    // matching ahead of chaos vs. the original server-wide flow, but the
+    // observable result is identical when no route defines `chaos`:
+    //   effective chaos = matchedRoute?.chaos ?? server.chaos
+    // A route override fully REPLACES server chaos for that route, so a route
+    // carrying `{ enabled: false }` is EXEMPT from chaos even while server chaos
+    // is on (decideChaos no-ops on !enabled). Unmatched (404) requests use
+    // server.chaos. Matching is pure and side-effect free, so running it before
+    // the chaos short-circuit is safe. decideChaos stays pure/seedable/unchanged.
+    const matchResult = this.requestMatcher.match(requestInfo, this._config.routes);
+    const effectiveChaos = matchResult.route?.chaos ?? this._config.chaos;
+
     // Chaos simulation: optional extra latency, then a possible short-circuit
-    // failure before any route handling. No-op unless chaos.enabled.
-    const chaos = decideChaos(this._config.chaos);
+    // failure before any response generation. No-op unless chaos.enabled.
+    const chaos = decideChaos(effectiveChaos);
     if (chaos.delayMs > 0) {
       await new Promise<void>((resolve) => setTimeout(resolve, chaos.delayMs));
     }
@@ -293,12 +318,63 @@ export class HttpMockServer implements IMockServer {
       return;
     }
 
-    // Match request against routes
-    const matchResult = this.requestMatcher.match(requestInfo, this._config.routes);
-
     let logEntry: Omit<RequestLogEntry, 'id'>;
 
     if (matchResult.matched && matchResult.route) {
+      // Contract validation runs on the matched route BEFORE response generation.
+      // `this.validator` is injected only when contract mode !== 'off', so its
+      // mere presence gates all overhead. `enforce` short-circuits with a 400;
+      // `warn` serves normally and only records violations on the log entry.
+      let validation: RequestLogEntry['validation'];
+      if (this.validator) {
+        const result = this.validator.validate(
+          {
+            method: requestInfo.method,
+            path: requestInfo.path,
+            params: matchResult.params,
+            query: requestInfo.query,
+            headers: requestInfo.headers,
+            body: requestInfo.body,
+          },
+          matchResult.route
+        );
+        const mode: 'warn' | 'enforce' =
+          this._config.contract?.mode === 'enforce' ? 'enforce' : 'warn';
+        const violations: ContractViolation[] = result.ok ? [] : result.violations;
+        validation = { mode, ok: result.ok, violations };
+
+        if (!result.ok && mode === 'enforce') {
+          const enforceBody = { error: 'Contract violation', mode, violations };
+          reply.status(400);
+          reply.header('Content-Type', 'application/json');
+          reply.send(enforceBody);
+
+          logEntry = {
+            serverId: this.id,
+            routeId: matchResult.route.id,
+            timestamp: new Date(),
+            request: {
+              method: requestInfo.method,
+              path: requestInfo.path,
+              url: request.url,
+              headers: requestInfo.headers,
+              query: requestInfo.query,
+              body: this.shouldLogBody() ? requestInfo.body : undefined,
+            },
+            response: {
+              statusCode: 400,
+              headers: { 'Content-Type': 'application/json' },
+              body: enforceBody,
+              duration: Date.now() - startTime,
+            },
+            matched: true,
+            validation,
+          };
+          this.emit({ type: 'request:received', serverId: this.id, entry: logEntry as RequestLogEntry });
+          return;
+        }
+      }
+
       // Generate response
       const context: ResponseContext = {
         params: matchResult.params,
@@ -353,6 +429,7 @@ export class HttpMockServer implements IMockServer {
             duration: Date.now() - startTime,
           },
           matched: true,
+          validation,
         };
       } catch (error) {
         // Error generating response
@@ -381,6 +458,7 @@ export class HttpMockServer implements IMockServer {
             duration: Date.now() - startTime,
           },
           matched: true,
+          validation,
         };
       }
     } else {

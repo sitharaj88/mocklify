@@ -1,0 +1,10 @@
+{
+  "name": "backend-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny Express fixture that SERVES a REST API (declares routes).",
+  "main": "server.js",
+  "dependencies": {
+    "express": "^4.18.0"
+  }
+}

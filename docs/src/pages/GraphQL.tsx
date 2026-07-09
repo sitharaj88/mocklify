@@ -18,6 +18,38 @@ export default function GraphQL() {
         </p>
       </section>
 
+      {/* Native operation routing */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Native Operation Routing</h2>
+        <p className="theme-text-secondary mb-4">
+          Instead of a body matcher, give a route a <code>graphql</code> block to match a POST
+          by its GraphQL operation name and type directly. In the dashboard, open the route's
+          <strong> Advanced</strong> tab (shown when the method is <code>POST</code> and the path
+          contains <code>graphql</code>) and enable <strong>Match by operation</strong>.
+        </p>
+        <CodeBlock
+          title="GetUser via graphql block"
+          language="json"
+          code={`{
+  "name": "GetUser",
+  "method": "POST",
+  "path": "/graphql",
+  "graphql": {
+    "operationName": "GetUser",
+    "operationType": "query"
+  },
+  "response": {
+    "statusCode": 200,
+    "body": { "data": { "user": { "id": "{{faker 'string.uuid'}}" } } }
+  }
+}`}
+        />
+        <InfoBox type="tip">
+          A route with a <code>graphql</code> block matches only when the POST body's operation
+          name/type match. Routes without one fall back to the legacy body-matcher approach shown below.
+        </InfoBox>
+      </section>
+
       {/* Basic Query */}
       <section>
         <h2 className="text-2xl font-semibold mb-4">Basic Query Mock</h2>

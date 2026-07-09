@@ -8,6 +8,7 @@ import {
   X,
   CheckCircle,
   AlertCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import type { RequestLogEntry } from '../types';
 import {
@@ -173,6 +174,13 @@ export function LogsViewer() {
                     <Badge variant={getStatusVariant(log.response.statusCode)}>
                       {log.response.statusCode}
                     </Badge>
+                    {log.validation && !log.validation.ok ? (
+                      <ShieldAlert
+                        size={14}
+                        className="text-amber-500 flex-shrink-0"
+                        aria-label={`Contract violation (${log.validation.mode})`}
+                      />
+                    ) : null}
                     <span className="text-xs text-surface-400 w-14 text-right ml-auto min-[480px]:ml-0">
                       {log.response.duration}ms
                     </span>
@@ -268,6 +276,27 @@ export function LogsViewer() {
                         </Badge>
                       )}
                     </div>
+
+                    {/* Contract violations */}
+                    {selectedLog.validation && !selectedLog.validation.ok ? (
+                      <div className="mb-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <ShieldAlert size={14} className="text-amber-500" />
+                          <p className="text-xs font-medium text-amber-500">
+                            Contract violations ({selectedLog.validation.mode})
+                          </p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs font-mono max-h-32 overflow-auto space-y-1">
+                          {selectedLog.validation.violations.map((v, i) => (
+                            <div key={i}>
+                              <span className="text-amber-600 dark:text-amber-400">{v.field}</span>
+                              <span className="text-surface-500">: </span>
+                              <span className="text-surface-300">{v.message}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
 
                     {/* Response Body */}
                     {selectedLog.response.body != null ? (

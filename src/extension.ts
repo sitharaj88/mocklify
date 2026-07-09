@@ -20,7 +20,14 @@ import {
 import { registerScenarioCommands } from './ai/ScenarioCommands.js';
 import { activateDriftWatcher } from './ai/DriftWatcher.js';
 import { registerChaosCommands } from './core/ChaosCommands.js';
-import { setExtensionVersion } from './version.js';
+import { setExtensionVersion, getExtensionVersion } from './version.js';
+import type { ContractConfig } from './types/core.js';
+import {
+  collectDiagnostics,
+  buildDiagnosticsReport,
+  formatForIssueUrl,
+  recordError,
+} from './services/DiagnosticsService.js';
 
 let manager: MockServerManager | undefined;
 let statusBarController: StatusBarController | undefined;
@@ -150,6 +157,141 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     )
   );
 
+  // Contract validation: pick a server, an OpenAPI spec, and a mode. The engine
+  // then validates matched requests against the spec (warn logs violations;
+  // enforce returns 400). Choosing "Disable" clears the contract.
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'mocklify.configureContract',
+      async (item?: { serverId?: string }) => {
+        try {
+          const servers = await mgr.getServers();
+          if (servers.length === 0) {
+            vscode.window.showWarningMessage('Mocklify: No servers configured. Create one first.');
+            return;
+          }
+
+          let serverId = item?.serverId;
+          if (!serverId) {
+            const picked =
+              servers.length === 1
+                ? { id: servers[0].id }
+                : await vscode.window.showQuickPick(
+                    servers.map((s) => ({
+                      label: s.name,
+                      description: `port ${s.port}${s.contract ? ` · contract: ${s.contract.mode}` : ''}`,
+                      id: s.id,
+                    })),
+                    { placeHolder: 'Configure contract validation for which server?' }
+                  );
+            if (!picked) {
+              return;
+            }
+            serverId = picked.id;
+          }
+
+          const server = servers.find((s) => s.id === serverId);
+          if (server && server.protocol !== 'http') {
+            vscode.window.showWarningMessage(
+              'Mocklify: Contract validation applies to HTTP servers only.'
+            );
+            return;
+          }
+
+          const specUri = await pickContractSpec(workspaceRoot);
+          if (specUri === 'disable') {
+            await mgr.setServerContract(serverId, undefined);
+            vscode.window.showInformationMessage(
+              `Mocklify: Contract validation disabled for "${server?.name ?? serverId}".`
+            );
+            return;
+          }
+          if (!specUri) {
+            return;
+          }
+
+          const modePick = await vscode.window.showQuickPick(
+            [
+              {
+                label: '$(warning) Warn',
+                detail: 'Serve the normal response; record violations on the request log.',
+                mode: 'warn' as const,
+              },
+              {
+                label: '$(error) Enforce',
+                detail: 'Reject violating requests with 400 before generating a response.',
+                mode: 'enforce' as const,
+              },
+            ],
+            { placeHolder: 'How should contract violations be handled?' }
+          );
+          if (!modePick) {
+            return;
+          }
+
+          const specPath = workspaceRoot
+            ? vscode.workspace.asRelativePath(specUri, false)
+            : specUri.fsPath;
+          const contract: ContractConfig = { specPath, mode: modePick.mode };
+          await mgr.setServerContract(serverId, contract);
+          vscode.window.showInformationMessage(
+            `Mocklify: Contract validation (${modePick.mode}) enabled for "${server?.name ?? serverId}" against ${specPath}.`
+          );
+        } catch (error) {
+          recordError(error);
+          vscode.window.showErrorMessage(
+            `Mocklify: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      }
+    ),
+
+    // Report Issue: build a redacted diagnostics report and either copy it or
+    // open a pre-filled GitHub issue. No secrets, paths, or bodies are included.
+    vscode.commands.registerCommand('mocklify.reportIssue', async () => {
+      try {
+        const input = await collectDiagnostics({
+          extensionVersion: getExtensionVersion(),
+          workspaceRoot,
+          getServers: () => mgr.getServers(),
+          getServerStates: () => mgr.getAllServerStates().values(),
+          getConfiguredProviderId: () => aiService.getConfiguredProviderId(),
+          resolveProviderId: async () => {
+            try {
+              return (await aiService.resolveProvider()).id as
+                | 'copilot'
+                | 'claude'
+                | 'openai'
+                | 'gemini';
+            } catch {
+              return null;
+            }
+          },
+        });
+        const report = buildDiagnosticsReport(input);
+        const repositoryUrl = (
+          context.extension.packageJSON as { repository?: { url?: string } }
+        ).repository?.url;
+
+        const action = await vscode.window.showQuickPick(
+          ['Copy report to clipboard', 'Open GitHub issue'],
+          { placeHolder: 'Mocklify diagnostics report ready — no secrets or paths included.' }
+        );
+        if (action === 'Copy report to clipboard') {
+          await vscode.env.clipboard.writeText(report);
+          vscode.window.showInformationMessage('Mocklify: Diagnostics report copied to clipboard.');
+        } else if (action === 'Open GitHub issue') {
+          const url = formatForIssueUrl(report, { repositoryUrl });
+          await vscode.env.openExternal(vscode.Uri.parse(url));
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(
+          `Mocklify: Could not build diagnostics report: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    })
+  );
+
   // Watch for configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
@@ -174,6 +316,55 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       vscode.commands.executeCommand('mocklify.createServer');
     }
   }
+}
+
+/**
+ * Offer OpenAPI/Swagger specs found in the workspace for contract validation,
+ * with a Browse… escape hatch and a Disable option. Returns the chosen spec
+ * Uri, the literal 'disable', or undefined when dismissed.
+ */
+async function pickContractSpec(
+  workspaceRoot: string | undefined
+): Promise<vscode.Uri | 'disable' | undefined> {
+  const candidates = new Map<string, vscode.Uri>();
+  if (workspaceRoot) {
+    const exclude = '{**/node_modules/**,**/dist/**,**/out/**,**/build/**,**/.git/**}';
+    for (const pattern of ['**/*{openapi,swagger}*.{json,yaml,yml}', '**/openapi.{json,yaml,yml}']) {
+      for (const uri of await vscode.workspace.findFiles(pattern, exclude, 50)) {
+        candidates.set(uri.fsPath, uri);
+      }
+    }
+  }
+
+  const BROWSE = '$(folder-opened) Browse…';
+  const DISABLE = '$(circle-slash) Disable contract validation';
+  const items: (vscode.QuickPickItem & { uri?: vscode.Uri; action?: 'browse' | 'disable' })[] = [
+    ...[...candidates.values()].map((uri) => ({
+      label: `$(file-code) ${vscode.workspace.asRelativePath(uri)}`,
+      uri,
+    })),
+    { label: BROWSE, detail: 'Pick a spec file anywhere on disk', action: 'browse' as const },
+    { label: DISABLE, detail: 'Turn off request validation for this server', action: 'disable' as const },
+  ];
+  const picked = await vscode.window.showQuickPick(items, {
+    placeHolder: 'Select an OpenAPI / Swagger spec to validate requests against',
+  });
+  if (!picked) {
+    return undefined;
+  }
+  if (picked.action === 'disable') {
+    return 'disable';
+  }
+  if (picked.uri) {
+    return picked.uri;
+  }
+  const browsed = await vscode.window.showOpenDialog({
+    canSelectMany: false,
+    filters: { 'OpenAPI / Swagger': ['json', 'yaml', 'yml'] },
+    title: 'Select an OpenAPI / Swagger spec',
+    openLabel: 'Use for contract',
+  });
+  return browsed?.[0];
 }
 
 export async function deactivate(): Promise<void> {

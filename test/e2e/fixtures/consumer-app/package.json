@@ -1,0 +1,10 @@
+{
+  "name": "consumer-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tiny front-end fixture that CONSUMES a REST API via fetch/axios.",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "react": "^18.2.0"
+  }
+}

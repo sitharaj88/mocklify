@@ -469,6 +469,9 @@ export class WebViewManager {
         matcher: data.matcher,
         delay: data.delay,
         priority: data.priority,
+        tags: data.tags,
+        chaos: data.chaos,
+        graphql: data.graphql,
       });
       this.sendSuccess('Route created successfully');
     } catch (error) {

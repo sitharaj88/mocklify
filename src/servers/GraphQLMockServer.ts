@@ -304,25 +304,34 @@ export class GraphQLMockServer implements IMockServer {
     this.graphqlRoutes.clear();
 
     for (const route of this._config.routes) {
-      // Parse GraphQL-specific route configuration
-      // Convention: path = "query:operationName" or "mutation:operationName"
-      const match = route.path.match(/^(query|mutation|subscription):(\w+|\*)$/i);
+      // Prefer the native `graphql` object; else fall back to the legacy path
+      // convention `path = "query:operationName"` / `"mutation:operationName"`.
+      let operationType: 'query' | 'mutation' | 'subscription';
+      let operationName: string;
 
-      if (match) {
-        const graphqlRoute: GraphQLRoute = {
-          id: route.id,
-          name: route.name,
-          enabled: route.enabled,
-          operationType: match[1].toLowerCase() as 'query' | 'mutation' | 'subscription',
-          operationName: match[2],
-          response: {
-            data: route.response.body?.content,
-          },
-          delay: route.delay?.type === 'fixed' ? route.delay.value : undefined,
-        };
-
-        this.graphqlRoutes.set(route.id, graphqlRoute);
+      if (route.graphql) {
+        operationType = route.graphql.operationType;
+        operationName = route.graphql.operationName;
+      } else {
+        const match = route.path.match(/^(query|mutation|subscription):(\w+|\*)$/i);
+        if (!match) continue;
+        operationType = match[1].toLowerCase() as 'query' | 'mutation' | 'subscription';
+        operationName = match[2];
       }
+
+      const graphqlRoute: GraphQLRoute = {
+        id: route.id,
+        name: route.name,
+        enabled: route.enabled,
+        operationType,
+        operationName,
+        response: {
+          data: route.response.body?.content,
+        },
+        delay: route.delay?.type === 'fixed' ? route.delay.value : undefined,
+      };
+
+      this.graphqlRoutes.set(route.id, graphqlRoute);
     }
   }
 }

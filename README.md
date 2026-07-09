@@ -249,6 +249,25 @@ Give a route a `stateful` block (`{ "collection": "users", "seed": [...] }`) and
 
 Run **`Mocklify: Configure Chaos (Latency & Failures)`** on a server to test how your app handles a flaky backend: pick a preset (Flaky — 10% 503s; Unstable — 30% failures + 500-2000ms jitter) or configure a custom failure rate, status code, and latency range. Chaos applies to **all** routes on the server, hot-reloads without a restart, and is persisted in `servers.json` under the server's `chaos` block.
 
+**Per-route chaos override.** Open a route's **Advanced** tab in the dashboard and set **Chaos Override** to *Override* (inject chaos on just this route, with its own failure rate/status/latency) or *Exempt* (never inject chaos here even when server chaos is on). A route override fully **replaces** the server's chaos for that route; unmatched requests still use the server setting. The effective chaos for a request is `matchedRoute.chaos ?? server.chaos`.
+
+### Contract Validation
+
+Run **`Mocklify: Configure Contract Validation`** on an HTTP server to validate incoming requests against an OpenAPI 3.x spec. Pick a spec file (Mocklify finds `*openapi*` / `*swagger*` files in your workspace, or browse), then a mode:
+
+- **Warn** — the route's normal response is served unchanged, and any contract violations are attached to the request log entry (a subtle amber shield appears on the log row in the dashboard).
+- **Enforce** — a violating request is rejected with `400 { "error": "Contract violation", "mode": "enforce", "violations": [...] }` before the mock response is generated.
+
+The validator checks path/query/header parameters (type, enum, required) and the JSON request body schema against the spec. It is loaded once per spec file and reloaded automatically when the spec changes on disk. Choose **Disable** in the picker to turn validation off. The setting is persisted per server in `servers.json` under a `contract` block (`{ "specPath": "...", "mode": "warn" | "enforce" }`).
+
+### GraphQL Operation Routing
+
+A route on a GraphQL server can match by **operation** instead of by path. In the dashboard route **Advanced** tab (shown when the method is `POST` and the path contains `graphql`), enable **Match by operation** and set the operation name and type (`query` / `mutation` / `subscription`). Mocklify then matches a POST to that path whose GraphQL body carries the matching `operationName`/type, falling back to the legacy `query:opName` path convention when no `graphql` block is set.
+
+### Report an Issue
+
+Run **`Mocklify: Report Issue`** to generate a **redacted** diagnostics report (extension/VS Code/OS versions, AI provider, server/route counts, feature flags, the last scan strategy and last error) — API keys, gateway URLs, absolute paths, and response bodies are stripped. Choose **Copy report to clipboard** or **Open GitHub issue** (pre-fills a new issue with the report).
+
 ### AI Commands
 
 | Command | Description |
@@ -443,6 +462,43 @@ Mocklify stores configuration in a `.mocklify` folder in your workspace:
 ├── recordings/       # Recorded sessions
 └── databases/        # JSON database files
 ```
+
+---
+
+## 🖥️ Headless CLI (CI / no VS Code)
+
+The same mock engine runs from the command line, so your CI can boot the exact mocks your team designs in the dashboard. The `.mocklify/servers.json` you commit is the CLI's config.
+
+```bash
+# From a workspace that has a .mocklify/servers.json:
+npx mocklify serve            # start every enabled server, stream one line per request
+npx mocklify serve --all      # include disabled servers too
+npx mocklify serve --server "Payments API" --port 4010
+npx mocklify list             # name / protocol / port / route count
+npx mocklify validate         # zod-validate the config; exit 1 on error
+```
+
+Exit codes: `0` OK · `1` config/validation error · `2` port already in use. `serve` shuts down cleanly on `SIGINT`/`SIGTERM`.
+
+### GitHub Actions
+
+```yaml
+jobs:
+  contract-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      # Start the mocks in the background, wait for the port, run your tests.
+      - run: npx mocklify serve --quiet &
+      - run: npx wait-on tcp:3000
+      - run: npm test          # your app under test, pointed at http://localhost:3000
+```
+
+> The CLI binds `0.0.0.0` and uses the same stateful, chaos, and (HTTP) contract-validation behavior as the extension. WebSocket servers are extension-only and are skipped with a warning.
 
 ---
 

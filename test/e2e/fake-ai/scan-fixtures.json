@@ -1,0 +1,22 @@
+{
+  "id": "copilot",
+  "label": "Fake AI (E2E)",
+  "available": true,
+  "supportsToolLoop": true,
+  "defaultResponse": "{\"routes\":[]}",
+  "streamResponses": [
+    {
+      "response": "{\"routes\":[{\"name\":\"List users\",\"method\":\"GET\",\"path\":\"/api/users\",\"response\":{\"type\":\"static\",\"statusCode\":200,\"body\":{\"contentType\":\"application/json\",\"content\":[{\"id\":1,\"name\":\"Ada\"}]}}},{\"name\":\"Get user\",\"method\":\"GET\",\"path\":\"/api/users/:id\",\"response\":{\"type\":\"static\",\"statusCode\":200,\"body\":{\"contentType\":\"application/json\",\"content\":{\"id\":1,\"name\":\"Ada\"}}}}]}"
+    }
+  ],
+  "toolLoops": [
+    {
+      "match": "no api",
+      "toolCalls": [],
+      "final": "I explored the workspace and found no HTTP API surface to mock."
+    },
+    {
+      "final": "Done. I submitted the discovered routes."
+    }
+  ]
+}

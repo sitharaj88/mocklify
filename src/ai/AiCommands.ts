@@ -30,6 +30,7 @@ import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 import { MODEL_CATALOG, ModelProviderId } from './modelCatalog.js';
 import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
 import { SpecEnricher, EnrichedImportResult, formatImportBlocks } from './SpecEnricher.js';
+import { recordScanReport, recordError } from '../services/DiagnosticsService.js';
 
 const KEY_PROVIDERS: { id: AiProviderId; label: string; hint: string }[] = [
   { id: 'claude', label: 'Claude (Anthropic)', hint: 'sk-ant-…  from console.anthropic.com' },
@@ -592,6 +593,9 @@ export function registerAiCommands(
           if (token.isCancellationRequested) {
             return;
           }
+
+          // Capture the scan's per-surface strategy report for diagnostics.
+          recordScanReport(summary.strategies);
 
           // Spec-first shortcut: an existing API spec gives exact routes
           // without inference — offer it before creating anything.
@@ -1374,6 +1378,8 @@ async function saveAndOpenDocs(server: MockServerConfig, markdown: string): Prom
 }
 
 function showAiError(error: unknown): void {
+  // Capture the failure so "Mocklify: Report Issue" can surface it (redacted).
+  recordError(error);
   if (error instanceof AiUnavailableError) {
     vscode.window
       .showErrorMessage(`Mocklify: ${error.message}`, 'Select AI Provider', 'Set API Key')

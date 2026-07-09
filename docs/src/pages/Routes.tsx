@@ -200,6 +200,52 @@ export default function Routes() {
 }`}
         />
       </section>
+
+      {/* Per-route chaos */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Per-Route Chaos Override</h2>
+        <p className="theme-text-secondary mb-4">
+          A route can override the server's chaos setting via a <code>chaos</code> block — it fully
+          replaces server chaos for that route. Use <code>{`{ "enabled": false }`}</code> to exempt a
+          route from server-wide chaos. Configure it in the route's <strong>Advanced</strong> tab.
+        </p>
+        <CodeBlock
+          language="json"
+          code={`{
+  "name": "Flaky Search",
+  "method": "GET",
+  "path": "/api/search",
+  "chaos": { "enabled": true, "failureRate": 0.3, "failureStatus": 503 },
+  "response": { "statusCode": 200, "body": { "results": [] } }
+}`}
+        />
+        <InfoBox type="tip">
+          The effective chaos for a request is <code>matchedRoute.chaos ?? server.chaos</code>.
+        </InfoBox>
+      </section>
+
+      {/* Contract validation */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Contract Validation</h2>
+        <p className="theme-text-secondary mb-4">
+          Run <strong>Mocklify: Configure Contract Validation</strong> to validate incoming requests
+          against an OpenAPI 3.x spec. In <strong>warn</strong> mode violations are attached to the
+          request log; in <strong>enforce</strong> mode a violating request gets a <code>400</code>
+          before the mock response is generated. The setting is stored per server:
+        </p>
+        <CodeBlock
+          language="json"
+          code={`{
+  "name": "Payments API",
+  "port": 3000,
+  "contract": { "specPath": "openapi.yaml", "mode": "enforce" },
+  "routes": []
+}`}
+        />
+        <InfoBox type="info">
+          Contract validation is HTTP-only and reloads automatically when the spec changes on disk.
+        </InfoBox>
+      </section>
     </div>
   );
 }

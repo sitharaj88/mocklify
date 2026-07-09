@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decideChaos,
   CHAOS_DEFAULT_FAILURE_STATUS,
+  CHAOS_MAX_DELAY_MS,
 } from '../src/servers/HttpMockServer.js';
 import { ChaosConfig } from '../src/types/core.js';
 
@@ -99,6 +100,13 @@ describe('decideChaos', () => {
     it('clamps a negative min to 0', () => {
       const chaos: ChaosConfig = { enabled: true, minDelayMs: -50, maxDelayMs: 100 };
       expect(decideChaos(chaos, seeded(0)).delayMs).toBe(0);
+    });
+
+    it('caps an unbounded delay at CHAOS_MAX_DELAY_MS so a hostile config cannot hang requests', () => {
+      const chaos: ChaosConfig = { enabled: true, minDelayMs: 2_000_000_000 };
+      expect(decideChaos(chaos, seeded(0.9)).delayMs).toBe(CHAOS_MAX_DELAY_MS);
+      const wide: ChaosConfig = { enabled: true, minDelayMs: 0, maxDelayMs: 2_000_000_000 };
+      expect(decideChaos(wide, seeded(1)).delayMs).toBeLessThanOrEqual(CHAOS_MAX_DELAY_MS);
     });
   });
 

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from '../store';
 import { Route, Plus, Trash2, Code, Settings2, Filter, Clock } from 'lucide-react';
-import type { RouteConfig, HttpMethod, ResponseConfig } from '../types';
+import type { RouteConfig, HttpMethod, ResponseConfig, ChaosConfig, GraphQlRoute } from '../types';
 import {
   Dialog,
   DialogContent,
@@ -76,7 +76,23 @@ export function RouteModal() {
   const [delayMax, setDelayMax] = useState(1000);
   const [priority, setPriority] = useState(0);
 
+  // Chaos override: 'inherit' (undefined), 'override' (enabled:true + fields),
+  // 'exempt' (enabled:false — opts the route out of server chaos entirely).
+  const [chaosMode, setChaosMode] = useState<'inherit' | 'override' | 'exempt'>('inherit');
+  const [chaosFailureRate, setChaosFailureRate] = useState(0.2);
+  const [chaosFailureStatus, setChaosFailureStatus] = useState(503);
+  const [chaosMinDelay, setChaosMinDelay] = useState(0);
+  const [chaosMaxDelay, setChaosMaxDelay] = useState(0);
+
+  // GraphQL-native matching (shown when path/method suggest GraphQL).
+  const [gqlEnabled, setGqlEnabled] = useState(false);
+  const [gqlOperationName, setGqlOperationName] = useState('');
+  const [gqlOperationType, setGqlOperationType] =
+    useState<GraphQlRoute['operationType']>('query');
+
   const isEditing = !!editingRoute;
+  const looksGraphql =
+    method === 'POST' && /graphql/i.test(path);
 
   useEffect(() => {
     if (editingRoute) {
@@ -120,6 +136,29 @@ export function RouteModal() {
       }
 
       setPriority(editingRoute.priority || 0);
+
+      const chaos = editingRoute.chaos;
+      if (!chaos) {
+        setChaosMode('inherit');
+      } else if (chaos.enabled) {
+        setChaosMode('override');
+        setChaosFailureRate(chaos.failureRate ?? 0.2);
+        setChaosFailureStatus(chaos.failureStatus ?? 503);
+        setChaosMinDelay(chaos.minDelayMs ?? 0);
+        setChaosMaxDelay(chaos.maxDelayMs ?? 0);
+      } else {
+        setChaosMode('exempt');
+      }
+
+      if (editingRoute.graphql) {
+        setGqlEnabled(true);
+        setGqlOperationName(editingRoute.graphql.operationName);
+        setGqlOperationType(editingRoute.graphql.operationType);
+      } else {
+        setGqlEnabled(false);
+        setGqlOperationName('');
+        setGqlOperationType('query');
+      }
     } else {
       setName('');
       setMethod('GET');
@@ -136,6 +175,14 @@ export function RouteModal() {
       setDelayMin(0);
       setDelayMax(1000);
       setPriority(0);
+      setChaosMode('inherit');
+      setChaosFailureRate(0.2);
+      setChaosFailureStatus(503);
+      setChaosMinDelay(0);
+      setChaosMaxDelay(0);
+      setGqlEnabled(false);
+      setGqlOperationName('');
+      setGqlOperationType('query');
       setActiveTab('basic');
     }
   }, [editingRoute]);
@@ -194,6 +241,26 @@ export function RouteModal() {
       },
     };
 
+    let chaos: ChaosConfig | undefined;
+    if (chaosMode === 'override') {
+      chaos = {
+        enabled: true,
+        failureRate: chaosFailureRate,
+        failureStatus: chaosFailureStatus,
+        minDelayMs: chaosMinDelay || undefined,
+        maxDelayMs: chaosMaxDelay || undefined,
+      };
+    } else if (chaosMode === 'exempt') {
+      chaos = { enabled: false };
+    }
+
+    const graphql: GraphQlRoute | undefined =
+      gqlEnabled && gqlOperationName.trim()
+        ? { operationName: gqlOperationName.trim(), operationType: gqlOperationType }
+        : undefined;
+
+    // chaos/graphql are always sent (possibly undefined) so clearing them in the
+    // modal round-trips through the merge in MockServerManager.updateRoute.
     const routeData: Partial<RouteConfig> = {
       name: name || path,
       enabled: true,
@@ -208,6 +275,8 @@ export function RouteModal() {
           ? { type: 'fixed', value: delayValue }
           : { type: 'random', min: delayMin, max: delayMax },
       priority: priority || undefined,
+      chaos,
+      graphql,
     };
 
     if (isEditing && editingRoute) {
@@ -619,6 +688,136 @@ export function RouteModal() {
                       />
                       <FormHint>Higher priority routes are matched first (default: 0)</FormHint>
                     </FormGroup>
+
+                    <FormGroup>
+                      <Label>Chaos Override</Label>
+                      <Select value={chaosMode} onValueChange={(v) => setChaosMode(v as typeof chaosMode)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="inherit">Inherit server chaos</SelectItem>
+                          <SelectItem value="override">Override — inject chaos on this route</SelectItem>
+                          <SelectItem value="exempt">Exempt — never inject chaos here</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormHint>
+                        A route override fully replaces the server&apos;s chaos setting for this route.
+                      </FormHint>
+
+                      <AnimatePresence>
+                        {chaosMode === 'override' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-surface-400 w-28">Failure rate</span>
+                              <Input
+                                type="number"
+                                step="0.05"
+                                min={0}
+                                max={1}
+                                value={chaosFailureRate}
+                                onChange={(e) => setChaosFailureRate(parseFloat(e.target.value) || 0)}
+                                className="flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-surface-400 w-28">Failure status</span>
+                              <Input
+                                type="number"
+                                min={100}
+                                max={599}
+                                value={chaosFailureStatus}
+                                onChange={(e) => setChaosFailureStatus(parseInt(e.target.value) || 503)}
+                                className="flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-surface-400 w-28">Min delay (ms)</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={chaosMinDelay}
+                                onChange={(e) => setChaosMinDelay(parseInt(e.target.value) || 0)}
+                                className="flex-1"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-surface-400 w-28">Max delay (ms)</span>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={chaosMaxDelay}
+                                onChange={(e) => setChaosMaxDelay(parseInt(e.target.value) || 0)}
+                                className="flex-1"
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </FormGroup>
+
+                    {(looksGraphql || gqlEnabled) && (
+                      <FormGroup>
+                        <div className="flex items-center justify-between">
+                          <Label className="mb-0">GraphQL Operation</Label>
+                          <label className="flex items-center gap-2 text-xs text-surface-400">
+                            <input
+                              type="checkbox"
+                              checked={gqlEnabled}
+                              onChange={(e) => setGqlEnabled(e.target.checked)}
+                            />
+                            Match by operation
+                          </label>
+                        </div>
+                        <FormHint>
+                          Match a GraphQL POST by its operation name/type instead of the raw path.
+                        </FormHint>
+
+                        <AnimatePresence>
+                          {gqlEnabled && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-4"
+                            >
+                              <div>
+                                <span className="text-sm text-surface-400">Operation name</span>
+                                <Input
+                                  value={gqlOperationName}
+                                  onChange={(e) => setGqlOperationName(e.target.value)}
+                                  placeholder="GetUser"
+                                  className="font-mono mt-1"
+                                />
+                              </div>
+                              <div>
+                                <span className="text-sm text-surface-400">Operation type</span>
+                                <Select
+                                  value={gqlOperationType}
+                                  onValueChange={(v) =>
+                                    setGqlOperationType(v as GraphQlRoute['operationType'])
+                                  }
+                                >
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="query">query</SelectItem>
+                                    <SelectItem value="mutation">mutation</SelectItem>
+                                    <SelectItem value="subscription">subscription</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </FormGroup>
+                    )}
                   </TabsContent>
                 </motion.div>
               </AnimatePresence>

@@ -4,6 +4,10 @@ node_modules/
 # Build output
 dist/
 
+# Compiled E2E tests and VS Code test host download
+out-test/
+.vscode-test/
+
 # VS Code extension package
 *.vsix
 

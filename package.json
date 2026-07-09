@@ -248,6 +248,18 @@
         "title": "Select AI Model",
         "category": "Mocklify",
         "icon": "$(circuit-board)"
+      },
+      {
+        "command": "mocklify.configureContract",
+        "title": "Configure Contract Validation",
+        "category": "Mocklify",
+        "icon": "$(law)"
+      },
+      {
+        "command": "mocklify.reportIssue",
+        "title": "Report Issue",
+        "category": "Mocklify",
+        "icon": "$(bug)"
       }
     ],
     "chatParticipants": [
@@ -558,6 +570,11 @@
           "group": "2_scenario"
         },
         {
+          "command": "mocklify.configureContract",
+          "when": "view == mocklifyServers && viewItem =~ /^server/",
+          "group": "2_scenario"
+        },
+        {
           "command": "mocklify.resetStatefulData",
           "when": "view == mocklifyServers && viewItem == server-running",
           "group": "2_scenario"
@@ -699,6 +716,9 @@
       }
     }
   },
+  "bin": {
+    "mocklify": "./dist/cli.js"
+  },
   "scripts": {
     "vscode:prepublish": "npm run build",
     "build": "node esbuild.config.js && npm run build:webview",
@@ -707,16 +727,23 @@
     "watch": "node esbuild.config.js --watch",
     "test": "vitest",
     "test:watch": "vitest --watch",
+    "test:unit": "vitest run",
+    "compile:e2e": "tsc -p tsconfig.e2e.json",
+    "test:e2e": "vscode-test",
+    "test:all": "npm run test:unit && npm run compile:e2e && npm run test:e2e",
     "lint": "eslint src --ext ts",
     "package": "vsce package"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^20.10.0",
     "@types/uuid": "^9.0.7",
     "@types/vscode": "^1.95.0",
     "@types/ws": "^8.5.10",
     "@typescript-eslint/eslint-plugin": "^6.13.0",
     "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
     "esbuild": "^0.19.8",
     "eslint": "^8.55.0",
     "sharp": "^0.34.5",
