@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import CodeBlock from '../components/CodeBlock';
 import InfoBox from '../components/InfoBox';
@@ -119,7 +120,12 @@ export default function AiFeatures() {
           falls back to a census-guided exploration instead of a dead end. Backends (Spring,
           Express, FastAPI, Rails, Go, …) are mocked from their declared routes and handlers,
           monorepos get one mock server per detected API surface, and when an OpenAPI spec
-          already exists Mocklify offers to import it directly for exact routes.
+          already exists Mocklify offers to import it directly for exact routes (the same
+          deterministic pipeline as{' '}
+          <Link to="/import" className="text-purple-400 hover:underline">Import &amp; Export</Link>).
+          Under the hood a registry of 40+ framework and stack packs (Retrofit, Express, Spring,
+          FastAPI, Rails, Go, Dio, …) drives detection, but there is no hard-coded allow-list — the
+          universal signals cover stacks not in the registry too.
         </p>
         <h3 className="text-lg font-medium mb-3">How it works</h3>
         <ol className="space-y-2 theme-text-secondary list-decimal list-inside mb-4">
@@ -139,13 +145,16 @@ export default function AiFeatures() {
         </ol>
         <p className="theme-text-secondary mb-4">
           By default (<code className="text-purple-400">mocklify.ai.scanMode: &quot;auto&quot;</code>)
-          Mocklify picks the best strategy per project: an existing spec leads, then agentic
-          exploration when the provider supports tools, then the fast one-shot scan. Set it to{' '}
+          Mocklify picks the best strategy <em>per project</em>: an existing spec leads, then
+          agentic exploration when the provider supports tools, then the fast one-shot scan, and
+          finally a census scan of the most promising file heads when a workspace matches no API
+          patterns anywhere and the provider has no tools. Set it to{' '}
           <code className="text-purple-400">agentic</code> to always let the AI explore the
           codebase itself with read-only tools — reading files, following imports to data
           models, and finding auth/error conventions — for higher-quality routes at more time
           and AI cost, or <code className="text-purple-400">fast</code> to force the cheap
-          one-shot scan.
+          one-shot scan (it still auto-escalates to agentic exploration when a tool-capable
+          provider is set and nothing in the workspace matches a known API pattern).
         </p>
         <p className="theme-text-secondary mb-4">
           Agentic scans run as a multi-agent pipeline: on multi-project workspaces up to three
@@ -155,12 +164,27 @@ export default function AiFeatures() {
           with confirmed / repaired / dropped counts in the result. When the code is genuinely
           ambiguous the agent can ask you up to two short clarifying questions per surface
           (<code className="text-purple-400">mocklify.ai.askQuestions</code>, on by default —
-          answered inline on the dashboard or via a QuickPick). An interrupted scan is
+          answered inline on the dashboard or via a QuickPick; after a two-minute wait with no
+          answer the agent decides for itself and notes the assumption). An interrupted scan is
           checkpointed under <code className="text-purple-400">.mocklify/checkpoints/</code>{' '}
           (gitignore it) and offers to <strong>resume</strong> next time, skipping surfaces
           already explored; each completed scan also saves what it learned to{' '}
-          <code className="text-purple-400">.mocklify/scan-memory.json</code> so the next scan
-          starts smarter.
+          <code className="text-purple-400">.mocklify/scan-memory.json</code> — safe to commit — so
+          the next scan starts smarter.
+        </p>
+        <InfoBox type="info" title="Your provider still runs every AI call">
+          LangGraph only <em>orchestrates</em> the agentic pipeline — parallel branches, the
+          critic loop, checkpoints. Every model call still goes through the provider you selected,
+          so GitHub Copilot and enterprise gateways work exactly as they do everywhere else.
+          Exploration is strictly read-only: no writes, no command execution, with
+          path-traversal/symlink protection and a secrets denylist, bounded by tool-call, time,
+          and byte budgets.
+        </InfoBox>
+        <p className="theme-text-secondary mb-4">
+          If a scan ever fails or produces something surprising, run{' '}
+          <code className="text-purple-400">Mocklify: Report Issue</code> — it builds a redacted
+          bug report that includes the last scan&apos;s per-surface strategy and the last error.
+          See <Link to="/diagnostics" className="text-purple-400 hover:underline">Diagnostics</Link>.
         </p>
         <h3 className="text-lg font-medium mb-3">Positive and negative flows</h3>
         <p className="theme-text-secondary mb-4">
@@ -169,8 +193,10 @@ export default function AiFeatures() {
           errors, <code className="text-purple-400">401</code> auth failures,{' '}
           <code className="text-purple-400">404</code> missing resources, and{' '}
           <code className="text-purple-400">500</code> server errors — tagged{' '}
-          <code className="text-purple-400">negative</code> and disabled by default. Toggle one
-          on to simulate that failure in your app; toggle it off to return to the happy path.
+          <code className="text-purple-400">negative</code> and disabled by default. These are
+          ordinary <Link to="/routes" className="text-purple-400 hover:underline">routes</Link> —
+          toggle one on to simulate that failure in your app; toggle it off to return to the
+          happy path.
         </p>
         <InfoBox type="success" title="Develop offline">
           Point your app&apos;s base URL (env var or config constant) at{' '}
@@ -263,19 +289,25 @@ export default function AiFeatures() {
             unavailable.
           </li>
           <li>
-            • <strong>Stateful mocks</strong> — routes with a{' '}
-            <code className="text-purple-400">stateful</code> block share an in-memory
-            collection, so POST-then-GET flows actually work: list, fetch by id, insert (201),
-            update, delete (204), 404 for missing ids. Collections seed from{' '}
+            • <strong><Link to="/stateful" className="text-purple-400 hover:underline">Stateful mocks</Link></strong>{' '}
+            — routes with a <code className="text-purple-400">stateful</code> block share an
+            in-memory collection, so POST-then-GET flows actually work: list, fetch by id, insert
+            (201), update, delete (204), 404 for missing ids. Collections seed from{' '}
             <code className="text-purple-400">stateful.seed</code> and reset on restart or with{' '}
             <strong>Reset Stateful Mock Data</strong>. The AI generators emit stateful blocks
             for CRUD endpoint families automatically.
           </li>
           <li>
-            • <strong>Chaos simulation</strong> — <strong>Configure Chaos</strong> adds random
-            failures (e.g. 10% 503s) and latency jitter across every route on a server, with
-            presets or custom rate/status/delay. Hot-reloads while the server runs; great for
-            testing retries, timeouts, and error UI.
+            • <strong><Link to="/chaos" className="text-purple-400 hover:underline">Chaos simulation</Link></strong>{' '}
+            — <strong>Configure Chaos</strong> adds random failures (e.g. 10% 503s) and latency
+            jitter across every route on a server, with presets or custom rate/status/delay.
+            Hot-reloads while the server runs; great for testing retries, timeouts, and error UI.
+          </li>
+          <li>
+            • <strong><Link to="/contracts" className="text-purple-400 hover:underline">Contract validation</Link></strong>{' '}
+            — an imported spec can double as a live contract: run{' '}
+            <strong>Configure Contract Validation</strong> to warn on (or enforce) requests that
+            violate the OpenAPI spec, which pairs well with the spec-first scan shortcut.
           </li>
         </ul>
       </section>

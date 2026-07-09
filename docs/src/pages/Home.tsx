@@ -14,6 +14,9 @@ import {
   Telescope,
   MessageSquare,
   BookOpen,
+  Terminal,
+  ShieldCheck,
+  Boxes,
 } from 'lucide-react';
 const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import Feature from '../components/Feature';
@@ -29,7 +32,31 @@ const features = [
     icon: Telescope,
     title: 'Mock Your App from Code',
     description:
-      'Scan any Android, iOS, web, or Flutter codebase and reverse-engineer a full mock server with positive and negative flows.',
+      'Scan any codebase in any language and reverse-engineer a full mock server — one per detected API surface — with positive and negative flows.',
+  },
+  {
+    icon: Terminal,
+    title: 'Headless CLI for CI',
+    description:
+      'Run your mocks without VS Code. @mocklify/cli serves, validates, and lists servers with CI-friendly exit codes.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Contract Validation',
+    description:
+      'Validate incoming requests against an OpenAPI 3.x spec — warn on the log row, or enforce with a 400.',
+  },
+  {
+    icon: Boxes,
+    title: 'Stateful CRUD',
+    description:
+      'Routes share an in-memory collection so POST-then-GET flows work: list, create (201), update, delete (204).',
+  },
+  {
+    icon: Zap,
+    title: 'Chaos Simulation',
+    description:
+      'Inject latency and random failures server-wide or per route, with Flaky/Unstable presets — hot-reloaded while running.',
   },
   {
     icon: MessageSquare,
@@ -76,7 +103,8 @@ const features = [
   {
     icon: FileDown,
     title: 'Import & Export',
-    description: 'Import from OpenAPI, Swagger, and Postman. Export to HAR or cURL.',
+    description:
+      'Import OpenAPI, Swagger, and Postman. Export as OpenAPI, Postman, .http, or shareable API docs — plus HAR and cURL logs.',
   },
   {
     icon: Database,
@@ -98,7 +126,8 @@ export default function Home() {
         </h1>
         <p className="text-xl theme-text-secondary mb-8 max-w-2xl mx-auto">
           AI-powered API mocking for VS Code. Describe your API — or point at your app&apos;s
-          codebase — and get a running mock server with realistic data.
+          codebase — and get a running mock server with realistic data. Add stateful CRUD, chaos,
+          and contract validation, then run it all headless in CI.
         </p>
         <div className="flex flex-wrap gap-4 justify-center">
           <Link
@@ -133,6 +162,33 @@ export default function Home() {
         <div className="grid md:grid-cols-2 gap-4">
           {features.map((feature) => (
             <Feature key={feature.title} {...feature} />
+          ))}
+        </div>
+      </div>
+
+      {/* Explore */}
+      <div>
+        <h2 className="text-2xl font-bold mb-6 text-center">Start Here</h2>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            { to: '/getting-started', icon: Zap, title: 'Getting Started', desc: 'Install and create your first mock server in minutes.' },
+            { to: '/ai', icon: Sparkles, title: 'AI Features', desc: 'Generate mocks from a description, a codebase, or recorded traffic.' },
+            { to: '/cli', icon: Terminal, title: 'CLI', desc: 'Serve, validate, and list your mocks headless — built for CI.' },
+            { to: '/chaos', icon: Zap, title: 'Chaos', desc: 'Latency and failure injection with presets and per-route overrides.' },
+            { to: '/stateful', icon: Boxes, title: 'Stateful Data', desc: 'In-memory CRUD collections that survive across requests.' },
+            { to: '/contracts', icon: ShieldCheck, title: 'Contract Validation', desc: 'Check requests against an OpenAPI spec in warn or enforce mode.' },
+          ].map(({ to, icon: Icon, title, desc }) => (
+            <Link
+              key={to}
+              to={to}
+              className="p-5 rounded-xl theme-bg-card border theme-border hover:border-purple-500/50 transition-colors block"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <Icon className="w-5 h-5 text-purple-400" />
+                <h3 className="font-semibold">{title}</h3>
+              </div>
+              <p className="theme-text-secondary text-sm">{desc}</p>
+            </Link>
           ))}
         </div>
       </div>

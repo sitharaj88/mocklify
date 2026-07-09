@@ -24,6 +24,11 @@ import {
   Globe,
   Heart,
   Sparkles,
+  Terminal,
+  ShieldCheck,
+  Zap,
+  Boxes,
+  Stethoscope,
 } from 'lucide-react';
 const logoUrl = import.meta.env.BASE_URL + 'logo.svg';
 import { useState } from 'react';
@@ -39,11 +44,16 @@ const navigation = [
   { name: 'Templates', path: '/templates', icon: FileCode },
   { name: 'Request Matching', path: '/matching', icon: Target },
   { name: 'Response Sequences', path: '/sequences', icon: ListOrdered },
+  { name: 'Chaos', path: '/chaos', icon: Zap },
+  { name: 'Stateful Data', path: '/stateful', icon: Boxes },
+  { name: 'Contract Validation', path: '/contracts', icon: ShieldCheck },
   { name: 'Proxy & Recording', path: '/proxy', icon: ArrowRightLeft },
   { name: 'GraphQL', path: '/graphql', icon: Hexagon },
   { name: 'WebSocket', path: '/websocket', icon: Radio },
+  { name: 'CLI', path: '/cli', icon: Terminal },
   { name: 'Import & Export', path: '/import', icon: FileDown },
   { name: 'Database', path: '/database', icon: Database },
+  { name: 'Diagnostics', path: '/diagnostics', icon: Stethoscope },
   { name: 'Keyboard Shortcuts', path: '/shortcuts', icon: Keyboard },
 ];
 

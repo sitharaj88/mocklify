@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import CodeBlock from '../components/CodeBlock';
 import InfoBox from '../components/InfoBox';
@@ -84,7 +85,11 @@ export default function GettingStarted() {
           Open the dashboard and type a description into the <strong>Create with AI</strong>{' '}
           panel — e.g. <em>"e-commerce API with products, carts, and orders"</em> — and Mocklify
           generates the whole server with realistic data. Works with GitHub Copilot, Claude,
-          OpenAI, or Gemini. See <a href="#/ai" className="text-purple-400 hover:text-purple-300">AI Features</a>.
+          OpenAI, or Gemini. You can also point it at an existing app: with{' '}
+          <code className="px-1 py-0.5 theme-bg-secondary rounded">mocklify.ai.scanMode</code> on its
+          default <code className="px-1 py-0.5 theme-bg-secondary rounded">auto</code>, it picks the
+          best strategy per project (existing spec, then agentic exploration, then a fast scan). See{' '}
+          <Link to="/ai" className="text-purple-400 hover:text-purple-300">AI Features</Link>.
         </InfoBox>
       </section>
 
@@ -125,6 +130,27 @@ export default function GettingStarted() {
         />
       </section>
 
+      {/* Run in CI */}
+      <section>
+        <h2 className="text-2xl font-semibold mb-4">Run It in CI (Headless)</h2>
+        <p className="theme-text-secondary mb-4">
+          The same <code className="px-2 py-0.5 theme-bg-secondary rounded">.mocklify</code> config runs
+          without VS Code. The separate <code className="px-2 py-0.5 theme-bg-secondary rounded">@mocklify/cli</code>{' '}
+          package (Node 18+) serves, validates, and lists your servers with CI-friendly exit codes —
+          start them before your integration tests:
+        </p>
+        <CodeBlock
+          language="bash"
+          code={`# validate the config, then serve every server in the background
+npx @mocklify/cli validate
+npx @mocklify/cli serve --all --quiet &`}
+        />
+        <p className="theme-text-secondary mt-4">
+          See the <Link to="/cli" className="text-purple-400 hover:underline">CLI</Link> page for every
+          command, flag, and exit code.
+        </p>
+      </section>
+
       {/* What's Next */}
       <section className="bg-gradient-to-r from-purple-500/10 to-cyan-500/10 rounded-xl border border-purple-500/20 p-6">
         <h2 className="text-xl font-semibold mb-4">What's Next?</h2>
@@ -133,6 +159,7 @@ export default function GettingStarted() {
           <li>• Set up <a href="#/matching" className="text-purple-400 hover:underline">request matching</a> for conditional responses</li>
           <li>• Configure <a href="#/proxy" className="text-purple-400 hover:underline">proxy pass-through</a> to forward requests</li>
           <li>• Import existing APIs from <a href="#/import" className="text-purple-400 hover:underline">OpenAPI or Postman</a></li>
+          <li>• Run your mocks headless with the <Link to="/cli" className="text-purple-400 hover:underline">CLI</Link></li>
         </ul>
       </section>
     </div>

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import PageHeader from '../components/PageHeader';
 import CodeBlock from '../components/CodeBlock';
 import InfoBox from '../components/InfoBox';
@@ -58,6 +59,13 @@ export default function Import() {
           (400/401/404/429/500) where the spec documents none — and quietly falls back to the
           deterministic result if no AI provider is available.
         </InfoBox>
+        <p className="theme-text-secondary mt-4">
+          The same OpenAPI specs power{' '}
+          <Link to="/contracts" className="text-purple-400 hover:underline">Contract Validation</Link>{' '}
+          (validate live requests against a spec), and when a codebase already ships a spec the AI
+          scanner takes a <Link to="/ai" className="text-purple-400 hover:underline">spec-first</Link>{' '}
+          shortcut through this same import pipeline.
+        </p>
       </section>
 
       {/* Postman Import */}
@@ -83,7 +91,7 @@ export default function Import() {
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">2</span>
-            <span className="theme-text">Type "Mocklify: Import from Postman"</span>
+            <span className="theme-text">Run "Mocklify: Import Postman Collection"</span>
           </li>
           <li className="flex gap-3">
             <span className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-600 text-white text-xs">3</span>
@@ -157,7 +165,7 @@ export default function Import() {
     "version": "1.2",
     "creator": {
       "name": "Mocklify",
-      "version": "0.1.0"
+      "version": "0.4.0"
     },
     "entries": [
       {

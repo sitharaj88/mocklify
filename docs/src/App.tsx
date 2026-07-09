@@ -15,6 +15,11 @@ import Import from './pages/Import';
 import Database from './pages/Database';
 import Shortcuts from './pages/Shortcuts';
 import UIOverview from './pages/UIOverview';
+import Cli from './pages/Cli';
+import Contracts from './pages/Contracts';
+import Diagnostics from './pages/Diagnostics';
+import Chaos from './pages/Chaos';
+import Stateful from './pages/Stateful';
 
 function App() {
   return (
@@ -28,11 +33,16 @@ function App() {
         <Route path="templates" element={<Templates />} />
         <Route path="matching" element={<Matching />} />
         <Route path="sequences" element={<Sequences />} />
+        <Route path="chaos" element={<Chaos />} />
+        <Route path="stateful" element={<Stateful />} />
+        <Route path="contracts" element={<Contracts />} />
         <Route path="proxy" element={<Proxy />} />
         <Route path="graphql" element={<GraphQL />} />
         <Route path="websocket" element={<WebSocket />} />
+        <Route path="cli" element={<Cli />} />
         <Route path="import" element={<Import />} />
         <Route path="database" element={<Database />} />
+        <Route path="diagnostics" element={<Diagnostics />} />
         <Route path="shortcuts" element={<Shortcuts />} />
         <Route path="ui-overview" element={<UIOverview />} />
       </Route>
