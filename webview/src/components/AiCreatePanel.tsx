@@ -8,6 +8,9 @@ import {
   ArrowRight,
   X,
   FolderSearch,
+  HelpCircle,
+  History,
+  Send,
 } from 'lucide-react';
 import { useStore, postMessage } from '../store';
 import { Button } from './ui';
@@ -28,9 +31,11 @@ export function AiCreatePanel() {
   const { aiGeneration, setAiGeneration, setSelectedServerId, setActiveView } = useStore();
   const [description, setDescription] = useState('');
   const [autoStart, setAutoStart] = useState(true);
+  const [questionAnswer, setQuestionAnswer] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isGenerating = aiGeneration.status === 'generating';
+  const pendingQuestion = isGenerating ? aiGeneration.question : undefined;
 
   // Clear the prompt after a successful generation
   useEffect(() => {
@@ -38,6 +43,33 @@ export function AiCreatePanel() {
       setDescription('');
     }
   }, [aiGeneration.status]);
+
+  // Fresh answer box for every new question from the scanning agent
+  useEffect(() => {
+    setQuestionAnswer('');
+  }, [pendingQuestion?.id]);
+
+  const answerQuestion = (answer: string) => {
+    const question = aiGeneration.question;
+    if (!question) return;
+    postMessage({ type: 'aiAnswerQuestion', data: { id: question.id, answer } });
+    // Clear the card locally; the extension's next progress event follows.
+    setAiGeneration({
+      ...aiGeneration,
+      question: undefined,
+      message: 'Answer sent — continuing the scan…',
+    });
+  };
+
+  const startCodebaseScan = (resume?: 'resume' | 'fresh') => {
+    postMessage({ type: 'aiGenerateFromCodebase', data: { autoStart, resume } });
+    if (resume) {
+      setAiGeneration({
+        status: 'generating',
+        message: resume === 'resume' ? 'Resuming the interrupted scan…' : 'Starting a fresh scan…',
+      });
+    }
+  };
 
   const handleGenerate = (text?: string) => {
     const prompt = (text ?? description).trim();
@@ -105,7 +137,7 @@ export function AiCreatePanel() {
         </Button>
         <Button
           variant="secondary"
-          onClick={() => postMessage({ type: 'aiGenerateFromCodebase', data: { autoStart } })}
+          onClick={() => startCodebaseScan()}
           disabled={isGenerating}
           title="Scan this workspace's source code for API calls and generate a mock server covering them"
         >
@@ -174,6 +206,108 @@ export function AiCreatePanel() {
                 />
               </div>
             )}
+
+            {/* The scanning agent asked a clarifying question (HITL) */}
+            {pendingQuestion && (
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-md bg-amber-500/10 border border-amber-500/30 space-y-2"
+              >
+                <div className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+                  <HelpCircle size={16} className="mt-0.5 shrink-0 animate-pulse" />
+                  <span className="flex-1">{pendingQuestion.question}</span>
+                </div>
+                {pendingQuestion.options && pendingQuestion.options.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {pendingQuestion.options.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => answerQuestion(option)}
+                        className={cn(
+                          'focus-ring px-3 py-1 rounded-full text-xs transition-colors duration-150',
+                          'bg-surface-800/80 border border-surface-600 text-surface-200',
+                          'hover:border-amber-500/60 hover:text-amber-700 dark:hover:text-amber-300'
+                        )}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {pendingQuestion.freeText !== false && (
+                  <div className="flex gap-2">
+                    <input
+                      value={questionAnswer}
+                      onChange={(e) => setQuestionAnswer(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === 'Enter' && questionAnswer.trim() && answerQuestion(questionAnswer.trim())
+                      }
+                      placeholder={
+                        pendingQuestion.options?.length
+                          ? 'Or type your own answer…'
+                          : 'Type your answer…'
+                      }
+                      className={cn(
+                        'flex-1 px-3 py-1.5 rounded-md text-xs transition-colors duration-150',
+                        'bg-surface-800/80 border border-surface-600 text-surface-100 placeholder:text-surface-500',
+                        'focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500'
+                      )}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => questionAnswer.trim() && answerQuestion(questionAnswer.trim())}
+                      disabled={!questionAnswer.trim()}
+                      className="bg-amber-600 hover:bg-amber-500 text-white"
+                    >
+                      <Send size={12} />
+                      Answer
+                    </Button>
+                  </div>
+                )}
+                <div className="text-[11px] text-surface-400">
+                  No answer within 2 minutes? The agent decides on its own and notes the assumption.
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        )}
+
+        {/* An interrupted scan can be resumed */}
+        {aiGeneration.status === 'idle' && aiGeneration.resumable && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mt-3 flex flex-wrap items-center gap-3 p-3 rounded-md bg-sky-500/10 border border-sky-500/25 text-sm text-sky-700 dark:text-sky-300"
+          >
+            <History size={16} className="shrink-0" />
+            <span className="flex-1 min-w-0">
+              A previous codebase scan was interrupted —{' '}
+              <strong>
+                {aiGeneration.resumable.completedSurfaces} of {aiGeneration.resumable.totalSurfaces}
+              </strong>{' '}
+              API surface{aiGeneration.resumable.totalSurfaces === 1 ? '' : 's'} already explored
+              (started{' '}
+              {new Date(aiGeneration.resumable.startedAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+              ).
+            </span>
+            <Button size="sm" onClick={() => startCodebaseScan('resume')}>
+              Resume Scan
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => startCodebaseScan('fresh')}>
+              Start Fresh
+            </Button>
+            <button
+              onClick={() => setAiGeneration({ status: 'idle' })}
+              className="focus-ring p-1 rounded hover:bg-surface-700/50 text-surface-400 transition-colors duration-150"
+              title="Dismiss"
+            >
+              <X size={14} />
+            </button>
           </motion.div>
         )}
 

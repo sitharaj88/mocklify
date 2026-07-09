@@ -686,6 +686,11 @@
           "default": "auto",
           "markdownDescription": "How **Mocklify: AI: Generate Mock Server from Codebase** analyzes the workspace. `auto` picks the best strategy per project: existing spec > agentic exploration > fast scan. `fast` forces one-shot analysis of heuristically extracted snippets (escalating to agentic exploration only when no API patterns match anywhere in the workspace); `agentic` forces AI exploration with read-only tools for deeper, higher-quality routes at more AI cost and time."
         },
+        "mocklify.ai.askQuestions": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Let the agentic codebase scan ask you short clarifying questions (at most 2 per API surface) when the code is genuinely ambiguous — shown as a QuickPick from the command flow or an inline card in the dashboard. An unanswered question times out after 2 minutes and the agent decides on its own, noting the assumption. Turn off for fully unattended scans."
+        },
         "mocklify.ai.driftWatch": {
           "type": "boolean",
           "default": false,
@@ -721,6 +726,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
     "@faker-js/faker": "^8.3.0",
+    "@langchain/langgraph": "~1.4.7",
     "fastify": "^4.24.0",
     "handlebars": "^4.7.8",
     "uuid": "^9.0.1",

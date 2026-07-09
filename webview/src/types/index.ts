@@ -197,7 +197,8 @@ export type MessageToExtension =
   | { type: 'searchRoutes'; data: { query: string; serverId?: string } }
   // AI generation
   | { type: 'aiGenerateServer'; data: { description: string; autoStart?: boolean } }
-  | { type: 'aiGenerateFromCodebase'; data: { autoStart?: boolean } }
+  | { type: 'aiGenerateFromCodebase'; data: { autoStart?: boolean; resume?: 'resume' | 'fresh' } }
+  | { type: 'aiAnswerQuestion'; data: { id: string; answer: string } }
   | { type: 'aiCancelGeneration' }
   | { type: 'aiGenerateRoutes'; serverId: string; data: { description: string } }
   // AI configuration
@@ -235,6 +236,10 @@ export type MessageFromExtension =
       routeCount?: number;
       /** All servers a multi-surface codebase scan created (one per API surface). */
       servers?: AiCreatedServer[];
+      /** A question the scanning agent needs answered to continue (HITL). */
+      question?: AiScanQuestion;
+      /** An interrupted scan that can be resumed (shown as an inline choice). */
+      resumable?: AiResumableScan;
     }
   // AI configuration
   | { type: 'aiConfig'; provider: string; activeLabel?: string; providers: AiProviderInfo[] }
@@ -245,6 +250,24 @@ export interface AiCreatedServer {
   serverName: string;
   port: number;
   routeCount: number;
+}
+
+/** A clarifying question the codebase-scanning agent asked (ask_user tool). */
+export interface AiScanQuestion {
+  id: string;
+  question: string;
+  /** 2–4 suggested answers; absent for free-text questions. */
+  options?: string[];
+  /** Whether a typed free-text answer is accepted (always true today). */
+  freeText?: boolean;
+}
+
+/** An interrupted, checkpointed codebase scan that can be resumed. */
+export interface AiResumableScan {
+  completedSurfaces: number;
+  totalSurfaces: number;
+  /** Epoch ms when the interrupted scan started. */
+  startedAt: number;
 }
 
 export interface AiGenerationState {
@@ -259,6 +282,10 @@ export interface AiGenerationState {
   routeCount?: number;
   /** All servers a multi-surface codebase scan created (one per API surface). */
   servers?: AiCreatedServer[];
+  /** A question the scanning agent is waiting on (renders an answer card). */
+  question?: AiScanQuestion;
+  /** An interrupted scan offering Resume / Start fresh. */
+  resumable?: AiResumableScan;
 }
 
 export interface AiProviderInfo {

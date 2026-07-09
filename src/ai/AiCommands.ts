@@ -15,7 +15,17 @@ import { ApiKeyManager } from './providers/ApiKeyManager.js';
 import { MockGenerator } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
 import { CENSUS_NO_ROUTES_MESSAGE, CodebaseScanProgress } from './CodebaseMockGenerator.js';
-import { ScanOrchestrator } from './ScanOrchestrator.js';
+import {
+  ScanOrchestrator,
+  isScanCancellation,
+  type OrchestratedScanSummary,
+} from './ScanOrchestrator.js';
+import {
+  deriveScanThreadId,
+  hasResumableScan,
+  type ResumableScanInfo,
+} from './agent/scanGraph.js';
+import type { HumanQuestion } from './agent/graphRuntime.js';
 import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 import { MODEL_CATALOG, ModelProviderId } from './modelCatalog.js';
 import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
@@ -514,8 +524,16 @@ export function registerAiCommands(
   });
 
   register('mocklify.aiGenerateFromCodebase', async () => {
-    if (!vscode.workspace.workspaceFolders?.length) {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!workspaceRoot) {
       vscode.window.showWarningMessage('Mocklify: Open a folder or workspace to scan for API calls.');
+      return;
+    }
+
+    // An interrupted agentic scan leaves resumable checkpoints behind
+    // (.mocklify/checkpoints) — offer to continue it before starting fresh.
+    const resumeOffer = await offerScanResume(workspaceRoot);
+    if (resumeOffer.dismissed) {
       return;
     }
 
@@ -536,11 +554,41 @@ export function registerAiCommands(
             lastFraction = Math.max(lastFraction, fraction);
           };
 
+          // Human-in-the-loop: the agentic scan may ask up to 2 short
+          // questions per API surface, unless the user opted out.
+          const askQuestions = vscode.workspace
+            .getConfiguration('mocklify')
+            .get<boolean>('ai.askQuestions', true);
+          const onQuestion = askQuestions ? createScanQuestionHandler(token) : undefined;
+
           // The orchestrator runs recon once, picks the best strategy per API
           // surface (spec > agentic > fast > census, honoring the scanMode
-          // setting), and falls back to the fast scan itself when the
-          // provider cannot run the agentic loop.
-          const summary = await new ScanOrchestrator(ai).generate({ token, onProgress });
+          // setting), routes agentic surfaces through the LangGraph pipeline
+          // (parallel exploration + critic verification), and falls back to
+          // the fast scan itself when the provider cannot run tool loops.
+          const startFresh = (): Promise<OrchestratedScanSummary> =>
+            new ScanOrchestrator(ai).generate({
+              token,
+              onProgress,
+              onQuestion,
+              threadId: deriveScanThreadId(workspaceRoot.fsPath),
+            });
+
+          let summary: OrchestratedScanSummary;
+          if (resumeOffer.resume) {
+            // Resume through the orchestrator, not the graph directly: only the
+            // agentic slice is checkpointed, so the fast/spec surfaces have to
+            // be re-run or they vanish from the resumed result.
+            summary = await new ScanOrchestrator(ai).generate({
+              token,
+              onProgress,
+              onQuestion,
+              threadId: resumeOffer.resume.threadId,
+              resume: true,
+            });
+          } else {
+            summary = await startFresh();
+          }
           if (token.isCancellationRequested) {
             return;
           }
@@ -581,8 +629,9 @@ export function registerAiCommands(
             : '';
 
           const workspaceName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'App';
-          const verificationNote =
-            summary.repairedCount > 0 || summary.droppedCount > 0
+          const verificationNote = summary.verification
+            ? ` Verified by a critic agent against your code: ${summary.verification.confirmed} confirmed, ${summary.verification.repaired} repaired, ${summary.verification.dropped} dropped.`
+            : summary.repairedCount > 0 || summary.droppedCount > 0
               ? ` Self-verification auto-repaired ${summary.repairedCount} and dropped ${summary.droppedCount} invalid route(s).`
               : '';
 
@@ -681,7 +730,20 @@ export function registerAiCommands(
             vscode.window.showInformationMessage(`Mocklify: Created "${server.name}".`);
           }
         } catch (error) {
-          if (error instanceof vscode.CancellationError) {
+          if (
+            error instanceof vscode.CancellationError ||
+            isScanCancellation(error) ||
+            token.isCancellationRequested
+          ) {
+            // The LangGraph pipeline aborts with an AbortError and leaves a
+            // resumable checkpoint behind — keep it and say so.
+            void hasResumableScan(workspaceRoot).then((info) => {
+              if (info) {
+                vscode.window.showInformationMessage(
+                  'Mocklify: Scan paused — run "Generate Mock Server from Codebase" again to resume where it left off.'
+                );
+              }
+            });
             return;
           }
           // Even the census scan found nothing to mock — an informational
@@ -1114,6 +1176,90 @@ async function pickSpecFile(): Promise<vscode.Uri | undefined> {
     return undefined;
   }
   return picked.uri ?? browseForSpecFile();
+}
+
+/**
+ * QuickPick/InputBox bridge for the agentic scan's ask_user questions:
+ * multiple-choice questions become a QuickPick with an "Other…" escape hatch
+ * into free text; free-text questions go straight to an InputBox. Returns ''
+ * when the user dismisses (the agent then decides itself and notes the
+ * assumption) and NEVER rejects — a broken UI must read as "no answer". The
+ * pick is dismissed automatically when the scan's cancellation token fires.
+ */
+export function createScanQuestionHandler(
+  token: vscode.CancellationToken
+): (question: HumanQuestion) => Promise<string> {
+  return async (question) => {
+    try {
+      if (question.options && question.options.length > 0) {
+        const OTHER = 'Other…';
+        const picked = await vscode.window.showQuickPick(
+          [...question.options, OTHER],
+          {
+            title: 'Mocklify needs a decision',
+            placeHolder: question.question,
+            ignoreFocusOut: true,
+          },
+          token
+        );
+        if (picked === undefined) {
+          return '';
+        }
+        if (picked !== OTHER) {
+          return picked;
+        }
+      }
+      const typed = await vscode.window.showInputBox(
+        {
+          title: 'Mocklify needs a decision',
+          prompt: question.question,
+          ignoreFocusOut: true,
+        },
+        token
+      );
+      return typed ?? '';
+    } catch {
+      return '';
+    }
+  };
+}
+
+interface ScanResumeOffer {
+  /** The user pressed Esc on the modal — abort the whole command. */
+  dismissed: boolean;
+  /** Set when the user chose to resume the interrupted scan. */
+  resume?: ResumableScanInfo;
+}
+
+/**
+ * Detect an interrupted (checkpointed) agentic scan and ask — modally —
+ * whether to resume it or start fresh. Detection failures read as "nothing
+ * to resume"; they must never block a fresh scan.
+ */
+async function offerScanResume(workspaceRoot: vscode.Uri): Promise<ScanResumeOffer> {
+  let info: ResumableScanInfo | null = null;
+  try {
+    info = await hasResumableScan(workspaceRoot);
+  } catch {
+    info = null;
+  }
+  if (!info) {
+    return { dismissed: false };
+  }
+  const started = new Date(info.startedAt).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const picked = await vscode.window.showInformationMessage(
+    `Mocklify: A previous codebase scan was interrupted — ${info.completedSurfaces} of ${info.totalSurfaces} API surface(s) already explored (started ${started}). Resume it?`,
+    { modal: true },
+    'Resume Scan',
+    'Start Fresh'
+  );
+  if (picked === undefined) {
+    return { dismissed: true };
+  }
+  return { dismissed: false, ...(picked === 'Resume Scan' ? { resume: info } : {}) };
 }
 
 export type SpecOfferChoice = 'import' | 'scan' | 'both';

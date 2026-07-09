@@ -112,7 +112,13 @@ function App() {
           console.log('Success:', message.message);
           break;
 
-        case 'aiStatus':
+        case 'aiStatus': {
+          // Progress ticks carry no question/resumable payload. A pending card
+          // must survive them while the scan runs, or the next progress update
+          // wipes the prompt the agent is blocked on. Both clear locally when
+          // answered, and on any terminal status.
+          const prev = useStore.getState().aiGeneration;
+          const running = message.status === 'generating';
           setAiGeneration({
             status: message.status,
             message: message.message,
@@ -123,8 +129,11 @@ function App() {
             port: message.port,
             routeCount: message.routeCount,
             servers: message.servers,
+            question: message.question ?? (running ? prev.question : undefined),
+            resumable: message.resumable ?? (running ? prev.resumable : undefined),
           });
           break;
+        }
 
         case 'aiConfig':
           setAiConfig({

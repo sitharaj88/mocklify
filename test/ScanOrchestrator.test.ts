@@ -1,17 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   AGENTIC_ESCALATION_MESSAGE,
+  GRAPH_FALLBACK_MESSAGE,
   ScanOrchestrator,
   StrategyInput,
   assignFilesToProfiles,
   buildSurfaceViews,
   decideStrategy,
   filterReconForRoots,
+  isGraphUnavailable,
   isLowConfidenceSeeds,
+  isScanCancellation,
   mergeScanSummaries,
+  type OrchestratedScanSummary,
   type ScanMode,
   type StrategyDecision,
 } from '../src/ai/ScanOrchestrator';
+import { GraphUnavailableError } from '../src/ai/agent/scanGraph';
 import { LOW_CONFIDENCE_SEED_SCORE } from '../src/ai/AgenticScanner';
 import { AgenticScanUnavailableError } from '../src/ai/providers/types';
 import type {
@@ -105,6 +110,7 @@ function fakeAi(supportsTools: boolean): AiService {
 interface FakeDeps {
   fast: { generate: ReturnType<typeof vi.fn> };
   agentic: { generate: ReturnType<typeof vi.fn> };
+  graph: { run: ReturnType<typeof vi.fn> };
   recon: ReturnType<typeof vi.fn>;
 }
 
@@ -112,6 +118,8 @@ function fakeDeps(input: {
   recon: WorkspaceRecon;
   fastSummary?: CodebaseScanSummary | Error;
   agenticSummary?: CodebaseScanSummary | Error;
+  /** Defaults to GraphUnavailableError so pre-graph tests hit the legacy path. */
+  graphSummary?: CodebaseScanSummary | Error;
 }): FakeDeps {
   const behavior = (value: CodebaseScanSummary | Error | undefined) => async () => {
     if (value instanceof Error) {
@@ -122,6 +130,11 @@ function fakeDeps(input: {
   return {
     fast: { generate: vi.fn(behavior(input.fastSummary)) },
     agentic: { generate: vi.fn(behavior(input.agenticSummary)) },
+    graph: {
+      run: vi.fn(
+        behavior(input.graphSummary ?? new GraphUnavailableError('graph disabled in this test'))
+      ),
+    },
     recon: vi.fn(async () => input.recon),
   };
 }
@@ -690,6 +703,23 @@ describe('ScanOrchestrator mixed-strategy execution', () => {
     });
   });
 
+  it('re-attaches the graph verification counts to the merged mixed-mode summary', async () => {
+    const graphSummary = summary({
+      routes: [route('GET', '/api/orders')],
+    }) as OrchestratedScanSummary;
+    graphSummary.verification = { confirmed: 4, repaired: 1, dropped: 2 };
+    const deps = fakeDeps({
+      recon: recon(),
+      fastSummary: summary({ routes: [route('GET', '/api/profile')] }),
+      graphSummary,
+    });
+    const result = (await mixedRun(deps)) as OrchestratedScanSummary;
+    expect(deps.graph.run).toHaveBeenCalledTimes(1);
+    expect(deps.agentic.generate).not.toHaveBeenCalled();
+    expect(result.verification).toEqual({ confirmed: 4, repaired: 1, dropped: 2 });
+    expect(result.routes.map((r) => r.name)).toEqual(['GET /api/profile', 'GET /api/orders']);
+  });
+
   it('scales mixed-mode progress fractions into disjoint slices after the recon', async () => {
     const fractions: number[] = [];
     const deps = fakeDeps({ recon: recon() });
@@ -705,5 +735,99 @@ describe('ScanOrchestrator mixed-strategy execution', () => {
     // fast slice [0.15, 0.55] at 0.5 → 0.35; agentic slice [0.55, 0.95] at 0.5 → 0.75
     expect(fractions).toContain(0.15 + 0.4 * 0.5);
     expect(fractions).toContain(0.55 + 0.4 * 0.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LangGraph pipeline routing: the agentic strategy tries the graph first and
+// falls back to the classic AgenticScanner only on GraphUnavailableError.
+// ---------------------------------------------------------------------------
+
+describe('isScanCancellation / isGraphUnavailable', () => {
+  it('recognizes vscode Canceled and the graph runtime AbortError as cancellation', () => {
+    const canceled = new Error('Canceled');
+    canceled.name = 'Canceled';
+    const abort = new Error('The scan was cancelled.');
+    abort.name = 'AbortError';
+    expect(isScanCancellation(canceled)).toBe(true);
+    expect(isScanCancellation(abort)).toBe(true);
+    expect(isScanCancellation(new Error('boom'))).toBe(false);
+    expect(isScanCancellation('Canceled')).toBe(false);
+  });
+
+  it('recognizes GraphUnavailableError by instance and by name', () => {
+    expect(isGraphUnavailable(new GraphUnavailableError('no graph'))).toBe(true);
+    const byName = new Error('no graph');
+    byName.name = 'GraphUnavailableError';
+    expect(isGraphUnavailable(byName)).toBe(true);
+    expect(isGraphUnavailable(new Error('boom'))).toBe(false);
+  });
+});
+
+describe('ScanOrchestrator LangGraph routing', () => {
+  it('routes agentic execution through the graph and surfaces the verification counts', async () => {
+    const shared = recon();
+    const graphSummary = summary({ routes: [route('GET', '/x')] }) as OrchestratedScanSummary;
+    graphSummary.verification = { confirmed: 3, repaired: 1, dropped: 1 };
+    const deps = fakeDeps({ recon: shared, graphSummary });
+
+    const result = await orchestrator(true, deps).generate({ scanMode: 'agentic' });
+
+    expect(deps.graph.run).toHaveBeenCalledTimes(1);
+    expect(deps.graph.run.mock.calls[0][0].recon).toBe(shared);
+    expect(deps.agentic.generate).not.toHaveBeenCalled();
+    expect(deps.fast.generate).not.toHaveBeenCalled();
+    expect(result.verification).toEqual({ confirmed: 3, repaired: 1, dropped: 1 });
+    expect(result.strategies?.[0].strategy).toBe('agentic');
+  });
+
+  it('forwards threadId and onQuestion to the graph run', async () => {
+    const deps = fakeDeps({ recon: recon(), graphSummary: summary() });
+    const onQuestion = async () => 'answer';
+    await orchestrator(true, deps).generate({
+      scanMode: 'agentic',
+      threadId: 'scan-thread-1',
+      onQuestion,
+    });
+    const call = deps.graph.run.mock.calls[0][0];
+    expect(call.threadId).toBe('scan-thread-1');
+    expect(call.onQuestion).toBe(onQuestion);
+  });
+
+  it('falls back to the classic agentic scanner on GraphUnavailableError, with a progress note', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const deps = fakeDeps({
+        recon: recon(),
+        agenticSummary: summary({ routes: [route('GET', '/legacy')] }),
+      }); // default graphSummary = GraphUnavailableError
+      const messages: string[] = [];
+      const result = await orchestrator(true, deps).generate({
+        scanMode: 'agentic',
+        onProgress: ({ message }) => messages.push(message),
+      });
+      expect(deps.graph.run).toHaveBeenCalledTimes(1);
+      expect(deps.agentic.generate).toHaveBeenCalledTimes(1);
+      expect(messages).toContain(GRAPH_FALLBACK_MESSAGE);
+      expect(result.routes.map((r) => r.name)).toEqual(['GET /legacy']);
+      expect((result as OrchestratedScanSummary).verification).toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('propagates the graph AbortError as cancellation without falling back', async () => {
+    const abort = new Error('The scan was cancelled.');
+    abort.name = 'AbortError';
+    const deps = fakeDeps({ recon: recon(), graphSummary: abort });
+    await expect(orchestrator(true, deps).generate({ scanMode: 'agentic' })).rejects.toBe(abort);
+    expect(deps.agentic.generate).not.toHaveBeenCalled();
+  });
+
+  it('propagates ordinary graph scan-time failures without falling back to the legacy scanner', async () => {
+    const failure = new Error('exploration exploded');
+    const deps = fakeDeps({ recon: recon(), graphSummary: failure });
+    await expect(orchestrator(true, deps).generate({ scanMode: 'agentic' })).rejects.toBe(failure);
+    expect(deps.agentic.generate).not.toHaveBeenCalled();
   });
 });

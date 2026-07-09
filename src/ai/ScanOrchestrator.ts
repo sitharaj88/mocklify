@@ -17,6 +17,13 @@ import {
 import { AgenticScanUnavailableError } from './providers/types.js';
 import { dedupeRoutes } from './scan/heuristics.js';
 import type { ProjectProfile } from './scan/projectProfile.js';
+import {
+  GraphUnavailableError,
+  runScanGraph,
+  type ScanGraphSummary,
+  type ScanVerification,
+} from './agent/scanGraph.js';
+import type { QuestionHandler } from './agent/graphRuntime.js';
 
 /**
  * The modern scan entry point: runs the shared recon (workspace profiles +
@@ -42,6 +49,10 @@ const RECON_END_FRACTION = 0.14;
 
 /** Progress copy logged when 'fast' auto-escalates to agentic exploration. */
 export const AGENTIC_ESCALATION_MESSAGE = 'No known patterns — switching to agentic exploration';
+
+/** Progress copy logged when the LangGraph pipeline falls back to the legacy scanner. */
+export const GRAPH_FALLBACK_MESSAGE =
+  'The LangGraph scan pipeline is unavailable — using the classic agentic scanner…';
 
 /**
  * Whether a surface's seed set is too thin to trust a one-shot fast scan:
@@ -301,6 +312,30 @@ export function mergeScanSummaries(summaries: CodebaseScanSummary[]): CodebaseSc
 interface GenerateOptions {
   token?: vscode.CancellationToken;
   onProgress?: (progress: CodebaseScanProgress) => void;
+  /**
+   * Answers the agentic scan's ask_user questions (human-in-the-loop).
+   * Omit to keep the scan fully unattended — the ask_user tool is then not
+   * offered to the model at all.
+   */
+  onQuestion?: QuestionHandler;
+  /**
+   * Deterministic checkpoint thread id for the LangGraph agentic scan (see
+   * deriveScanThreadId) — pass it so an interrupted run is resumable later.
+   */
+  threadId?: string;
+  /**
+   * Continue the agentic slice from `threadId`'s checkpoint instead of starting
+   * over. The fast/spec slices are never checkpointed, so they always re-run —
+   * which is why resuming must go through the orchestrator: resuming the graph
+   * directly would silently drop every surface those slices owned.
+   */
+  resume?: boolean;
+}
+
+/** The orchestrated result: the familiar summary plus critic-verification counts. */
+export interface OrchestratedScanSummary extends CodebaseScanSummary {
+  /** Present when the LangGraph pipeline's critic agent verified the routes. */
+  verification?: ScanVerification;
 }
 
 /** Injectable collaborators — real instances by default, fakes in tests. */
@@ -311,11 +346,37 @@ export interface ScanOrchestratorDeps {
   agentic: {
     generate(options?: GenerateOptions & { recon?: WorkspaceRecon }): Promise<AgenticScanSummary>;
   };
+  /**
+   * The LangGraph scan pipeline (parallel surface exploration + critic
+   * verification + HITL + resume). The agentic strategy tries this first and
+   * falls back to `agentic` when it throws GraphUnavailableError.
+   */
+  graph: {
+    run(options?: GenerateOptions & { recon?: WorkspaceRecon }): Promise<ScanGraphSummary>;
+  };
   recon: (options?: GenerateOptions) => Promise<WorkspaceRecon>;
 }
 
+/**
+ * Whether an error is a user cancellation: 'Canceled' is vscode's
+ * CancellationError name, 'AbortError' is how the LangGraph runtime aborts
+ * (deliberately NOT swallowed into a failure — the graph leaves a resumable
+ * checkpoint behind). Exported for the command layers.
+ */
+export function isScanCancellation(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'Canceled' || error.name === 'AbortError');
+}
+
+/** Whether the LangGraph pipeline reported it cannot even be constructed. */
+export function isGraphUnavailable(error: unknown): boolean {
+  return (
+    error instanceof GraphUnavailableError ||
+    (error instanceof Error && error.name === 'GraphUnavailableError')
+  );
+}
+
 function isCancellation(error: unknown): boolean {
-  return error instanceof Error && error.name === 'Canceled';
+  return isScanCancellation(error);
 }
 
 function isAgenticUnavailable(error: unknown): boolean {
@@ -375,8 +436,30 @@ export class ScanOrchestrator {
     this.deps = {
       fast: deps?.fast ?? new CodebaseMockGenerator(ai),
       agentic: deps?.agentic ?? new AgenticScanner(ai),
+      graph: deps?.graph ?? { run: (options) => runScanGraph(ai, options ?? {}) },
       recon: deps?.recon ?? collectWorkspaceRecon,
     };
+  }
+
+  /**
+   * Agentic execution: LangGraph pipeline first (parallel exploration, critic
+   * verification, HITL questions, resumable checkpoints), falling back to the
+   * legacy AgenticScanner ONLY when the graph cannot be constructed —
+   * scan-time failures and cancellations propagate untouched.
+   */
+  private async runAgentic(
+    options?: GenerateOptions & { recon?: WorkspaceRecon }
+  ): Promise<AgenticScanSummary & { verification?: ScanVerification }> {
+    try {
+      return await this.deps.graph.run(options);
+    } catch (error) {
+      if (isCancellation(error) || !isGraphUnavailable(error)) {
+        throw error;
+      }
+      console.warn('Mocklify: LangGraph scan pipeline unavailable — using the classic agentic scanner:', error);
+      options?.onProgress?.({ message: GRAPH_FALLBACK_MESSAGE, fraction: 0 });
+      return await this.deps.agentic.generate(options);
+    }
   }
 
   /**
@@ -386,7 +469,7 @@ export class ScanOrchestrator {
    */
   async generate(
     options?: GenerateOptions & { scanMode?: ScanMode }
-  ): Promise<CodebaseScanSummary> {
+  ): Promise<OrchestratedScanSummary> {
     const report = (message: string, fraction: number) =>
       options?.onProgress?.({ message, fraction });
     const scanMode = options?.scanMode ?? readConfiguredScanMode();
@@ -434,7 +517,7 @@ export class ScanOrchestrator {
     recon: WorkspaceRecon,
     options: GenerateOptions | undefined,
     report: (message: string, fraction: number) => void
-  ): Promise<CodebaseScanSummary> {
+  ): Promise<OrchestratedScanSummary> {
     const strategies: ScanStrategyReport[] = views.map((view, i) => ({
       surface: view.name,
       strategy: decisions[i].strategy,
@@ -464,9 +547,12 @@ export class ScanOrchestrator {
       return { ...summary, strategies };
     }
     if (otherRoots.length === 0) {
-      const summary = await this.deps.agentic.generate({
+      const summary = await this.runAgentic({
         token: options?.token,
         onProgress: options?.onProgress,
+        onQuestion: options?.onQuestion,
+        threadId: options?.threadId,
+        resume: options?.resume,
         recon,
       });
       return { ...summary, strategies };
@@ -474,7 +560,7 @@ export class ScanOrchestrator {
 
     // Mixed strategies: each scanner gets only its surfaces' recon slice;
     // one branch failing must not lose the other's routes.
-    const summaries: CodebaseScanSummary[] = [];
+    const summaries: OrchestratedScanSummary[] = [];
     let firstError: unknown;
     try {
       summaries.push(
@@ -493,9 +579,12 @@ export class ScanOrchestrator {
     }
     try {
       summaries.push(
-        await this.deps.agentic.generate({
+        await this.runAgentic({
           token: options?.token,
           onProgress: scaledProgress(options?.onProgress, 0.55, 0.95),
+          onQuestion: options?.onQuestion,
+          threadId: options?.threadId,
+          resume: options?.resume,
           recon: filterReconForRoots(recon, agenticRoots),
         })
       );
@@ -550,6 +639,13 @@ export class ScanOrchestrator {
       throw firstError;
     }
     report('Assembling mock server…', 0.95);
-    return { ...mergeScanSummaries(summaries), strategies };
+    // mergeScanSummaries is verification-agnostic; only the agentic branch
+    // can carry critic counts, so the first present wins.
+    const verification = summaries.map((s) => s.verification).find((v) => v !== undefined);
+    return {
+      ...mergeScanSummaries(summaries),
+      ...(verification !== undefined ? { verification } : {}),
+      strategies,
+    };
   }
 }

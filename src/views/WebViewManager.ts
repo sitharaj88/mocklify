@@ -12,7 +12,17 @@ import {
 import { AiUnavailableError, AiProviderId } from '../ai/providers/types.js';
 import { MODEL_CATALOG, ModelProviderId } from '../ai/modelCatalog.js';
 import { CENSUS_NO_ROUTES_MESSAGE, CodebaseScanProgress } from '../ai/CodebaseMockGenerator.js';
-import { ScanOrchestrator } from '../ai/ScanOrchestrator.js';
+import {
+  ScanOrchestrator,
+  isScanCancellation,
+  type OrchestratedScanSummary,
+} from '../ai/ScanOrchestrator.js';
+import {
+  deriveScanThreadId,
+  hasResumableScan,
+  type ResumableScanInfo,
+} from '../ai/agent/scanGraph.js';
+import type { HumanQuestion } from '../ai/agent/graphRuntime.js';
 import { offerSpecImport, importWorkspaceSpec } from '../ai/AiCommands.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
@@ -52,6 +62,8 @@ export class WebViewManager {
   private disposables: vscode.Disposable[] = [];
   private databases: DatabaseConnection[] = [];
   private aiGenerationCts: vscode.CancellationTokenSource | undefined;
+  /** Resolvers for ask_user questions currently shown in the dashboard. */
+  private pendingScanAnswers = new Map<string, (answer: string) => void>();
 
   constructor(
     private context: vscode.ExtensionContext,
@@ -320,8 +332,19 @@ export class WebViewManager {
         break;
 
       case 'aiGenerateFromCodebase':
-        await this.aiGenerateFromCodebase(message.data as { autoStart?: boolean } | undefined);
+        await this.aiGenerateFromCodebase(
+          message.data as { autoStart?: boolean; resume?: 'resume' | 'fresh' } | undefined
+        );
         break;
+
+      case 'aiAnswerQuestion': {
+        const { id, answer } = (message.data ?? {}) as { id?: string; answer?: string };
+        const settle = typeof id === 'string' ? this.pendingScanAnswers.get(id) : undefined;
+        if (settle) {
+          settle(typeof answer === 'string' ? answer : '');
+        }
+        break;
+      }
 
       case 'aiCancelGeneration':
         this.aiGenerationCts?.cancel();
@@ -663,18 +686,41 @@ export class WebViewManager {
    * surface, honoring the scanMode setting), and creates the server directly
    * (the panel's result card replaces the command flow's modal confirm).
    */
-  private async aiGenerateFromCodebase(data?: { autoStart?: boolean }): Promise<void> {
+  private async aiGenerateFromCodebase(data?: {
+    autoStart?: boolean;
+    resume?: 'resume' | 'fresh';
+  }): Promise<void> {
     if (!this.aiService) {
       this.sendAiStatus('error', 'AI features are not available in this session.');
       return;
     }
-    if (!vscode.workspace.workspaceFolders?.length) {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+    if (!workspaceRoot) {
       this.sendAiStatus('error', 'Open a folder or workspace to scan for API calls.');
       return;
     }
     if (this.aiGenerationCts) {
       this.sendAiStatus('error', 'A generation is already running — cancel it first.');
       return;
+    }
+
+    // Resume flow: when the user has not decided yet and an interrupted
+    // agentic scan left checkpoints behind, surface an inline Resume /
+    // Start-fresh choice in the panel and wait for the answer round trip.
+    if (!data?.resume) {
+      const resumable = await this.detectResumableScan(workspaceRoot);
+      if (resumable) {
+        this.panel?.webview.postMessage({
+          type: 'aiStatus',
+          status: 'idle',
+          resumable: {
+            completedSurfaces: resumable.completedSurfaces,
+            totalSurfaces: resumable.totalSurfaces,
+            startedAt: resumable.startedAt,
+          },
+        });
+        return;
+      }
     }
 
     const provider = await this.aiService.getActiveProviderLabel();
@@ -694,11 +740,35 @@ export class WebViewManager {
         });
       };
 
+      // Human-in-the-loop: agentic exploration may ask up to 2 short
+      // questions per API surface — rendered as an inline card in the panel —
+      // unless the user opted out via mocklify.ai.askQuestions.
+      const askQuestions = vscode.workspace
+        .getConfiguration('mocklify')
+        .get<boolean>('ai.askQuestions', true);
+      const onQuestion = askQuestions
+        ? (question: HumanQuestion) => this.askDashboardQuestion(question, token, provider)
+        : undefined;
+
       // The orchestrator runs recon once, picks the best strategy per API
       // surface (spec > agentic > fast > census, honoring the scanMode
-      // setting), and falls back to the fast scan itself when the provider
-      // cannot run the agentic loop.
-      const summary = await new ScanOrchestrator(this.aiService).generate({ token, onProgress });
+      // setting), routes agentic surfaces through the LangGraph pipeline
+      // (parallel exploration + critic verification), and falls back to the
+      // fast scan itself when the provider cannot run tool loops.
+      // Resuming goes through the orchestrator too: only the agentic slice is
+      // checkpointed, so resuming the graph directly would drop every surface
+      // the fast/spec strategies owned.
+      let resumeThreadId: string | undefined;
+      if (data?.resume === 'resume') {
+        resumeThreadId = (await this.detectResumableScan(workspaceRoot))?.threadId;
+      }
+      const summary: OrchestratedScanSummary = await new ScanOrchestrator(this.aiService).generate({
+        token,
+        onProgress,
+        onQuestion,
+        threadId: resumeThreadId ?? deriveScanThreadId(workspaceRoot.fsPath),
+        ...(resumeThreadId !== undefined ? { resume: true } : {}),
+      });
       if (token.isCancellationRequested) {
         this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
         return;
@@ -784,6 +854,9 @@ export class WebViewManager {
             .map((entry) => `${entry.surface} → ${entry.strategy}`)
             .join(', ')}. `
         : '';
+      const verificationNote = summary.verification
+        ? ` Verified by a critic agent: ${summary.verification.confirmed} confirmed, ${summary.verification.repaired} repaired, ${summary.verification.dropped} dropped.`
+        : '';
       this.panel?.webview.postMessage({
         type: 'aiStatus',
         status: 'done',
@@ -797,11 +870,24 @@ export class WebViewManager {
           port: server.port,
           routeCount,
         })),
-        message: `${surfaceNote}${strategyNote}${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).`,
+        message: `${surfaceNote}${strategyNote}${summary.positiveCount} success + ${summary.negativeCount} failure routes from ${summary.matchedFileCount} API files (failure routes are disabled — toggle one on to simulate that error).${verificationNote}`,
       });
     } catch (error) {
-      if (error instanceof vscode.CancellationError || token.isCancellationRequested) {
+      if (
+        error instanceof vscode.CancellationError ||
+        isScanCancellation(error) ||
+        token.isCancellationRequested
+      ) {
         this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
+        // The LangGraph pipeline aborts with an AbortError and leaves a
+        // resumable checkpoint behind — keep it and say so.
+        void this.detectResumableScan(workspaceRoot).then((info) => {
+          if (info) {
+            vscode.window.showInformationMessage(
+              'Mocklify: Scan paused — the next "From Codebase" run can resume where it left off.'
+            );
+          }
+        });
         return;
       }
       // Even the census scan found nothing to mock — an informational
@@ -812,9 +898,66 @@ export class WebViewManager {
       }
       this.sendAiStatus('error', this.describeAiError(error));
     } finally {
+      // Any question still awaiting an answer reads as "no answer" once the
+      // scan is over — never leave a dangling resolver behind.
+      for (const settle of [...this.pendingScanAnswers.values()]) {
+        settle('');
+      }
+      this.pendingScanAnswers.clear();
       this.aiGenerationCts?.dispose();
       this.aiGenerationCts = undefined;
     }
+  }
+
+  /** Interrupted-scan detection that must never break starting a fresh scan. */
+  private async detectResumableScan(workspaceRoot: vscode.Uri): Promise<ResumableScanInfo | null> {
+    try {
+      return await hasResumableScan(workspaceRoot);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Bridge an agentic ask_user question into the dashboard: an additive
+   * `question` payload rides the aiStatus channel, AiCreatePanel renders it
+   * with answer buttons, and the webview's aiAnswerQuestion message resolves
+   * it. Cancelling the scan (or the 120s in-graph timeout ending the wait)
+   * resolves with '' — this promise never rejects.
+   */
+  private askDashboardQuestion(
+    question: HumanQuestion,
+    token: vscode.CancellationToken,
+    provider?: string
+  ): Promise<string> {
+    return new Promise<string>((resolve) => {
+      let settled = false;
+      // `settle` and `subscription` reference each other; both only run after
+      // this scope finishes initializing, so the forward reference is safe.
+      const settle = (answer: string): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        this.pendingScanAnswers.delete(question.id);
+        subscription.dispose();
+        resolve(answer);
+      };
+      this.pendingScanAnswers.set(question.id, settle);
+      const subscription = token.onCancellationRequested(() => settle(''));
+      this.panel?.webview.postMessage({
+        type: 'aiStatus',
+        status: 'generating',
+        provider,
+        message: `Waiting for your answer: ${question.question}`,
+        question: {
+          id: question.id,
+          question: question.question,
+          options: question.options,
+          freeText: question.freeText !== false,
+        },
+      });
+    });
   }
 
   private async aiGenerateRoutes(

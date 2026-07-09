@@ -147,6 +147,21 @@ export default function AiFeatures() {
           and AI cost, or <code className="text-purple-400">fast</code> to force the cheap
           one-shot scan.
         </p>
+        <p className="theme-text-secondary mb-4">
+          Agentic scans run as a multi-agent pipeline: on multi-project workspaces up to three
+          API surfaces are explored <strong>in parallel</strong>, then a{' '}
+          <strong>critic agent</strong> with fresh context verifies every proposed route against
+          the actual code — wrong routes get one repair round and are dropped if still wrong,
+          with confirmed / repaired / dropped counts in the result. When the code is genuinely
+          ambiguous the agent can ask you up to two short clarifying questions per surface
+          (<code className="text-purple-400">mocklify.ai.askQuestions</code>, on by default —
+          answered inline on the dashboard or via a QuickPick). An interrupted scan is
+          checkpointed under <code className="text-purple-400">.mocklify/checkpoints/</code>{' '}
+          (gitignore it) and offers to <strong>resume</strong> next time, skipping surfaces
+          already explored; each completed scan also saves what it learned to{' '}
+          <code className="text-purple-400">.mocklify/scan-memory.json</code> so the next scan
+          starts smarter.
+        </p>
         <h3 className="text-lg font-medium mb-3">Positive and negative flows</h3>
         <p className="theme-text-secondary mb-4">
           For each endpoint the scan also generates negative-flow routes shaped like your
