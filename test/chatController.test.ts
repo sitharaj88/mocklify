@@ -4,12 +4,19 @@ import {
   ChatController,
   type ChatCancellation,
 } from '../src/ai/chat/ChatController';
-import type {
-  ChatAssistantMessage,
-  ChatConfirmRequest,
-  ChatMessageFromExtension,
-  ChatViewState,
+import {
+  CHAT_SESSION_DEFAULT_TITLE,
+  CHAT_SESSION_TITLE_MAX_CHARS,
+  type ChatAssistantMessage,
+  type ChatConfirmRequest,
+  type ChatMessageFromExtension,
+  type ChatUserMessage,
+  type ChatViewState,
 } from '../src/ai/chat/chatProtocol';
+import {
+  CHAT_SESSIONS_MAX,
+  type ChatStateStorage,
+} from '../src/ai/chat/chatSessionStore';
 import { MUTATION_DENIED_MESSAGE, type ServerToolsHost } from '../src/ai/agent/serverTools';
 import {
   SERVER_AGENT_CANCELLED_TEXT,
@@ -29,6 +36,18 @@ import type {
 
 let idCounter = 0;
 const nextId = (prefix: string): string => `${prefix}-${++idCounter}`;
+
+/** In-memory structural Memento (workspaceState stand-in). */
+class MemStorage implements ChatStateStorage {
+  data = new Map<string, unknown>();
+  get(k: string): unknown {
+    return this.data.get(k);
+  }
+  update(k: string, v: unknown): unknown {
+    this.data.set(k, structuredClone(v));
+    return undefined;
+  }
+}
 
 class FakeHost implements ServerToolsHost {
   servers = new Map<string, MockServerConfig>();
@@ -239,7 +258,15 @@ const addRouteCall = (server: string): AiToolCall => ({
   input: { server, routes: [ROUTE_INPUT] },
 });
 
-function createHarness(scripts: TurnScript[], options?: { autoApprove?: boolean }) {
+function createHarness(
+  scripts: TurnScript[],
+  options?: {
+    autoApprove?: boolean;
+    storage?: MemStorage;
+    openExternal?: (url: string) => unknown;
+    now?: () => number;
+  }
+) {
   const host = new FakeHost();
   const server = seedServer(host);
   const { ai, results } = createScriptedAi(scripts);
@@ -251,8 +278,10 @@ function createHarness(scripts: TurnScript[], options?: { autoApprove?: boolean 
     ai,
     createCancellation: cancellations.create,
     createId: () => `id-${++counter}`,
-    now: () => 42,
+    now: options?.now ?? ((): number => 42),
     confirmTimeoutMs: 60_000,
+    ...(options?.storage ? { storage: options.storage, persistDebounceMs: 0 } : {}),
+    ...(options?.openExternal ? { openExternal: options.openExternal } : {}),
   });
   controller.attach((message) => {
     posts.push(message);
@@ -285,6 +314,11 @@ function createHarness(scripts: TurnScript[], options?: { autoApprove?: boolean 
     posts
       .filter((post): post is { type: 'chatState'; state: ChatViewState } => post.type === 'chatState')
       .at(-1)?.state;
+  const sessionsUpdates = (): Extract<ChatMessageFromExtension, { type: 'chatSessionsUpdate' }>[] =>
+    posts.filter(
+      (post): post is Extract<ChatMessageFromExtension, { type: 'chatSessionsUpdate' }> =>
+        post.type === 'chatSessionsUpdate'
+    );
 
   return {
     host,
@@ -297,6 +331,7 @@ function createHarness(scripts: TurnScript[], options?: { autoApprove?: boolean 
     lastAssistant,
     confirmRequests,
     lastState,
+    sessionsUpdates,
   };
 }
 
@@ -843,5 +878,520 @@ describe('ChatController knowledge tool', () => {
     expect(knowledgeTool).toHaveBeenCalledTimes(1);
     expect(recordedTools).toHaveLength(1);
     expect(recordedTools[0]).toContain('query_knowledge');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sessions: fresh construct, auto-title, new/switch/rename/delete (Phase 5)
+// ---------------------------------------------------------------------------
+
+/** Monotonic clock for tests that assert updatedAt ordering. */
+function incrementingNow(): () => number {
+  let t = 0;
+  return () => ++t;
+}
+
+async function completeTurn(h: ReturnType<typeof createHarness>, text: string): Promise<void> {
+  const before = h.assistantUpdates().length;
+  await h.controller.handleMessage({ type: 'chatSend', data: { text } });
+  await waitFor(() => {
+    const updates = h.assistantUpdates();
+    return updates.length > before && finished(updates.at(-1));
+  }, `turn "${text}"`);
+}
+
+describe('ChatController sessions', () => {
+  it('fresh construct on empty storage: one default session in the synced state', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], { storage: new MemStorage() });
+    await h.controller.handleMessage({ type: 'chatSync' });
+
+    const state = h.lastState()!;
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.title).toBe(CHAT_SESSION_DEFAULT_TITLE);
+    expect(state.sessions[0]!.messageCount).toBe(0);
+    expect(state.activeSessionId).toBe(state.sessions[0]!.id);
+    expect(state.messages).toEqual([]);
+    expect(state.running).toBe(false);
+  });
+
+  it('auto-titles on the FIRST send (clamped) and never re-titles on the second', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }]);
+    const longPrompt = 'p'.repeat(CHAT_SESSION_TITLE_MAX_CHARS + 20);
+    await completeTurn(h, longPrompt);
+
+    const clamped = `${'p'.repeat(CHAT_SESSION_TITLE_MAX_CHARS)}…`;
+    expect(h.sessionsUpdates().length).toBeGreaterThan(0);
+    expect(h.sessionsUpdates().at(-1)!.sessions[0]!.title).toBe(clamped);
+
+    await completeTurn(h, 'a totally different prompt');
+    expect(h.sessionsUpdates().at(-1)!.sessions[0]!.title).toBe(clamped);
+  });
+
+  it('chatNewSession after a turn opens an empty second session; a second chatNewSession only resyncs', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], { now: incrementingNow() });
+    await completeTurn(h, 'hello');
+
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    const state = h.lastState()!;
+    expect(state.sessions).toHaveLength(2);
+    expect(state.messages).toEqual([]);
+    expect(state.sessions[0]!.id).toBe(state.activeSessionId); // newest first
+    expect(state.sessions[0]!.title).toBe(CHAT_SESSION_DEFAULT_TITLE);
+    expect(state.sessions[1]!.title).toBe('hello');
+
+    // Active session is empty — reuse it instead of spamming the list.
+    h.posts.length = 0;
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    expect(h.posts.map((post) => post.type)).toEqual(['chatState']);
+    expect(h.lastState()!.sessions).toHaveLength(2);
+  });
+
+  it('switching while idle swaps the transcripts exactly', async () => {
+    const h = createHarness([{ calls: [], finalText: 'answer' }], { now: incrementingNow() });
+    await completeTurn(h, 'first session prompt');
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const sessionA = h.lastState()!.activeSessionId;
+
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    await completeTurn(h, 'second session prompt');
+
+    await h.controller.handleMessage({ type: 'chatSwitchSession', data: { id: sessionA } });
+    const state = h.lastState()!;
+    expect(state.activeSessionId).toBe(sessionA);
+    expect(state.messages.map((m) => (m as { text?: string }).text ?? '')).toEqual([
+      'first session prompt',
+      'answer',
+    ]);
+    expect(state.running).toBe(false);
+  });
+
+  it('unknown switch/delete ids and switching to the active id only resync', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }]);
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const activeId = h.lastState()!.activeSessionId;
+    h.posts.length = 0;
+
+    await h.controller.handleMessage({ type: 'chatSwitchSession', data: { id: 'ghost' } });
+    await h.controller.handleMessage({ type: 'chatSwitchSession', data: { id: activeId } });
+    await h.controller.handleMessage({ type: 'chatDeleteSession', data: { id: 'ghost' } });
+    expect(h.posts.map((post) => post.type)).toEqual(['chatState', 'chatState', 'chatState']);
+    expect(h.lastState()!.sessions).toHaveLength(1);
+  });
+
+  it('switching mid-turn denies the pending confirm and the cancelled turn settles into its own session', async () => {
+    const h = createHarness(
+      [
+        { calls: [], finalText: 'hi' },
+        { calls: [addRouteCall('Payments API')], finalText: 'never' },
+      ],
+      { now: incrementingNow() }
+    );
+    await completeTurn(h, 'hello');
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const sessionA = h.lastState()!.activeSessionId;
+
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    const sessionB = h.lastState()!.activeSessionId;
+    expect(sessionB).not.toBe(sessionA);
+
+    await h.controller.handleMessage({ type: 'chatSend', data: { text: 'add a route' } });
+    await waitFor(() => h.confirmRequests().length === 1, 'confirm card');
+    const confirmId = h.confirmRequests()[0]!.id;
+
+    await h.controller.handleMessage({ type: 'chatSwitchSession', data: { id: sessionA } });
+    expect(
+      h.posts.some(
+        (post) =>
+          post.type === 'chatConfirmResolved' &&
+          post.id === confirmId &&
+          !post.approved &&
+          post.reason === 'cancelled'
+      )
+    ).toBe(true);
+    // The switch restored A's transcript untouched.
+    expect(h.lastState()!.activeSessionId).toBe(sessionA);
+    expect(h.lastState()!.messages.map((m) => (m as { text?: string }).text)).toEqual([
+      'hello',
+      'hi',
+    ]);
+    expect(h.lastState()!.pendingConfirm).toBeUndefined();
+
+    // The denied mutation answered the model with MUTATION_DENIED_MESSAGE.
+    await waitFor(() => (h.results[1]?.length ?? 0) === 1, 'belt denial');
+    expect(h.results[1]![0]).toBe(MUTATION_DENIED_MESSAGE);
+    expect(h.server.routes).toHaveLength(1); // nothing applied
+
+    // The cancelled turn completed into B (its own, now background, session).
+    await h.controller.handleMessage({ type: 'chatSwitchSession', data: { id: sessionB } });
+    await waitFor(() => {
+      void h.controller.handleMessage({ type: 'chatSync' });
+      const assistant = h.lastState()?.messages[1] as ChatAssistantMessage | undefined;
+      return assistant !== undefined && assistant.status === 'cancelled';
+    }, 'cancelled settle in the original session');
+    const assistant = h.lastState()!.messages[1] as ChatAssistantMessage;
+    expect(assistant.text).toBe(SERVER_AGENT_CANCELLED_TEXT);
+    expect((h.lastState()!.messages[0] as ChatUserMessage).text).toBe('add a route');
+  });
+
+  it('a session op mid-turn advertises running:true until the cancelled turn settles, then resyncs idle', async () => {
+    // A turn whose provider/tool call outlives cancellation (cooperative
+    // cancel — e.g. start_server mid-flight). The settle window must never
+    // present an idle composer that silently eats a chatSend.
+    const host = new FakeHost();
+    seedServer(host);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let loopCalls = 0;
+    const ai: ServerAgentAi = {
+      async runToolLoop() {
+        loopCalls += 1;
+        if (loopCalls === 1) {
+          return 'hi';
+        }
+        await gate; // ignores cancellation until released
+        return 'late';
+      },
+    };
+    const posts: ChatMessageFromExtension[] = [];
+    let counter = 0;
+    const controller = new ChatController({
+      host,
+      ai,
+      createCancellation: fakeCancellationFactory().create,
+      createId: () => `settle-${++counter}`,
+      now: incrementingNow(),
+      confirmTimeoutMs: 60_000,
+    });
+    controller.attach((message) => posts.push(message));
+    const states = (): ChatViewState[] =>
+      posts
+        .filter((post): post is { type: 'chatState'; state: ChatViewState } => post.type === 'chatState')
+        .map((post) => post.state);
+
+    // Session A gets one completed turn so chatNewSession creates B.
+    await controller.handleMessage({ type: 'chatSend', data: { text: 'hello' } });
+    await waitFor(() => {
+      const updates = posts.filter(
+        (post): post is { type: 'chatAssistantUpdate'; message: ChatAssistantMessage } =>
+          post.type === 'chatAssistantUpdate'
+      );
+      return updates.length > 0 && finished(updates.at(-1)!.message);
+    }, 'first turn');
+    await controller.handleMessage({ type: 'chatSync' });
+    const sessionA = states().at(-1)!.activeSessionId;
+
+    await controller.handleMessage({ type: 'chatNewSession' });
+    // Start the gated turn in session B, then switch back to A mid-flight.
+    await controller.handleMessage({ type: 'chatSend', data: { text: 'slow prompt' } });
+    await controller.handleMessage({ type: 'chatSwitchSession', data: { id: sessionA } });
+
+    // The synced state for A advertises running:true — the composer stays
+    // disabled, so no draft can be typed+cleared inside the settle window.
+    const afterSwitch = states().at(-1)!;
+    expect(afterSwitch.activeSessionId).toBe(sessionA);
+    expect(afterSwitch.running).toBe(true);
+
+    // A (hypothetical) chatSend in the window is refused with a resync that
+    // STILL says running:true — never an idle state after a swallowed send.
+    posts.length = 0;
+    await controller.handleMessage({ type: 'chatSend', data: { text: 'eaten?' } });
+    expect(states().at(-1)!.running).toBe(true);
+    expect(states().at(-1)!.messages.some((m) => (m as { text?: string }).text === 'eaten?')).toBe(
+      false
+    );
+
+    // Turn settles → the controller resyncs the ACTIVE session idle.
+    release();
+    await waitFor(() => states().some((state) => !state.running), 'post-settle resync');
+    const settled = states().at(-1)!;
+    expect(settled.activeSessionId).toBe(sessionA);
+    expect(settled.running).toBe(false);
+    controller.dispose();
+  });
+
+  it('rename updates the title without reordering; unknown ids resync', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], { now: incrementingNow() });
+    await completeTurn(h, 'first');
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    await completeTurn(h, 'second');
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const before = h.lastState()!.sessions;
+    expect(before.map((s) => s.title)).toEqual(['second', 'first']);
+    const renamedId = before[1]!.id;
+
+    h.posts.length = 0;
+    await h.controller.handleMessage({
+      type: 'chatRenameSession',
+      data: { id: 'ghost', title: 'x' },
+    });
+    expect(h.posts.map((post) => post.type)).toEqual(['chatState']); // resync only
+
+    h.posts.length = 0;
+    await h.controller.handleMessage({
+      type: 'chatRenameSession',
+      data: { id: renamedId, title: 'Renamed' },
+    });
+    const update = h.sessionsUpdates().at(-1)!;
+    expect(update.sessions.map((s) => s.title)).toEqual(['second', 'Renamed']); // order kept
+    expect(update.sessions[1]!.updatedAt).toBe(before[1]!.updatedAt); // no bump
+  });
+
+  it('deleting an inactive session removes it from the list and frees its undo snapshot', async () => {
+    const h = createHarness(
+      [{ calls: [addRouteCall('Payments API')], finalText: 'Added.' }],
+      { autoApprove: true, now: incrementingNow() }
+    );
+    await completeTurn(h, 'add a pay route');
+    const undoId = h.lastAssistant()!.undo!.undoId;
+    expect(h.server.routes).toHaveLength(2);
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const sessionA = h.lastState()!.activeSessionId;
+
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    await h.controller.handleMessage({ type: 'chatDeleteSession', data: { id: sessionA } });
+    const update = h.sessionsUpdates().at(-1)!;
+    expect(update.sessions).toHaveLength(1);
+    expect(update.sessions.some((s) => s.id === sessionA)).toBe(false);
+
+    // The snapshot went with the session: the undo can never restore now.
+    h.posts.length = 0;
+    await h.controller.handleMessage({ type: 'chatUndo', data: { undoId } });
+    expect(h.server.routes).toHaveLength(2); // NOT restored — snapshot freed
+    expect(h.assistantUpdates().some((m) => m.undo?.state === 'undoing')).toBe(false);
+  });
+
+  it('deleting the active session falls back to the most-recently-updated; deleting the last creates a fresh one', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], { now: incrementingNow() });
+    await completeTurn(h, 'in session A');
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const sessionA = h.lastState()!.activeSessionId;
+    await h.controller.handleMessage({ type: 'chatNewSession' });
+    await completeTurn(h, 'in session B');
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const sessionB = h.lastState()!.activeSessionId;
+
+    await h.controller.handleMessage({ type: 'chatDeleteSession', data: { id: sessionB } });
+    let state = h.lastState()!;
+    expect(state.activeSessionId).toBe(sessionA);
+    expect(state.sessions).toHaveLength(1);
+    expect(state.messages.map((m) => (m as { text?: string }).text)).toEqual(['in session A', 'ok']);
+
+    await h.controller.handleMessage({ type: 'chatDeleteSession', data: { id: sessionA } });
+    state = h.lastState()!;
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.id).not.toBe(sessionA);
+    expect(state.sessions[0]!.title).toBe(CHAT_SESSION_DEFAULT_TITLE);
+    expect(state.messages).toEqual([]);
+  });
+
+  it('enforces CHAT_SESSIONS_MAX by evicting the oldest-updated non-active session', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], { now: incrementingNow() });
+    for (let i = 0; i < CHAT_SESSIONS_MAX; i += 1) {
+      await completeTurn(h, `turn ${i}`);
+      await h.controller.handleMessage({ type: 'chatNewSession' });
+    }
+
+    await h.controller.handleMessage({ type: 'chatSync' });
+    const state = h.lastState()!;
+    expect(state.sessions).toHaveLength(CHAT_SESSIONS_MAX);
+    expect(state.sessions.some((s) => s.title === 'turn 0')).toBe(false); // oldest evicted
+    expect(state.sessions.some((s) => s.title === 'turn 1')).toBe(true);
+    expect(state.sessions[0]!.title).toBe(CHAT_SESSION_DEFAULT_TITLE); // the fresh active one
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regenerate (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatController regenerate', () => {
+  it('appends a NEW turn for the last user text with history truncated before it', async () => {
+    const host = new FakeHost();
+    seedServer(host);
+    const prompts: string[] = [];
+    const ai: ServerAgentAi = {
+      async runToolLoop(prompt) {
+        prompts.push(prompt);
+        return 'Answer.';
+      },
+    };
+    const cancellations = fakeCancellationFactory();
+    const posts: ChatMessageFromExtension[] = [];
+    const controller = new ChatController({ host, ai, createCancellation: cancellations.create });
+    controller.attach((message) => posts.push(message));
+
+    await controller.handleMessage({ type: 'chatSend', data: { text: 'first question' } });
+    await waitFor(
+      () => posts.some((p) => p.type === 'chatAssistantUpdate' && p.message.status === 'complete'),
+      'first turn'
+    );
+
+    await controller.handleMessage({ type: 'chatRegenerate' });
+    await waitFor(
+      () =>
+        posts.filter((p) => p.type === 'chatAssistantUpdate' && p.message.status === 'complete')
+          .length >= 2,
+      'regenerated turn'
+    );
+
+    expect(prompts).toHaveLength(2);
+    // History excluded the last user turn AND its reply — no parroting context.
+    expect(prompts[1]).not.toContain('Conversation so far:');
+    expect(prompts[1]).not.toContain('Answer.');
+
+    await controller.handleMessage({ type: 'chatSync' });
+    const state = posts
+      .filter((p): p is { type: 'chatState'; state: ChatViewState } => p.type === 'chatState')
+      .at(-1)!.state;
+    expect(state.messages).toHaveLength(4); // old pair stays, new pair appended
+    expect((state.messages[2] as ChatUserMessage).text).toBe('first question');
+    expect(state.messages[2]!.id).not.toBe(state.messages[0]!.id); // a NEW user message
+    expect((state.messages[3] as ChatAssistantMessage).text).toBe('Answer.');
+  });
+
+  it('resyncs without running when the session is empty or a turn is busy', async () => {
+    const h = createHarness([{ calls: [addRouteCall('Payments API')], finalText: 'never' }]);
+
+    // Empty session — nothing to regenerate.
+    await h.controller.handleMessage({ type: 'chatRegenerate' });
+    expect(h.posts.map((post) => post.type)).toEqual(['chatState']);
+    expect(h.results).toHaveLength(0);
+
+    // Busy (mid-confirm) — refused with a resync, no second loop.
+    await h.controller.handleMessage({ type: 'chatSend', data: { text: 'add a route' } });
+    await waitFor(() => h.confirmRequests().length === 1, 'confirm card');
+    const confirmId = h.confirmRequests()[0]!.id;
+    h.posts.length = 0;
+    await h.controller.handleMessage({ type: 'chatRegenerate' });
+    expect(h.posts.map((post) => post.type)).toEqual(['chatState']);
+    expect(h.results).toHaveLength(1);
+
+    // Settle the pending confirm so no timer outlives the test.
+    await h.controller.handleMessage({
+      type: 'chatConfirm',
+      data: { id: confirmId, approved: false },
+    });
+    await waitFor(() => finished(h.lastAssistant()), 'turn completion');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Persistence (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatController persistence', () => {
+  it('round-trips the transcript across controllers; live undo becomes expired', async () => {
+    const storage = new MemStorage();
+    const h = createHarness([{ calls: [addRouteCall('Payments API')], finalText: 'Added.' }], {
+      autoApprove: true,
+      storage,
+    });
+    await completeTurn(h, 'add a pay route');
+    expect(h.lastAssistant()!.undo!.state).toBe('available');
+    const assistantId = h.lastAssistant()!.id;
+    h.controller.dispose();
+
+    const { ai } = createScriptedAi([{ calls: [], finalText: 'ok' }]);
+    const cancellations = fakeCancellationFactory();
+    const posts2: ChatMessageFromExtension[] = [];
+    let counter = 0;
+    const controller2 = new ChatController({
+      host: h.host,
+      ai,
+      createCancellation: cancellations.create,
+      createId: () => `c2-${++counter}`,
+      now: () => 42,
+      storage,
+      persistDebounceMs: 0,
+    });
+    controller2.attach((message) => posts2.push(message));
+    await controller2.handleMessage({ type: 'chatSync' });
+
+    const state = posts2
+      .filter((p): p is { type: 'chatState'; state: ChatViewState } => p.type === 'chatState')
+      .at(-1)!.state;
+    expect(state.running).toBe(false);
+    expect(state.sessions).toHaveLength(1);
+    expect(state.sessions[0]!.title).toBe('add a pay route');
+    expect(state.messages).toHaveLength(2);
+    const assistant = state.messages[1] as ChatAssistantMessage;
+    expect(assistant.status).toBe('complete');
+    expect(assistant.text).toBe('Added.');
+    expect(assistant.undo).toEqual({ undoId: `expired-${assistantId}`, state: 'expired' });
+
+    // The synthetic id can never hit a snapshot — the standard failure path.
+    await controller2.handleMessage({
+      type: 'chatUndo',
+      data: { undoId: `expired-${assistantId}` },
+    });
+    const failed = posts2
+      .filter(
+        (p): p is { type: 'chatAssistantUpdate'; message: ChatAssistantMessage } =>
+          p.type === 'chatAssistantUpdate'
+      )
+      .at(-1)!.message;
+    expect(failed.undo).toEqual({
+      undoId: `expired-${assistantId}`,
+      state: 'failed',
+      error: 'This undo is no longer available.',
+    });
+    controller2.dispose();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// External links (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatController.handleOpenLink', () => {
+  it('opens validated https URLs through the injected opener exactly once', async () => {
+    const opened: string[] = [];
+    const h = createHarness([{ calls: [], finalText: 'ok' }], {
+      openExternal: (url) => {
+        opened.push(url);
+      },
+    });
+
+    expect(
+      await h.controller.handleMessage({
+        type: 'chatOpenLink',
+        data: { url: 'https://example.com/docs?x=1' },
+      })
+    ).toBe(true);
+    expect(opened).toEqual(['https://example.com/docs?x=1']);
+    expect(h.posts).toHaveLength(0); // no chat traffic for a link open
+  });
+
+  it('never lets javascript:/data: URLs reach the opener (validator drops them)', async () => {
+    const opened: string[] = [];
+    const h = createHarness([{ calls: [], finalText: 'ok' }], {
+      openExternal: (url) => {
+        opened.push(url);
+      },
+    });
+
+    expect(
+      await h.controller.handleMessage({
+        type: 'chatOpenLink',
+        data: { url: 'javascript:alert(1)' },
+      })
+    ).toBe(true); // chat-prefixed → still swallowed as chat traffic
+    expect(
+      await h.controller.handleMessage({ type: 'chatOpenLink', data: { url: 'data:text/html,x' } })
+    ).toBe(true);
+    expect(opened).toHaveLength(0);
+  });
+
+  it('a throwing opener never unwinds into chat', async () => {
+    const h = createHarness([{ calls: [], finalText: 'ok' }], {
+      openExternal: () => {
+        throw new Error('no browser');
+      },
+    });
+    await expect(
+      h.controller.handleMessage({ type: 'chatOpenLink', data: { url: 'http://a.b' } })
+    ).resolves.toBe(true);
   });
 });

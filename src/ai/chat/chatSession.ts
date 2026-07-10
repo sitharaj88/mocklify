@@ -11,6 +11,7 @@ import {
   type ChatMessage,
   type ChatMessageFromExtension,
   type ChatPost,
+  type ChatSessionViewState,
   type ChatUndoState,
   type ChatUserMessage,
   type ChatViewState,
@@ -32,10 +33,17 @@ import {
 // ---- Options / handles ----
 
 export interface ChatSessionOptions {
+  /** Session identity (default {@link ChatSessionOptions.createId} / randomUUID). */
+  id?: string;
   createId?: () => string;
   now?: () => number;
   /** Transcript cap override (default {@link CHAT_TRANSCRIPT_MAX_MESSAGES}; tests shrink it). */
   maxMessages?: number;
+  /** Rehydrated transcript (persistence); structuredClone'd in. */
+  initialMessages?: ChatMessage[];
+  /** Wraps the per-session core state into the full wire ChatViewState.
+   *  Default: (core) => ({ sessions: [], activeSessionId: this.id, ...core }). */
+  enrichState?: (core: ChatSessionViewState) => ChatViewState;
 }
 
 export interface ChatTurnHandles {
@@ -53,22 +61,33 @@ export interface ChatTurnCompletion {
 // ---- Session ----
 
 export class ChatSession {
+  readonly id: string;
   private readonly createId: () => string;
   private readonly now: () => number;
   private readonly maxMessages: number;
-  private messages: ChatMessage[] = [];
+  private readonly enrichState: (core: ChatSessionViewState) => ChatViewState;
+  private messages: ChatMessage[];
   private pendingConfirm: ChatConfirmRequest | undefined;
   /** Id of the assistant message of the turn in flight (undefined when idle). */
   private activeAssistantId: string | undefined;
   private post: ChatPost | undefined;
 
-  /** Set once by the controller: receives undoIds evicted by the message cap. */
-  onEvictUndo?: (undoIds: string[]) => void;
+  /** Set by the controller: receives undoIds evicted by the message cap. */
+  onEvictUndo: ((undoIds: string[]) => void) | undefined;
+  /** Fired after every persistence-relevant transcript change (beginTurn /
+   *  completeTurn / failTurn / setUndoState-with-owner / successful clear) —
+   *  NOT by appendProgress, confirm mirroring, sync, attach, or detach. */
+  onDidChange: (() => void) | undefined;
 
   constructor(options?: ChatSessionOptions) {
     this.createId = options?.createId ?? ((): string => randomUUID());
+    this.id = options?.id ?? this.createId();
     this.now = options?.now ?? Date.now;
     this.maxMessages = options?.maxMessages ?? CHAT_TRANSCRIPT_MAX_MESSAGES;
+    this.messages = structuredClone(options?.initialMessages ?? []);
+    this.enrichState =
+      options?.enrichState ??
+      ((core): ChatViewState => ({ sessions: [], activeSessionId: this.id, ...core }));
   }
 
   /**
@@ -88,13 +107,14 @@ export class ChatSession {
     return this.activeAssistantId !== undefined;
   }
 
-  /** structuredClone'd snapshot — callers can never mutate session state. */
+  get messageCount(): number {
+    return this.messages.length;
+  }
+
+  /** structuredClone'd snapshot (enriched to the full wire shape) — callers
+   *  can never mutate session state. */
   state(): ChatViewState {
-    return structuredClone({
-      messages: this.messages,
-      running: this.running,
-      ...(this.pendingConfirm !== undefined ? { pendingConfirm: this.pendingConfirm } : {}),
-    });
+    return structuredClone(this.enrichState(this.coreState()));
   }
 
   /** Post the full snapshot as chatState (no-op when detached). */
@@ -145,6 +165,7 @@ export class ChatSession {
       this.emit({ type: 'chatUserMessage', message: structuredClone(user) });
       this.emitAssistant(assistant);
     }
+    this.onDidChange?.();
     return { userId: user.id, assistantId: assistant.id };
   }
 
@@ -179,6 +200,7 @@ export class ChatSession {
     }
     this.activeAssistantId = undefined;
     this.emitAssistant(assistant);
+    this.onDidChange?.();
   }
 
   /**
@@ -199,6 +221,7 @@ export class ChatSession {
     }
     this.activeAssistantId = undefined;
     this.emitAssistant(assistant);
+    this.onDidChange?.();
   }
 
   // ---- Confirm mirroring (called by the controller from bridge callbacks) ----
@@ -238,6 +261,7 @@ export class ChatSession {
       ...(state === 'failed' && error !== undefined ? { error } : {}),
     };
     this.emitAssistant(owner);
+    this.onDidChange?.();
   }
 
   // ---- History / housekeeping ----
@@ -250,15 +274,48 @@ export class ChatSession {
    * formatAgentHistory, shared with the ChatParticipant.
    */
   history(): ServerAgentTurnMessage[] {
-    const turns: ServerAgentTurnMessage[] = [];
-    for (const message of this.messages) {
-      if (message.role === 'user') {
-        turns.push({ role: 'user', content: message.text });
-      } else if (message.status !== 'running' && message.text.trim() !== '') {
-        turns.push({ role: 'assistant', content: message.text });
-      }
+    return this.buildHistory(this.messages);
+  }
+
+  /**
+   * Like {@link history} but truncated to exclude the LAST user message and
+   * everything after it — the regenerate turn's context, so the model does
+   * not parrot its previous answer. [] when no user message exists.
+   */
+  historyBeforeLastUser(): ServerAgentTurnMessage[] {
+    const index = this.lastUserIndex();
+    if (index === -1) {
+      return [];
     }
-    return turns;
+    return this.buildHistory(this.messages.slice(0, index));
+  }
+
+  /** Text of the last user message, undefined when none exists. */
+  lastUserText(): string | undefined {
+    const index = this.lastUserIndex();
+    if (index === -1) {
+      return undefined;
+    }
+    return (this.messages[index] as ChatUserMessage).text;
+  }
+
+  /**
+   * The transcript slice safe to persist: everything when idle; when a turn
+   * is running, everything BEFORE the in-flight user+assistant pair (located
+   * via activeAssistantId; defensive fallback drops the trailing two).
+   */
+  persistableMessages(): ChatMessage[] {
+    if (!this.running) {
+      return structuredClone(this.messages);
+    }
+    const index = this.messages.findIndex((message) => message.id === this.activeAssistantId);
+    const cut =
+      index === -1
+        ? Math.max(0, this.messages.length - 2) // defensive — id should always resolve
+        : this.messages[index - 1]?.role === 'user'
+          ? index - 1
+          : index;
+    return structuredClone(this.messages.slice(0, cut));
   }
 
   /**
@@ -274,10 +331,43 @@ export class ChatSession {
     const undoIds = this.collectUndoIds(this.messages);
     this.messages = [];
     this.sync();
+    this.onDidChange?.();
     return undoIds;
   }
 
   // ---- Private ----
+
+  /** The per-session slice this session owns (wrapped by enrichState). */
+  private coreState(): ChatSessionViewState {
+    return {
+      messages: this.messages,
+      running: this.running,
+      ...(this.pendingConfirm !== undefined ? { pendingConfirm: this.pendingConfirm } : {}),
+    };
+  }
+
+  /** Shared turn builder for {@link history} / {@link historyBeforeLastUser}. */
+  private buildHistory(messages: ChatMessage[]): ServerAgentTurnMessage[] {
+    const turns: ServerAgentTurnMessage[] = [];
+    for (const message of messages) {
+      if (message.role === 'user') {
+        turns.push({ role: 'user', content: message.text });
+      } else if (message.status !== 'running' && message.text.trim() !== '') {
+        turns.push({ role: 'assistant', content: message.text });
+      }
+    }
+    return turns;
+  }
+
+  /** Index of the last user message, -1 when none. */
+  private lastUserIndex(): number {
+    for (let i = this.messages.length - 1; i >= 0; i -= 1) {
+      if (this.messages[i]!.role === 'user') {
+        return i;
+      }
+    }
+    return -1;
+  }
 
   private activeAssistant(): ChatAssistantMessage | undefined {
     if (this.activeAssistantId === undefined) {

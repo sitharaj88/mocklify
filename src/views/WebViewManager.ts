@@ -100,6 +100,10 @@ export class WebViewManager {
       this.chatController = new ChatController({
         host: this.manager,
         ai: this.aiService,
+        // Per-workspace chat history: vscode.Memento satisfies the structural
+        // ChatStateStorage seam directly (get → unknown, update → unknown).
+        // globalState is reserved for databases — do not move this there.
+        storage: this.context.workspaceState,
         workspaceTools: () => {
           const root = vscode.workspace.workspaceFolders?.[0]?.uri;
           return root ? createWorkspaceTools(root) : undefined;

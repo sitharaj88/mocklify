@@ -11,8 +11,11 @@ import {
   CHAT_CONFIRM_TITLE_MAX_CHARS,
   CHAT_ID_MAX_CHARS,
   CHAT_INPUT_MAX_CHARS,
+  CHAT_LINK_MAX_CHARS,
   CHAT_PREFILL_MAX_CHARS,
   CHAT_PROGRESS_MAX_LINES,
+  CHAT_SESSION_DEFAULT_TITLE,
+  CHAT_SESSION_TITLE_MAX_CHARS,
   CHAT_TRANSCRIPT_MAX_MESSAGES,
   buildChatPrefillMessage,
   parseChatMessageToExtension,
@@ -48,6 +51,12 @@ describe('chat protocol constants', () => {
   it('keeps the prefill cap in lockstep with the input cap', () => {
     expect(CHAT_PREFILL_MAX_CHARS).toBe(CHAT_INPUT_MAX_CHARS);
     expect(CHAT_PREFILL_MAX_CHARS).toBe(4_000);
+  });
+
+  it('exposes the session/link constants', () => {
+    expect(CHAT_SESSION_TITLE_MAX_CHARS).toBe(48);
+    expect(CHAT_SESSION_DEFAULT_TITLE).toBe('New chat');
+    expect(CHAT_LINK_MAX_CHARS).toBe(2_048);
   });
 });
 
@@ -218,6 +227,116 @@ describe('parseChatMessageToExtension acceptance', () => {
       type: 'chatUndo',
       data: { undoId },
     });
+  });
+
+  it('accepts bare chatNewSession / chatRegenerate with ONLY the type field', () => {
+    expect(parseChatMessageToExtension({ type: 'chatNewSession', junk: 1 })).toEqual({
+      type: 'chatNewSession',
+    });
+    expect(parseChatMessageToExtension({ type: 'chatRegenerate', data: { x: 1 } })).toEqual({
+      type: 'chatRegenerate',
+    });
+  });
+
+  it('accepts chatSwitchSession / chatDeleteSession with a valid id and rejects bad ones', () => {
+    expect(parseChatMessageToExtension({ type: 'chatSwitchSession', data: { id: 's-1' } })).toEqual({
+      type: 'chatSwitchSession',
+      data: { id: 's-1' },
+    });
+    expect(parseChatMessageToExtension({ type: 'chatDeleteSession', data: { id: 's-2', x: 1 } })).toEqual(
+      { type: 'chatDeleteSession', data: { id: 's-2' } }
+    );
+    expect(parseChatMessageToExtension({ type: 'chatSwitchSession' })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatSwitchSession', data: {} })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatSwitchSession', data: { id: '' } })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatSwitchSession', data: { id: 42 } })).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({
+        type: 'chatSwitchSession',
+        data: { id: 's'.repeat(CHAT_ID_MAX_CHARS + 1) },
+      })
+    ).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatDeleteSession' })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatDeleteSession', data: { id: '' } })).toBeUndefined();
+  });
+
+  it('accepts chatRenameSession, clamps the title to one 48-char line', () => {
+    expect(
+      parseChatMessageToExtension({ type: 'chatRenameSession', data: { id: 's-1', title: ' My chat ' } })
+    ).toEqual({ type: 'chatRenameSession', data: { id: 's-1', title: 'My chat' } });
+
+    const long = parseChatMessageToExtension({
+      type: 'chatRenameSession',
+      data: { id: 's-1', title: 't'.repeat(CHAT_SESSION_TITLE_MAX_CHARS + 20) },
+    });
+    expect(long).toEqual({
+      type: 'chatRenameSession',
+      data: { id: 's-1', title: `${'t'.repeat(CHAT_SESSION_TITLE_MAX_CHARS)}…` },
+    });
+
+    const multiline = parseChatMessageToExtension({
+      type: 'chatRenameSession',
+      data: { id: 's-1', title: 'line one\nline two' },
+    });
+    expect(multiline).toEqual({
+      type: 'chatRenameSession',
+      data: { id: 's-1', title: 'line one line two' },
+    });
+  });
+
+  it('rejects chatRenameSession with empty/whitespace titles, bad ids, or non-string titles', () => {
+    expect(parseChatMessageToExtension({ type: 'chatRenameSession' })).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatRenameSession', data: { id: 's-1' } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatRenameSession', data: { id: 's-1', title: '' } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatRenameSession', data: { id: 's-1', title: ' \n\t ' } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatRenameSession', data: { id: 's-1', title: 42 } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({
+        type: 'chatRenameSession',
+        data: { id: 'i'.repeat(CHAT_ID_MAX_CHARS + 1), title: 'ok' },
+      })
+    ).toBeUndefined();
+  });
+
+  it('accepts chatOpenLink for http/https only', () => {
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: 'http://a.b' } })).toEqual({
+      type: 'chatOpenLink',
+      data: { url: 'http://a.b' },
+    });
+    expect(
+      parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: ' HTTPS://x.y/z?q=1 ' } })
+    ).toEqual({ type: 'chatOpenLink', data: { url: 'HTTPS://x.y/z?q=1' } });
+  });
+
+  it('rejects chatOpenLink for non-http(s) schemes, oversized, and non-string URLs', () => {
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink' })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink', data: {} })).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: 'javascript:alert(1)' } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: 'data:text/html,x' } })
+    ).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: 'ftp://x' } })
+    ).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: '//x' } })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: '' } })).toBeUndefined();
+    expect(parseChatMessageToExtension({ type: 'chatOpenLink', data: { url: 42 } })).toBeUndefined();
+    expect(
+      parseChatMessageToExtension({
+        type: 'chatOpenLink',
+        data: { url: `https://x.y/${'a'.repeat(CHAT_LINK_MAX_CHARS)}` },
+      })
+    ).toBeUndefined();
   });
 
   it('never returns the raw object (prototype-pollution style extras are gone)', () => {

@@ -204,6 +204,12 @@ function App() {
         case 'chatPrefill':
           useChatStore.getState().setChatPrefill(message.text);
           break;
+
+        case 'chatSessionsUpdate':
+          // Metadata-only refresh (auto-title, updatedAt, messageCount) —
+          // messages/running/pendingConfirm stay untouched.
+          useChatStore.getState().setChatSessions(message.sessions, message.activeSessionId);
+          break;
       }
     };
 

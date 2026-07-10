@@ -17,9 +17,12 @@ function createSession(options?: Partial<ChatSessionOptions> & { detached?: bool
   let counter = 0;
   const posts: ChatMessageFromExtension[] = [];
   const session = new ChatSession({
+    id: 'session-1', // explicit — message ids stay id-1, id-2, …
     createId: () => `id-${++counter}`,
     now: () => 42,
     ...(options?.maxMessages !== undefined ? { maxMessages: options.maxMessages } : {}),
+    ...(options?.initialMessages !== undefined ? { initialMessages: options.initialMessages } : {}),
+    ...(options?.enrichState !== undefined ? { enrichState: options.enrichState } : {}),
   });
   if (!options?.detached) {
     session.attach((message) => posts.push(message));
@@ -35,7 +38,7 @@ const ACTION = { kind: 'add_route', summary: 'Added 1 route(s): GET /pay', serve
 
 /** Rebuild a ChatViewState by replaying posted messages (the webview algorithm). */
 function replay(posts: ChatMessageFromExtension[]): ChatViewState {
-  let state: ChatViewState = { messages: [], running: false };
+  let state: ChatViewState = { messages: [], running: false, sessions: [], activeSessionId: '' };
   for (const post of posts) {
     switch (post.type) {
       case 'chatState':
@@ -381,7 +384,12 @@ describe('ChatSession.clear and message cap', () => {
 
     expect(session.clear()).toEqual(['undo-1']);
     expect(session.state().messages).toHaveLength(0);
-    expect(posts).toEqual([{ type: 'chatState', state: { messages: [], running: false } }]);
+    expect(posts).toEqual([
+      {
+        type: 'chatState',
+        state: { messages: [], running: false, sessions: [], activeSessionId: 'session-1' },
+      },
+    ]);
   });
 
   it('evicts oldest messages beyond maxMessages and reports their undoIds', () => {
@@ -425,6 +433,164 @@ describe('ChatSession.clear and message cap', () => {
 // ---------------------------------------------------------------------------
 // State/post coherence
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Identity, enrichState, rehydration (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatSession id and enrichState', () => {
+  it('defaults the id to createId() and exposes it', () => {
+    let counter = 0;
+    const session = new ChatSession({ createId: () => `id-${++counter}` });
+    expect(session.id).toBe('id-1');
+  });
+
+  it('default enrichState wraps the core into { sessions: [], activeSessionId: id }', () => {
+    const { session } = createSession();
+    session.beginTurn('go');
+    const state = session.state();
+    expect(state.sessions).toEqual([]);
+    expect(state.activeSessionId).toBe('session-1');
+    expect(state.messages).toHaveLength(2);
+    expect(state.running).toBe(true);
+  });
+
+  it('an injected enrichState shapes every state()/sync() payload', () => {
+    const meta = { id: 'session-1', title: 'T', createdAt: 1, updatedAt: 2, messageCount: 0 };
+    const { session, posts } = createSession({
+      enrichState: (core) => ({ sessions: [meta], activeSessionId: 'other', ...core }),
+    });
+    session.sync();
+    expect(posts).toEqual([
+      {
+        type: 'chatState',
+        state: { messages: [], running: false, sessions: [meta], activeSessionId: 'other' },
+      },
+    ]);
+  });
+
+  it('rehydrates initialMessages and clones them (input mutations never leak in)', () => {
+    const initial = [
+      { id: 'u-1', role: 'user' as const, text: 'hello', createdAt: 1 },
+      {
+        id: 'a-1',
+        role: 'assistant' as const,
+        status: 'complete' as const,
+        progress: [],
+        text: 'Hi.',
+        actions: [],
+        createdAt: 2,
+      },
+    ];
+    const { session } = createSession({ initialMessages: initial });
+    expect(session.messageCount).toBe(2);
+    expect(session.state().messages).toEqual(initial);
+
+    initial[0]!.text = 'tampered';
+    expect((session.state().messages[0] as { text: string }).text).toBe('hello');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// persistableMessages / lastUserText / historyBeforeLastUser (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatSession.persistableMessages', () => {
+  it('excludes the in-flight user+assistant pair while running, includes them after completion', () => {
+    const { session } = createSession();
+    session.beginTurn('first');
+    session.completeTurn({ status: 'complete', text: 'one', actions: [] });
+    session.beginTurn('second');
+
+    const midTurn = session.persistableMessages();
+    expect(midTurn).toHaveLength(2);
+    expect((midTurn[0] as { text: string }).text).toBe('first');
+    expect((midTurn[1] as { text: string }).text).toBe('one');
+
+    session.completeTurn({ status: 'complete', text: 'two', actions: [] });
+    expect(session.persistableMessages()).toHaveLength(4);
+  });
+
+  it('returns a clone when idle (mutations never reach the session)', () => {
+    const { session } = createSession();
+    session.beginTurn('go');
+    session.completeTurn({ status: 'complete', text: 'ok', actions: [] });
+    const cloned = session.persistableMessages();
+    (cloned[0] as { text: string }).text = 'tampered';
+    expect((session.state().messages[0] as { text: string }).text).toBe('go');
+  });
+});
+
+describe('ChatSession.lastUserText and historyBeforeLastUser', () => {
+  it('returns undefined/[] on an empty session', () => {
+    const { session } = createSession();
+    expect(session.lastUserText()).toBeUndefined();
+    expect(session.historyBeforeLastUser()).toEqual([]);
+  });
+
+  it('after two turns, excludes the last user turn and its assistant reply', () => {
+    const { session } = createSession();
+    session.beginTurn('first question');
+    session.completeTurn({ status: 'complete', text: 'first answer', actions: [] });
+    session.beginTurn('second question');
+    session.completeTurn({ status: 'complete', text: 'second answer', actions: [] });
+
+    expect(session.lastUserText()).toBe('second question');
+    expect(session.historyBeforeLastUser()).toEqual([
+      { role: 'user', content: 'first question' },
+      { role: 'assistant', content: 'first answer' },
+    ]);
+    // Sanity: full history still includes the last turn.
+    expect(session.history()).toHaveLength(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// onDidChange (Phase 5)
+// ---------------------------------------------------------------------------
+
+describe('ChatSession.onDidChange', () => {
+  it('fires for beginTurn/completeTurn/failTurn/setUndoState(owner)/clear', () => {
+    const { session } = createSession();
+    let fired = 0;
+    session.onDidChange = () => {
+      fired += 1;
+    };
+
+    session.beginTurn('go');
+    expect(fired).toBe(1);
+    session.completeTurn({ status: 'complete', text: 'ok', actions: [], undoId: 'undo-1' });
+    expect(fired).toBe(2);
+    session.setUndoState('undo-1', 'undoing');
+    expect(fired).toBe(3);
+    session.beginTurn('again');
+    expect(fired).toBe(4);
+    session.failTurn('boom', []);
+    expect(fired).toBe(5);
+    session.clear();
+    expect(fired).toBe(6);
+  });
+
+  it('does NOT fire for appendProgress, requestConfirm, resolveConfirm, sync, or non-owner setUndoState', () => {
+    const { session } = createSession();
+    session.beginTurn('go');
+    let fired = 0;
+    session.onDidChange = () => {
+      fired += 1;
+    };
+
+    session.appendProgress('working…');
+    session.requestConfirm(confirmRequest());
+    session.resolveConfirm('confirm-1', true, 'user');
+    session.sync();
+    session.setUndoState('ghost', 'failed', 'x'); // no owner — no change
+    expect(fired).toBe(0);
+
+    // clear refused while running — no change either
+    expect(session.clear()).toBeNull();
+    expect(fired).toBe(0);
+  });
+});
 
 describe('ChatSession state matches replayed posts', () => {
   it('replaying every post reconstructs state() exactly', () => {

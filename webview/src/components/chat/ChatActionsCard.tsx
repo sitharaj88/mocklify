@@ -50,6 +50,11 @@ export function ChatActionsCard({ message }: { message: ChatAssistantMessage }):
       {undo?.state === 'failed' && (
         <div className="text-xs text-red-700 dark:text-red-300">{undo.error}</div>
       )}
+      {undo?.state === 'expired' && (
+        <div className="text-xs text-surface-500">
+          Undo expired — changes from an earlier window can't be rolled back here.
+        </div>
+      )}
     </div>
   );
 }

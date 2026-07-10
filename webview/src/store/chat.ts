@@ -6,6 +6,7 @@ import type {
   ChatAssistantMessage,
   ChatConfirmRequest,
   ChatMessageToExtension,
+  ChatSessionMeta,
 } from '../types/chat';
 import { CHAT_PREFILL_MAX_CHARS } from '../types/chat';
 
@@ -20,6 +21,12 @@ interface ChatStore {
   chat: ChatViewState;
   /** One-shot draft seed from the extension (proactive hand-off); consumed by ChatInput. */
   chatPrefill: string | undefined;
+  /** Per-session input drafts, store-side only (never persisted, never sent). */
+  drafts: Record<string, string>;
+  /** True while the transcript viewport is scrolled near the bottom. */
+  chatAtBottom: boolean;
+  /** A message arrived while scrolled up — drives the scroll-button dot. */
+  chatNewBelow: boolean;
 
   // Actions
   setChatState: (state: ChatViewState) => void;
@@ -28,17 +35,47 @@ interface ChatStore {
   setChatConfirm: (request: ChatConfirmRequest | undefined) => void;
   resolveChatConfirm: (id: string) => void;
   setChatPrefill: (text: string | undefined) => void;
+  setChatSessions: (sessions: ChatSessionMeta[], activeSessionId: string) => void;
+  setDraft: (sessionId: string, text: string) => void;
+  setChatAtBottom: (atBottom: boolean) => void;
+}
+
+/** Keep only drafts whose session still exists (plus the active session's). */
+function prune(
+  drafts: Record<string, string>,
+  sessions: ChatSessionMeta[],
+  activeSessionId: string
+): Record<string, string> {
+  const keep = new Set(sessions.map((s) => s.id));
+  keep.add(activeSessionId);
+  const next: Record<string, string> = {};
+  for (const [id, text] of Object.entries(drafts)) {
+    if (keep.has(id)) {
+      next[id] = text;
+    }
+  }
+  return next;
 }
 
 export const useChatStore = create<ChatStore>((set) => ({
   // Initial state
-  chat: { messages: [], running: false },
+  chat: { messages: [], running: false, sessions: [], activeSessionId: '' },
   chatPrefill: undefined,
+  drafts: {},
+  chatAtBottom: true,
+  chatNewBelow: false,
 
   // Actions
-  setChatState: (state) => set({ chat: state }),
+  // Full snapshot (now carries the session list). Prune drafts here too —
+  // deleting the active session / cap eviction reach the webview only via a
+  // full chatState (activateSession → sync), never a chatSessionsUpdate.
+  setChatState: (state) =>
+    set((s) => ({ chat: state, drafts: prune(s.drafts, state.sessions, state.activeSessionId) })),
   addChatUserMessage: (message) =>
-    set((s) => ({ chat: { ...s.chat, messages: [...s.chat.messages, message] } })),
+    set((s) => ({
+      chat: { ...s.chat, messages: [...s.chat.messages, message] },
+      chatNewBelow: s.chatAtBottom ? s.chatNewBelow : true,
+    })),
   upsertChatAssistant: (message) =>
     set((s) => {
       const i = s.chat.messages.findIndex((m) => m.id === message.id);
@@ -46,7 +83,10 @@ export const useChatStore = create<ChatStore>((set) => ({
         i === -1
           ? [...s.chat.messages, message]
           : s.chat.messages.map((m) => (m.id === message.id ? message : m));
-      return { chat: { ...s.chat, messages, running: message.status === 'running' } };
+      return {
+        chat: { ...s.chat, messages, running: message.status === 'running' },
+        chatNewBelow: s.chatAtBottom ? s.chatNewBelow : true,
+      };
     }),
   setChatConfirm: (request) =>
     set((s) => ({ chat: { ...s.chat, pendingConfirm: request } })),
@@ -59,6 +99,16 @@ export const useChatStore = create<ChatStore>((set) => ({
   // Defensive clamp even though the extension already clamped.
   setChatPrefill: (text) =>
     set({ chatPrefill: text && text.trim() !== '' ? text.slice(0, CHAT_PREFILL_MAX_CHARS) : undefined }),
+  // Metadata-only refresh — messages/running/pendingConfirm untouched.
+  setChatSessions: (sessions, activeSessionId) =>
+    set((s) => ({
+      chat: { ...s.chat, sessions, activeSessionId },
+      drafts: prune(s.drafts, sessions, activeSessionId),
+    })),
+  setDraft: (sessionId, text) =>
+    set((s) => ({ drafts: { ...s.drafts, [sessionId]: text } })),
+  setChatAtBottom: (atBottom) =>
+    set((s) => ({ chatAtBottom: atBottom, chatNewBelow: atBottom ? false : s.chatNewBelow })),
 }));
 
 /**

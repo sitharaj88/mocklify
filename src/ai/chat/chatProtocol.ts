@@ -52,6 +52,12 @@ export const CHAT_CONFIRM_LINE_MAX_CHARS = 200;
 export const CHAT_CONFIRM_BODY_PREVIEW_MAX_CHARS = 400;
 /** Disclosure lines kept per snapshot. */
 export const CHAT_CONFIRM_DISCLOSURES_MAX = 8;
+/** Session title cap — auto-title and rename share it. */
+export const CHAT_SESSION_TITLE_MAX_CHARS = 48;
+/** Title of a fresh session before its first message. */
+export const CHAT_SESSION_DEFAULT_TITLE = 'New chat';
+/** Inbound chatOpenLink URL cap. */
+export const CHAT_LINK_MAX_CHARS = 2_048;
 export const CHAT_CONFIRM_KINDS = [
   'create_server',
   'add_route',
@@ -66,7 +72,7 @@ export type ChatConfirmChangeKind = (typeof CHAT_CONFIRM_KINDS)[number];
 
 export type ChatAssistantStatus = 'running' | 'complete' | 'cancelled' | 'error';
 export type ChatConfirmReason = 'user' | 'timeout' | 'cancelled' | 'disposed';
-export type ChatUndoState = 'available' | 'undoing' | 'undone' | 'failed';
+export type ChatUndoState = 'available' | 'undoing' | 'undone' | 'failed' | 'expired';
 
 export interface ChatUserMessage {
   id: string;
@@ -155,10 +161,27 @@ export interface ChatConfirmRequest {
   timeoutMs: number;
 }
 
-export interface ChatViewState {
+export interface ChatSessionMeta {
+  id: string;
+  /** clampLine'd, 1..CHAT_SESSION_TITLE_MAX_CHARS. */
+  title: string;
+  createdAt: number;
+  /** Bumped by transcript changes (beginTurn/complete/fail/clear), NOT by rename. */
+  updatedAt: number;
+  messageCount: number;
+}
+
+/** The per-session slice one ChatSession owns. */
+export interface ChatSessionViewState {
   messages: ChatMessage[];
   running: boolean;
   pendingConfirm?: ChatConfirmRequest;
+}
+
+/** Full wire state: active transcript + session list (updatedAt desc). */
+export interface ChatViewState extends ChatSessionViewState {
+  sessions: ChatSessionMeta[];
+  activeSessionId: string;
 }
 
 // ---- Protocol messages ----
@@ -170,7 +193,13 @@ export type ChatMessageToExtension =
   | { type: 'chatStop' }
   | { type: 'chatConfirm'; data: { id: string; approved: boolean } }
   | { type: 'chatUndo'; data: { undoId: string } }
-  | { type: 'chatClear' };
+  | { type: 'chatClear' }
+  | { type: 'chatNewSession' }
+  | { type: 'chatSwitchSession'; data: { id: string } }
+  | { type: 'chatRenameSession'; data: { id: string; title: string } }
+  | { type: 'chatDeleteSession'; data: { id: string } }
+  | { type: 'chatRegenerate' }
+  | { type: 'chatOpenLink'; data: { url: string } };
 
 /** Extension → webview. chatAssistantUpdate is an upsert-by-id of the FULL message. */
 export type ChatMessageFromExtension =
@@ -180,7 +209,8 @@ export type ChatMessageFromExtension =
   | { type: 'chatConfirmRequest'; request: ChatConfirmRequest }
   | { type: 'chatConfirmResolved'; id: string; approved: boolean; reason: ChatConfirmReason }
   | { type: 'chatFocus' }
-  | { type: 'chatPrefill'; text: string }; // NEW — pre-fill the input, never sends
+  | { type: 'chatPrefill'; text: string } // pre-fill the input, never sends
+  | { type: 'chatSessionsUpdate'; sessions: ChatSessionMeta[]; activeSessionId: string };
 
 /** The webview sink the session posts through. */
 export type ChatPost = (message: ChatMessageFromExtension) => void;
@@ -213,7 +243,7 @@ function parseId(value: unknown): string | undefined {
 
 /**
  * Validate one raw webview message. Returns undefined for anything not
- * exactly one of the six {@link ChatMessageToExtension} shapes (non-object,
+ * exactly one of the twelve {@link ChatMessageToExtension} shapes (non-object,
  * unknown type, missing/mis-typed fields). The result is rebuilt
  * field-by-field — the raw object (and any extra properties on it) is never
  * returned.
@@ -267,6 +297,46 @@ export function parseChatMessageToExtension(raw: unknown): ChatMessageToExtensio
         return undefined;
       }
       return { type: 'chatUndo', data: { undoId } };
+    }
+    case 'chatNewSession':
+      return { type: 'chatNewSession' };
+    case 'chatRegenerate':
+      return { type: 'chatRegenerate' };
+    case 'chatSwitchSession': {
+      const data = asRecord(record.data);
+      const id = data ? parseId(data.id) : undefined;
+      return id === undefined ? undefined : { type: 'chatSwitchSession', data: { id } };
+    }
+    case 'chatDeleteSession': {
+      const data = asRecord(record.data);
+      const id = data ? parseId(data.id) : undefined;
+      return id === undefined ? undefined : { type: 'chatDeleteSession', data: { id } };
+    }
+    case 'chatRenameSession': {
+      const data = asRecord(record.data);
+      if (!data || typeof data.title !== 'string') {
+        return undefined;
+      }
+      const id = parseId(data.id);
+      if (id === undefined) {
+        return undefined;
+      }
+      const title = clampLine(data.title, CHAT_SESSION_TITLE_MAX_CHARS);
+      if (title === '') {
+        return undefined;
+      }
+      return { type: 'chatRenameSession', data: { id, title } };
+    }
+    case 'chatOpenLink': {
+      const data = asRecord(record.data);
+      if (!data || typeof data.url !== 'string') {
+        return undefined;
+      }
+      const url = data.url.trim();
+      if (url === '' || url.length > CHAT_LINK_MAX_CHARS || !/^https?:\/\//i.test(url)) {
+        return undefined;
+      }
+      return { type: 'chatOpenLink', data: { url } };
     }
     default:
       return undefined;
