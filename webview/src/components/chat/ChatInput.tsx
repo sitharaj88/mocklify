@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { Send, Square } from 'lucide-react';
+import { ArrowUp, Square } from 'lucide-react';
 import { useChatStore, postChatMessage } from '../../store/chat';
-import { Button } from '../ui';
 import { cn } from '../../lib/utils';
 import { CHAT_INPUT_MAX_CHARS } from '../../types/chat';
 
@@ -83,19 +82,38 @@ export function ChatInput(): JSX.Element {
           )}
         />
         {chat.running ? (
-          <Button variant="danger" onClick={() => postChatMessage({ type: 'chatStop' })}>
-            <Square size={14} />
-            Stop
-          </Button>
+          <button
+            type="button"
+            onClick={() => postChatMessage({ type: 'chatStop' })}
+            aria-label="Stop generating"
+            title="Stop"
+            className={cn(
+              'focus-ring shrink-0 flex h-10 w-10 items-center justify-center rounded-full',
+              'bg-red-500 text-white shadow-md shadow-red-500/25 transition-all duration-150',
+              'hover:bg-red-600 hover:shadow-lg hover:shadow-red-500/40 active:scale-95'
+            )}
+          >
+            <Square size={13} fill="currentColor" strokeWidth={0} />
+          </button>
         ) : (
-          <Button
+          <button
+            type="button"
             onClick={send}
             disabled={!draft.trim()}
-            className="bg-violet-600 hover:bg-violet-500 text-white"
+            aria-label="Send message"
+            title="Send message (Enter)"
+            className={cn(
+              'focus-ring shrink-0 flex h-10 w-10 items-center justify-center rounded-full',
+              'text-white shadow-md shadow-violet-500/25 transition-all duration-150',
+              'bg-gradient-to-br from-violet-500 to-violet-600',
+              'hover:from-violet-500 hover:to-violet-700 hover:shadow-lg hover:shadow-violet-500/40 hover:scale-105',
+              'active:scale-95',
+              'disabled:cursor-not-allowed disabled:bg-none disabled:bg-surface-700',
+              'disabled:text-surface-500 disabled:shadow-none disabled:hover:scale-100'
+            )}
           >
-            <Send size={16} />
-            Send
-          </Button>
+            <ArrowUp size={18} strokeWidth={2.5} />
+          </button>
         )}
       </div>
       {remaining <= COUNTER_SHOW_THRESHOLD && (

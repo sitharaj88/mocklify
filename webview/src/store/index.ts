@@ -232,7 +232,10 @@ export const useStore = create<AppStore>((set, get) => ({
     }
 
     if (method) {
-      routes = routes.filter((r) => r.method === method);
+      routes = routes.filter((r) => {
+        const methods = Array.isArray(r.method) ? r.method : [r.method];
+        return (methods as string[]).includes(method);
+      });
     }
 
     if (tags.length > 0) {

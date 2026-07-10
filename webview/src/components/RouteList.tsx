@@ -9,6 +9,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Server,
+  SearchX,
 } from 'lucide-react';
 import type { RouteConfig } from '../types';
 import {
@@ -42,12 +43,19 @@ export function RouteList() {
     setSelectedServerId,
     setShowRouteModal,
     setEditingRoute,
+    getFilteredRoutes,
+    clearFilters,
   } = useStore();
 
   const [deleteRouteId, setDeleteRouteId] = useState<string | null>(null);
 
   const selectedServer = servers.find((s) => s.id === selectedServerId);
-  const routes = selectedServer?.routes || [];
+  const allRoutes = selectedServer?.routes || [];
+  // The SearchBar drives searchFilters in the store; render the filtered view.
+  // useStore() (no selector) re-renders on any state change, so typing in the
+  // search box re-runs this and updates the list.
+  const routes = getFilteredRoutes();
+  const isFiltered = routes.length !== allRoutes.length;
 
   const handleCreateRoute = () => {
     if (!selectedServerId) {
@@ -139,7 +147,7 @@ export function RouteList() {
             title="Select a server"
             description="Choose a server from the dropdown to manage its routes"
           />
-        ) : routes.length === 0 ? (
+        ) : allRoutes.length === 0 ? (
           <EmptyState
             icon={Route}
             title="No routes yet"
@@ -147,6 +155,18 @@ export function RouteList() {
             action={{
               label: 'Create Route',
               onClick: handleCreateRoute,
+            }}
+          />
+        ) : routes.length === 0 ? (
+          <EmptyState
+            icon={SearchX}
+            title="No matching routes"
+            description={`None of ${selectedServer?.name}'s ${allRoutes.length} route${
+              allRoutes.length === 1 ? '' : 's'
+            } match the current search and filters.`}
+            action={{
+              label: 'Clear filters',
+              onClick: clearFilters,
             }}
           />
         ) : (
@@ -157,7 +177,8 @@ export function RouteList() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>
-                  {selectedServer?.name} Routes ({routes.length})
+                  {selectedServer?.name} Routes ({routes.length}
+                  {isFiltered ? ` of ${allRoutes.length}` : ''})
                 </CardTitle>
               </CardHeader>
 
