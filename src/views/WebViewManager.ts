@@ -27,6 +27,11 @@ import { offerSpecImport, importWorkspaceSpec } from '../ai/AiCommands.js';
 import type { MockGenerator } from '../ai/MockGenerator.js';
 import type { AiService } from '../ai/AiService.js';
 import type { ApiKeyManager } from '../ai/providers/ApiKeyManager.js';
+import { ChatController } from '../ai/chat/ChatController.js';
+import { buildChatPrefillMessage } from '../ai/chat/chatProtocol.js';
+import { sharedScanActivity } from '../ai/proactive/scanActivity.js';
+import { createWorkspaceTools } from '../ai/agent/workspaceTools.js';
+import { createKnowledgeTool, createDefaultKnowledgeHost } from '../ai/agent/knowledgeTool.js';
 
 /**
  * Hard cap on mock servers auto-created (and auto-started) from one webview
@@ -64,6 +69,19 @@ export class WebViewManager {
   private aiGenerationCts: vscode.CancellationTokenSource | undefined;
   /** Resolvers for ask_user questions currently shown in the dashboard. */
   private pendingScanAnswers = new Map<string, (answer: string) => void>();
+  /** showChat on a fresh panel: chatFocus deferred until the 'ready' handshake. */
+  private pendingChatFocus = false;
+  /** showChat prefill on a fresh panel: deferred until the 'ready' handshake. */
+  private pendingChatPrefill: string | undefined;
+  /**
+   * True once the CURRENT panel's React app sent 'ready'. A panel can exist
+   * while its bundle is still loading (e.g. Open Dashboard, then a drift
+   * notification click) — posting chat navigation before 'ready' would land
+   * in a listener-less window and be lost.
+   */
+  private webviewReady = false;
+  /** Chat-tab controller; undefined when AI features are unavailable. */
+  private chatController: ChatController | undefined;
 
   constructor(
     private context: vscode.ExtensionContext,
@@ -74,6 +92,26 @@ export class WebViewManager {
   ) {
     // Load databases from storage
     this.databases = context.globalState.get('mocklify.databases', []);
+
+    // The chat tab rides the same panel: MockServerManager satisfies
+    // ServerToolsHost structurally and AiService satisfies ServerAgentAi
+    // structurally, so the controller wires straight to Phase 1 core.
+    if (this.aiService) {
+      this.chatController = new ChatController({
+        host: this.manager,
+        ai: this.aiService,
+        workspaceTools: () => {
+          const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+          return root ? createWorkspaceTools(root) : undefined;
+        },
+        knowledgeTool: () =>
+          createKnowledgeTool(
+            createDefaultKnowledgeHost(this.manager, {
+              extensionVersion: this.context.extension.packageJSON?.version ?? 'unknown',
+            })
+          ),
+      });
+    }
   }
 
   async show(): Promise<void> {
@@ -82,6 +120,7 @@ export class WebViewManager {
       return;
     }
 
+    this.webviewReady = false;
     this.panel = vscode.window.createWebviewPanel(
       'mocklifyDashboard',
       'Mocklify Dashboard',
@@ -104,6 +143,20 @@ export class WebViewManager {
       this.disposables
     );
 
+    // Chat transcript lives in the controller; the panel is just its sink.
+    // Guarded twice: onDidDispose clears this.panel before detaching the
+    // controller, and the `webview` getter throws once the panel is disposed
+    // — a confirm settle during teardown must never unwind through the
+    // bridge, so disposed-panel posts are silently dropped (a reopened panel
+    // replays the transcript via chatSync).
+    this.chatController?.attach((message) => {
+      try {
+        this.panel?.webview.postMessage(message);
+      } catch {
+        // Panel disposed mid-post — drop it.
+      }
+    });
+
     // Subscribe to server events
     const eventDisposable = this.manager.onEvent((event) => {
       if (event.type === 'server:started' || event.type === 'server:stopped') {
@@ -124,10 +177,45 @@ export class WebViewManager {
     this.disposables.push(changeDisposable);
 
     this.panel.onDidDispose(() => {
+      // The panel is already disposed when this fires (its `webview` getter
+      // throws) — clear the reference and panel-scoped subscriptions FIRST,
+      // so the detach-triggered confirm settle posts into `undefined`
+      // instead of a dead webview, and a throw can never leak the
+      // disposables or leave this.panel pointing at a disposed panel.
       this.panel = undefined;
+      this.webviewReady = false;
+      this.pendingChatFocus = false;
+      this.pendingChatPrefill = undefined;
       this.disposables.forEach((d) => d.dispose());
       this.disposables = [];
+      this.chatController?.detach();
     });
+  }
+
+  /**
+   * Open the dashboard and navigate the webview to the AI chat tab.
+   * `prefillText` (proactive flows) lands in the chat input as an editable
+   * draft — it is NEVER auto-sent; the user must press Send themselves.
+   */
+  async showChat(prefillText?: string): Promise<void> {
+    // Panel existence is NOT listener existence: a just-created panel is
+    // still loading its bundle until the 'ready' handshake arrives.
+    const listening = this.panel !== undefined && this.webviewReady;
+    await this.show();
+    if (listening) {
+      // The React app is mounted and listening — post now.
+      this.panel?.webview.postMessage({ type: 'chatFocus' });
+      if (prefillText !== undefined) {
+        this.panel?.webview.postMessage(buildChatPrefillMessage(prefillText));
+      }
+    } else {
+      // Bundle not (yet) loaded: a postMessage now would land before App.tsx
+      // registers its 'message' listener and be lost — defer to 'ready'.
+      this.pendingChatFocus = true;
+      if (prefillText !== undefined) {
+        this.pendingChatPrefill = prefillText;
+      }
+    }
   }
 
   private getWebviewContent(): string {
@@ -169,8 +257,30 @@ export class WebViewManager {
   }
 
   private async handleMessage(message: MessageToExtension): Promise<void> {
+    // Chat traffic (type prefixed 'chat') is owned by the ChatController,
+    // which validates every payload; without an AiService the messages fall
+    // through the switch below and are ignored (the chat tab stays inert).
+    if (this.chatController && typeof message.type === 'string' && message.type.startsWith('chat')) {
+      await this.chatController.handleMessage(message);
+      return;
+    }
     switch (message.type) {
       case 'ready':
+        // The React app is mounted and listening — flush a deferred
+        // showChat navigation before the state lands.
+        this.webviewReady = true;
+        if (this.pendingChatFocus) {
+          this.pendingChatFocus = false;
+          this.panel?.webview.postMessage({ type: 'chatFocus' });
+        }
+        if (this.pendingChatPrefill !== undefined) {
+          const prefill = this.pendingChatPrefill;
+          this.pendingChatPrefill = undefined;
+          this.panel?.webview.postMessage(buildChatPrefillMessage(prefill));
+        }
+        await this.sendState();
+        break;
+
       case 'getState':
         await this.sendState();
         break;
@@ -765,13 +875,15 @@ export class WebViewManager {
       if (data?.resume === 'resume') {
         resumeThreadId = (await this.detectResumableScan(workspaceRoot))?.threadId;
       }
-      const summary: OrchestratedScanSummary = await new ScanOrchestrator(this.aiService).generate({
-        token,
-        onProgress,
-        onQuestion,
-        threadId: resumeThreadId ?? deriveScanThreadId(workspaceRoot.fsPath),
-        ...(resumeThreadId !== undefined ? { resume: true } : {}),
-      });
+      const summary: OrchestratedScanSummary = await sharedScanActivity.track(() =>
+        new ScanOrchestrator(this.aiService!).generate({
+          token,
+          onProgress,
+          onQuestion,
+          threadId: resumeThreadId ?? deriveScanThreadId(workspaceRoot.fsPath),
+          ...(resumeThreadId !== undefined ? { resume: true } : {}),
+        })
+      );
       if (token.isCancellationRequested) {
         this.panel?.webview.postMessage({ type: 'aiStatus', status: 'idle' });
         return;
@@ -1276,6 +1388,7 @@ export class WebViewManager {
   }
 
   dispose(): void {
+    this.chatController?.dispose();
     this.panel?.dispose();
     this.disposables.forEach((d) => d.dispose());
   }

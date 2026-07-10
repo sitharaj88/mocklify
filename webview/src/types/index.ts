@@ -1,3 +1,8 @@
+import type { ChatMessageToExtension, ChatMessageFromExtension } from './chat';
+
+// AI chat protocol (mirror of src/ai/chat/chatProtocol.ts)
+export * from './chat';
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'HEAD' | 'OPTIONS';
 
 export interface DelayConfig {
@@ -228,7 +233,9 @@ export type MessageToExtension =
   | { type: 'setAiBaseUrl'; data: { provider: string; baseUrl: string } }
   | { type: 'setAiApiKey'; data: { provider: string; key: string } }
   | { type: 'clearAiApiKey'; data: { provider: string } }
-  | { type: 'testAiProvider' };
+  | { type: 'testAiProvider' }
+  // AI chat (dashboard chat tab)
+  | ChatMessageToExtension;
 
 export type MessageFromExtension =
   | { type: 'state'; data: AppState }
@@ -263,7 +270,9 @@ export type MessageFromExtension =
     }
   // AI configuration
   | { type: 'aiConfig'; provider: string; activeLabel?: string; providers: AiProviderInfo[] }
-  | { type: 'aiTestResult'; ok: boolean; message: string };
+  | { type: 'aiTestResult'; ok: boolean; message: string }
+  // AI chat (dashboard chat tab)
+  | ChatMessageFromExtension;
 
 export interface AiCreatedServer {
   serverId: string;

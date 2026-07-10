@@ -5,6 +5,16 @@ import { AiService } from './AiService.js';
 import { AiUnavailableError } from './providers/types.js';
 import { MockGenerator, GeneratedServer } from './MockGenerator.js';
 import { DocumentationGenerator } from './DocumentationGenerator.js';
+import {
+  createServerToolBelt,
+  restoreUndoSnapshot,
+  type ConfirmHandler,
+  type ExecutedAction,
+  type UndoSnapshot,
+} from './agent/serverTools.js';
+import { runServerAgentTurn, SERVER_AGENT_HISTORY_MAX_TURNS, type ServerAgentTurnMessage } from './agent/serverAgent.js';
+import { createWorkspaceTools } from './agent/workspaceTools.js';
+import { createKnowledgeTool, createDefaultKnowledgeHost } from './agent/knowledgeTool.js';
 
 export const PARTICIPANT_ID = 'mocklify.assistant';
 
@@ -18,9 +28,18 @@ export const PARTICIPANT_ID = 'mocklify.assistant';
  *   @mocklify /test
  *   @mocklify /analyze why are my requests returning 404?
  *   @mocklify /list
+ *   @mocklify /agent add a 404 route to the payments API and restart it
  */
 export class MocklifyChatParticipant {
   private participant: vscode.ChatParticipant;
+  /**
+   * Undo snapshots consumed (or mid-restore) by the chat Undo button. Chat
+   * response buttons stay clickable forever and re-invoke the command with
+   * the SAME snapshot object, so consumption is tracked by identity here —
+   * the counterpart of the webview path's undoSnapshots map. A WeakSet keeps
+   * old chat turns collectable.
+   */
+  private readonly consumedUndoSnapshots = new WeakSet<UndoSnapshot>();
 
   constructor(
     private context: vscode.ExtensionContext,
@@ -43,7 +62,7 @@ export class MocklifyChatParticipant {
 
   private async handle(
     request: vscode.ChatRequest,
-    _chatContext: vscode.ChatContext,
+    chatContext: vscode.ChatContext,
     stream: vscode.ChatResponseStream,
     token: vscode.CancellationToken
   ): Promise<vscode.ChatResult> {
@@ -51,6 +70,8 @@ export class MocklifyChatParticipant {
       switch (request.command) {
         case 'create':
           return await this.handleCreate(request, stream, token);
+        case 'agent':
+          return await this.handleAgent(request, chatContext, stream, token);
         case 'route':
           return await this.handleRoute(request, stream, token);
         case 'docs':
@@ -115,6 +136,136 @@ export class MocklifyChatParticipant {
     });
 
     return { metadata: { command: 'create' } };
+  }
+
+  // --- /agent --------------------------------------------------------------
+
+  private async handleAgent(
+    request: vscode.ChatRequest,
+    chatContext: vscode.ChatContext,
+    stream: vscode.ChatResponseStream,
+    token: vscode.CancellationToken
+  ): Promise<vscode.ChatResult> {
+    if (!request.prompt.trim()) {
+      stream.markdown(
+        'Tell the agent what to do, e.g. `@mocklify /agent add a 404 route for missing orders to the payments API, then restart it`.'
+      );
+      return { metadata: { command: 'agent' } };
+    }
+
+    stream.progress('Server agent starting…');
+
+    // The confirmation modal races the chat CancellationToken: pressing Stop
+    // auto-denies the pending confirmation, so a later click on the (still
+    // visible, non-dismissable) modal can never apply a mutation after the
+    // request was cancelled.
+    const confirm: ConfirmHandler = async (action) => {
+      if (token.isCancellationRequested) {
+        return false;
+      }
+      let subscription: vscode.Disposable | undefined;
+      try {
+        const cancelled = new Promise<undefined>((resolve) => {
+          subscription = token.onCancellationRequested(() => resolve(undefined));
+        });
+        const choice = await Promise.race([
+          vscode.window.showWarningMessage(
+            `Mocklify: ${action.title}`,
+            { modal: true, detail: action.detail },
+            'Apply'
+          ),
+          cancelled,
+        ]);
+        return choice === 'Apply' && !token.isCancellationRequested;
+      } finally {
+        subscription?.dispose();
+      }
+    };
+
+    const belt = createServerToolBelt({ host: this.manager, confirm });
+    const root = vscode.workspace.workspaceFolders?.[0]?.uri;
+    const workspaceTools = root ? createWorkspaceTools(root) : undefined;
+    // Unconditional: with no workspace open, loadScanMemory/readSpecText
+    // resolve null and the topics degrade to notes — never a throw.
+    const knowledgeTool = createKnowledgeTool(createDefaultKnowledgeHost(this.manager));
+
+    // Approved mutations must stay undoable even when the turn dies (provider
+    // outage, timeout, quota, …): render the applied changes and the Undo
+    // button from the belt before letting handle()'s generic catch see the
+    // error — the belt (and its undo snapshot) would otherwise be discarded.
+    let result: Awaited<ReturnType<typeof runServerAgentTurn>>;
+    try {
+      result = await runServerAgentTurn(
+        {
+          ai: this.ai,
+          tools: belt,
+          ...(workspaceTools !== undefined ? { workspaceTools } : {}),
+          knowledgeTool,
+          onProgress: (line) => stream.progress(line),
+          token,
+        },
+        { prompt: request.prompt, history: this.buildAgentHistory(chatContext) }
+      );
+    } catch (error) {
+      const actions = belt.actions();
+      if (actions.length === 0) {
+        throw error; // nothing was applied — the generic handler is enough
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      stream.markdown(
+        `The agent stopped early: ${message}\n\nChanges already approved and applied are listed below; use Undo to roll them back.\n\n`
+      );
+      this.renderAppliedChanges(stream, actions, belt.snapshot());
+      return { metadata: { command: 'agent' }, errorDetails: { message } };
+    }
+
+    stream.markdown(result.text + '\n\n');
+    if (result.actions.length > 0) {
+      this.renderAppliedChanges(stream, result.actions, belt.snapshot());
+    }
+
+    return { metadata: { command: 'agent' } };
+  }
+
+  /** The applied-changes list plus the Undo button (when a snapshot exists). */
+  private renderAppliedChanges(
+    stream: vscode.ChatResponseStream,
+    actions: ExecutedAction[],
+    snapshot: UndoSnapshot | undefined
+  ): void {
+    stream.markdown('**Applied changes**\n\n');
+    for (const action of actions) {
+      stream.markdown(`- ${action.summary}\n`);
+    }
+    stream.markdown('\n');
+    if (snapshot !== undefined) {
+      stream.button({
+        command: 'mocklify.chat.undoAgentChanges',
+        title: '$(discard) Undo these changes',
+        arguments: [snapshot],
+      });
+    }
+  }
+
+  /**
+   * Convert the chat history into the agent's turn messages: user turns keep
+   * their prompt, assistant turns concatenate their Markdown parts. Final
+   * clamping happens in formatAgentHistory.
+   */
+  private buildAgentHistory(chatContext: vscode.ChatContext): ServerAgentTurnMessage[] {
+    const history: ServerAgentTurnMessage[] = [];
+    for (const turn of chatContext.history) {
+      if (turn instanceof vscode.ChatRequestTurn) {
+        history.push({ role: 'user', content: turn.prompt });
+      } else if (turn instanceof vscode.ChatResponseTurn) {
+        const content = turn.response
+          .filter((part): part is vscode.ChatResponseMarkdownPart => part instanceof vscode.ChatResponseMarkdownPart)
+          .map((part) => part.value.value)
+          .join('');
+        history.push({ role: 'assistant', content });
+      }
+    }
+    return history.slice(-SERVER_AGENT_HISTORY_MAX_TURNS);
   }
 
   // --- /route --------------------------------------------------------------
@@ -259,7 +410,7 @@ Keep paths, ports, and methods exactly as given. Output Markdown.`;
       )
       .join('\n');
 
-    const prompt = `You are analyzing traffic captured by a mock API server. Recent requests (newest last):
+    const prompt = `You are analyzing traffic captured by a mock API server. Recent requests (newest first):
 
 ${logSummary}
 
@@ -393,6 +544,11 @@ User: ${request.prompt}`;
         return [
           { prompt: 'add mock routes for the unmatched requests', command: 'route', label: 'Mock unmatched requests' },
         ];
+      case 'agent':
+        return [
+          { prompt: 'list my servers and their status', command: 'agent', label: 'Review servers' },
+          { prompt: 'analyze the request logs', command: 'analyze', label: 'Analyze traffic' },
+        ];
       default:
         return [];
     }
@@ -461,6 +617,33 @@ User: ${request.prompt}`;
         const doc = await vscode.workspace.openTextDocument(target);
         await vscode.window.showTextDocument(doc, { preview: false });
         vscode.commands.executeCommand('markdown.showPreviewToSide', target);
+      }),
+
+      vscode.commands.registerCommand('mocklify.chat.undoAgentChanges', async (snapshot: UndoSnapshot) => {
+        // Consume BEFORE the await: a double-click (or a later re-click over
+        // newer state) must never run a second restore of the same snapshot
+        // — concurrent restores duplicate every snapshot route. Consumed
+        // either way, matching the webview undo semantics.
+        if (this.consumedUndoSnapshots.has(snapshot)) {
+          vscode.window.showInformationMessage('Mocklify: These changes were already undone.');
+          return;
+        }
+        this.consumedUndoSnapshots.add(snapshot);
+        try {
+          const result = await restoreUndoSnapshot(this.manager, snapshot);
+          const restored = result.restoredServerIds.length + result.deletedServerIds.length;
+          if (result.errors.length > 0) {
+            vscode.window.showWarningMessage(
+              `Mocklify: Undo finished with issues (${restored} server(s) touched): ${result.errors[0]}`
+            );
+          } else {
+            vscode.window.showInformationMessage(`Mocklify: Undid agent changes across ${restored} server(s).`);
+          }
+        } catch (error) {
+          vscode.window.showErrorMessage(
+            `Mocklify: Undo failed: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       })
     );
   }

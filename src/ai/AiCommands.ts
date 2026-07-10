@@ -26,6 +26,7 @@ import {
   type ResumableScanInfo,
 } from './agent/scanGraph.js';
 import type { HumanQuestion } from './agent/graphRuntime.js';
+import { sharedScanActivity } from './proactive/scanActivity.js';
 import { TrafficMockGenerator } from './TrafficMockGenerator.js';
 import { MODEL_CATALOG, ModelProviderId } from './modelCatalog.js';
 import { OpenApiImportService, OpenApiImportResult } from '../services/OpenApiImportService.js';
@@ -568,25 +569,29 @@ export function registerAiCommands(
           // (parallel exploration + critic verification), and falls back to
           // the fast scan itself when the provider cannot run tool loops.
           const startFresh = (): Promise<OrchestratedScanSummary> =>
-            new ScanOrchestrator(ai).generate({
-              token,
-              onProgress,
-              onQuestion,
-              threadId: deriveScanThreadId(workspaceRoot.fsPath),
-            });
+            sharedScanActivity.track(() =>
+              new ScanOrchestrator(ai).generate({
+                token,
+                onProgress,
+                onQuestion,
+                threadId: deriveScanThreadId(workspaceRoot.fsPath),
+              })
+            );
 
           let summary: OrchestratedScanSummary;
           if (resumeOffer.resume) {
             // Resume through the orchestrator, not the graph directly: only the
             // agentic slice is checkpointed, so the fast/spec surfaces have to
             // be re-run or they vanish from the resumed result.
-            summary = await new ScanOrchestrator(ai).generate({
-              token,
-              onProgress,
-              onQuestion,
-              threadId: resumeOffer.resume.threadId,
-              resume: true,
-            });
+            summary = await sharedScanActivity.track(() =>
+              new ScanOrchestrator(ai).generate({
+                token,
+                onProgress,
+                onQuestion,
+                threadId: resumeOffer.resume!.threadId,
+                resume: true,
+              })
+            );
           } else {
             summary = await startFresh();
           }

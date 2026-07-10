@@ -161,6 +161,12 @@
         "icon": "$(dashboard)"
       },
       {
+        "command": "mocklify.openAiChat",
+        "title": "Open AI Chat",
+        "category": "Mocklify",
+        "icon": "$(comment-discussion)"
+      },
+      {
         "command": "mocklify.generateDocs",
         "title": "Generate API Documentation",
         "category": "Mocklify",
@@ -293,6 +299,10 @@
           {
             "name": "list",
             "description": "List all mock servers and their status"
+          },
+          {
+            "name": "agent",
+            "description": "Agent mode: inspect and modify mock servers conversationally — every change asks first and can be undone"
           }
         ]
       }
@@ -712,6 +722,17 @@
           "type": "boolean",
           "default": false,
           "markdownDescription": "Watch saved source files for new API calls that no mock server covers and offer to generate routes (uses local scanning only — no AI calls until you accept)."
+        },
+        "mocklify.ai.driftNotifications": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Proactive drift notifications: when a saved source file calls API endpoints no mock server covers, show a notification whose **Fix in AI Chat** action opens the dashboard's AI chat pre-filled with a repair prompt — nothing is sent or changed until you press Send and approve the agent's proposed changes. Enabling this also enables on-save drift detection even when `#mocklify.ai.driftWatch#` is off. The same set of drifted endpoints is never re-notified within 30 minutes, and **Ignore for this session** mutes it until the window reloads."
+        },
+        "mocklify.ai.scheduledScan.intervalMinutes": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Re-scan the codebase with AI in the background every N minutes to keep scan memory fresh and surface newly discovered endpoints (respects `#mocklify.ai.scanMode#`). `0` disables scheduled scans (the default); values between 1 and 14 are treated as the 15-minute minimum. Background scans run fully unattended: they never ask questions, never create or modify servers, show progress only in the status bar, skip a cycle while another scan is running (or an interrupted scan is waiting to be resumed), and only notify — at most once per finding every 6 hours — when new uncovered endpoints or API surfaces turn up. Failures are logged and retried with backoff, never shown as error popups."
         }
       }
     }

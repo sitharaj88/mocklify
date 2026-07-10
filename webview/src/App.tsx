@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore, postMessage } from './store';
+import { useChatStore } from './store/chat';
 import { useThemeStore } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { Sidebar } from './components/Sidebar';
@@ -10,6 +11,7 @@ import { RouteList } from './components/RouteList';
 import { DatabaseList } from './components/DatabaseList';
 import { LogsViewer } from './components/LogsViewer';
 import { Settings } from './components/Settings';
+import { ChatPanel } from './components/chat';
 import { ServerModal } from './components/ServerModal';
 import { RouteModal } from './components/RouteModal';
 import { DatabaseModal } from './components/DatabaseModal';
@@ -47,6 +49,7 @@ function App() {
     setAiGeneration,
     setAiConfig,
     setAiTestResult,
+    setActiveView,
   } = useStore();
 
   const { theme } = useThemeStore();
@@ -171,6 +174,36 @@ function App() {
             URL.revokeObjectURL(url);
           }
           break;
+
+        // AI chat: the extension owns the transcript — these dispatch into
+        // the chat store; ChatPanel's chatSync on mount reconciles races.
+        case 'chatState':
+          useChatStore.getState().setChatState(message.state);
+          break;
+
+        case 'chatUserMessage':
+          useChatStore.getState().addChatUserMessage(message.message);
+          break;
+
+        case 'chatAssistantUpdate':
+          useChatStore.getState().upsertChatAssistant(message.message);
+          break;
+
+        case 'chatConfirmRequest':
+          useChatStore.getState().setChatConfirm(message.request);
+          break;
+
+        case 'chatConfirmResolved':
+          useChatStore.getState().resolveChatConfirm(message.id);
+          break;
+
+        case 'chatFocus':
+          setActiveView('chat');
+          break;
+
+        case 'chatPrefill':
+          useChatStore.getState().setChatPrefill(message.text);
+          break;
       }
     };
 
@@ -181,6 +214,7 @@ function App() {
   const renderContent = () => {
     const components: Record<string, JSX.Element> = {
       dashboard: <Dashboard />,
+      chat: <ChatPanel />,
       servers: <ServerList />,
       routes: <RouteList />,
       databases: <DatabaseList />,

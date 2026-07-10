@@ -19,6 +19,7 @@ import {
 } from './ai/index.js';
 import { registerScenarioCommands } from './ai/ScenarioCommands.js';
 import { activateDriftWatcher } from './ai/DriftWatcher.js';
+import { ProactiveController } from './ai/proactive/proactiveController.js';
 import { registerChaosCommands } from './core/ChaosCommands.js';
 import { setExtensionVersion, getExtensionVersion } from './version.js';
 import type { ContractConfig } from './types/core.js';
@@ -95,6 +96,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }),
     vscode.commands.registerCommand('mocklify.openLogs', () => {
       vscode.commands.executeCommand('mocklifyLogs.focus');
+    }),
+    // mocklify.openChat is taken (Copilot Chat @mocklify); this opens the
+    // dashboard's native AI chat tab.
+    vscode.commands.registerCommand('mocklify.openAiChat', () => {
+      void webViewManager?.showChat();
     })
   );
 
@@ -104,7 +110,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerAiCommands(context, manager, aiService, apiKeyManager, mockGenerator, docsGenerator);
   registerScenarioCommands(context, manager);
   registerChaosCommands(context, manager);
-  activateDriftWatcher(context, manager);
+
+  // Phase 4 proactive agents: drift → AI-chat proposals + scheduled background
+  // re-scans. Both are opt-in (settings default off) and propose-only.
+  const dashboard = webViewManager;
+  const proactive = new ProactiveController({
+    manager,
+    ai: aiService,
+    openChat: (prefill) => dashboard.showChat(prefill),
+  });
+  context.subscriptions.push(proactive);
+  proactive.start();
+  activateDriftWatcher(context, manager, (report) => proactive.handleDriftReport(report));
 
   // Stateful mocks: reset the in-memory collections (they re-seed lazily on
   // the next request, so no restart is needed).

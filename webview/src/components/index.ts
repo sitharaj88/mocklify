@@ -13,3 +13,4 @@ export { ImportModal } from './ImportModal';
 export { RecordingPanel } from './RecordingPanel';
 export { KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 export { AiCreatePanel } from './AiCreatePanel';
+export { ChatPanel } from './chat';

@@ -202,7 +202,7 @@ export function buildDiagnosticsReport(input: DiagnosticsInput): string {
 }
 
 /** process.env.HOME / USERPROFILE when available, else undefined. Pure-safe. */
-function detectHome(): string | undefined {
+export function detectHome(): string | undefined {
   const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
     ?.env;
   return env?.HOME || env?.USERPROFILE || undefined;
@@ -269,6 +269,16 @@ export function recordScanReport(strategies: ScanStrategyReport[] | undefined): 
 export function recordError(err: unknown): void {
   const message = err instanceof Error ? err.stack || err.message : String(err);
   lastError = { message, when: new Date().toISOString() };
+}
+
+/** Read the recorded last-scan strategy report (undefined when none this session). */
+export function getRecordedScanReport(): ScanStrategyReport[] | undefined {
+  return lastScanReport ? [...lastScanReport] : undefined;
+}
+
+/** Read the recorded last error (undefined when none this session). */
+export function getRecordedError(): { message: string; when: string } | undefined {
+  return lastError ? { ...lastError } : undefined;
 }
 
 /** Clear captured session state (used by tests). */

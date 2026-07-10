@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import {
   LayoutDashboard,
+  MessageSquare,
   Server,
   Route,
   Database,
@@ -17,7 +18,7 @@ import {
 import { cn, extensionVersion } from '../lib/utils';
 import { Badge, StatusDot, Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from './ui';
 
-type NavItemId = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
+type NavItemId = 'dashboard' | 'chat' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
 
 interface NavItem {
   id: NavItemId;
@@ -68,6 +69,7 @@ export function Sidebar({ onImportClick, onShortcutsClick }: SidebarProps) {
 
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'chat', label: 'AI Chat', icon: MessageSquare },
     { id: 'servers', label: 'Servers', icon: Server, badge: runningCount || undefined },
     { id: 'routes', label: 'Routes', icon: Route },
     { id: 'databases', label: 'Databases', icon: Database },

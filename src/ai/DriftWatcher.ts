@@ -2,8 +2,15 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import type { MockServerManager } from '../core/MockServerManager.js';
 import { scoreApiContent } from './scan/heuristics.js';
+import { isPathCovered } from './proactive/pathCoverage.js';
+import type { DriftReport } from './proactive/driftProposal.js';
+
+// Coverage matching moved verbatim to proactive/pathCoverage.ts (pure, so the
+// rescan differ can reuse it); re-exported here to preserve the public surface.
+export { isPathCovered } from './proactive/pathCoverage.js';
 
 const CONFIG_KEY = 'ai.driftWatch';
+const NOTIFY_CONFIG_KEY = 'ai.driftNotifications';
 const DEBOUNCE_MS = 2000;
 const MIN_SCORE = 10; // same threshold as CodebaseMockGenerator
 const MAX_FILE_CHARS = 262_144;
@@ -82,42 +89,6 @@ export function extractEndpointPaths(content: string): string[] {
   return [...found];
 }
 
-function segmentsMatch(route: string[], candidate: string[]): boolean {
-  if (route.length !== candidate.length) {
-    return false;
-  }
-  for (let i = 0; i < route.length; i++) {
-    const r = route[i];
-    const c = candidate[i];
-    if (r.startsWith(':') || r === '*' || c.startsWith(':')) {
-      continue;
-    }
-    if (r.toLowerCase() !== c.toLowerCase()) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * A candidate is covered when some route matches it segment-wise (:param and *
- * are wildcards). A route may carry a base prefix the client omits (Retrofit
- * relative paths), so a route whose tail matches the candidate also counts.
- */
-export function isPathCovered(candidate: string, routePaths: string[]): boolean {
-  const c = candidate.split('/').filter(Boolean);
-  return routePaths.some((routePath) => {
-    const r = routePath.split('/').filter(Boolean);
-    if (r.length > 0 && r[r.length - 1] === '*' && c.length >= r.length - 1) {
-      return segmentsMatch(r.slice(0, -1), c.slice(0, r.length - 1));
-    }
-    if (r.length < c.length) {
-      return false;
-    }
-    return segmentsMatch(r.slice(r.length - c.length), c);
-  });
-}
-
 /**
  * Watches saved source files for API calls no mock server covers and offers
  * to generate routes. Gated on the mocklify.ai.driftWatch setting; toggling
@@ -130,13 +101,19 @@ export class DriftWatcher implements vscode.Disposable {
   private readonly notifiedFiles = new Set<string>();
   private readonly notifiedPathSets = new Set<string>();
 
-  constructor(private readonly manager: MockServerManager) {}
+  constructor(
+    private readonly manager: MockServerManager,
+    private readonly onDriftReport?: (report: DriftReport) => void
+  ) {}
 
   activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       this,
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration(`mocklify.${CONFIG_KEY}`)) {
+        if (
+          e.affectsConfiguration(`mocklify.${CONFIG_KEY}`) ||
+          e.affectsConfiguration(`mocklify.${NOTIFY_CONFIG_KEY}`)
+        ) {
           this.syncEnabled();
         }
       })
@@ -154,9 +131,10 @@ export class DriftWatcher implements vscode.Disposable {
   }
 
   private syncEnabled(): void {
-    const enabled = vscode.workspace
-      .getConfiguration('mocklify')
-      .get<boolean>(CONFIG_KEY, false);
+    const config = vscode.workspace.getConfiguration('mocklify');
+    const enabled =
+      config.get<boolean>(CONFIG_KEY, false) ||
+      (this.onDriftReport !== undefined && config.get<boolean>(NOTIFY_CONFIG_KEY, false));
     if (enabled && !this.saveListener) {
       this.saveListener = vscode.workspace.onDidSaveTextDocument((doc) =>
         this.onSave(doc)
@@ -228,6 +206,24 @@ export class DriftWatcher implements vscode.Disposable {
       return;
     }
 
+    const config = vscode.workspace.getConfiguration('mocklify');
+    if (this.onDriftReport !== undefined && config.get<boolean>(NOTIFY_CONFIG_KEY, false)) {
+      // Proactive proposal path: cooldown/mute rate limiting is the ledger's job,
+      // so the legacy per-session latches are not set here (drift that persists
+      // may legitimately re-notify after the cooldown).
+      this.onDriftReport({
+        relativePath,
+        fileName: path.basename(relativePath),
+        missingEndpoints: missing,
+        detectedAt: Date.now(),
+      });
+      return;
+    }
+    if (!config.get<boolean>(CONFIG_KEY, false)) {
+      // Only driftNotifications enabled but the handler is missing.
+      return;
+    }
+
     const pathSetKey = [...missing].sort().join('|');
     if (this.notifiedPathSets.has(pathSetKey)) {
       return;
@@ -255,9 +251,10 @@ export class DriftWatcher implements vscode.Disposable {
 
 export function activateDriftWatcher(
   context: vscode.ExtensionContext,
-  manager: MockServerManager
+  manager: MockServerManager,
+  onDriftReport?: (report: DriftReport) => void
 ): DriftWatcher {
-  const watcher = new DriftWatcher(manager);
+  const watcher = new DriftWatcher(manager, onDriftReport);
   watcher.activate(context);
   return watcher;
 }

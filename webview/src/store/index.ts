@@ -11,7 +11,7 @@ import type {
   AiTestResult,
 } from '../types';
 
-type ActiveView = 'dashboard' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
+type ActiveView = 'dashboard' | 'chat' | 'servers' | 'routes' | 'databases' | 'logs' | 'settings';
 
 interface RecordingState {
   isRecording: boolean;
