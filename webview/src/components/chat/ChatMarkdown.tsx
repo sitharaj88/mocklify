@@ -70,10 +70,13 @@ function MdImg({ src, alt }: ComponentProps<'img'>): JSX.Element {
 
 /** Inline code only — block code never reaches here visually (MdPre swallows it). */
 function MdCode({ className, children }: ComponentProps<'code'>): JSX.Element {
+  // surface-700/600/100 hold contrast against the surface-800 bubble in BOTH
+  // themes (the palette inverts via CSS vars); 900/800 would wash out to
+  // near-white-on-white in light mode.
   return (
     <code
       className={
-        'px-1 py-0.5 rounded bg-surface-900/80 border border-surface-700 font-mono text-[0.85em]'
+        'px-1 py-0.5 rounded bg-surface-700 border border-surface-600 font-mono text-[0.85em] text-surface-100'
       }
     >
       {children}
@@ -106,7 +109,7 @@ function MdPre({ children }: ComponentProps<'pre'>): JSX.Element {
 function MdTable({ children }: ComponentProps<'table'>): JSX.Element {
   return (
     <div className="overflow-x-auto">
-      <table className="text-xs border-collapse [&_th]:border [&_td]:border [&_th]:border-surface-700 [&_td]:border-surface-700 [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_th]:bg-surface-800/60">
+      <table className="text-xs border-collapse [&_th]:border [&_td]:border [&_th]:border-surface-600 [&_td]:border-surface-600 [&_th]:px-2 [&_td]:px-2 [&_th]:py-1 [&_td]:py-1 [&_th]:bg-surface-700">
         {children}
       </table>
     </div>

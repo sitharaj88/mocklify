@@ -26,22 +26,22 @@ export function ChatCodeBlock({ language, code }: { language?: string; code: str
   };
 
   return (
-    <div className="my-2 rounded-md border border-surface-700">
-      <div className="bg-surface-900/80 border-b border-surface-700 rounded-t-md px-2 py-1 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wide text-surface-500">
+    <div className="my-2 rounded-md border border-surface-600">
+      <div className="bg-surface-950 border-b border-surface-600 rounded-t-md px-2 py-1 flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-wide text-surface-400">
           {language || 'code'}
         </span>
         <button
           onClick={handleCopy}
           title="Copy code"
           aria-label="Copy code"
-          className="focus-ring p-1 rounded text-surface-500 hover:text-surface-300 transition-colors duration-150"
+          className="focus-ring p-1 rounded text-surface-400 hover:text-surface-100 transition-colors duration-150"
         >
           {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
         </button>
       </div>
-      <pre className="overflow-x-auto p-3 bg-surface-900/60 rounded-b-md">
-        <code className="font-mono text-xs whitespace-pre">{code}</code>
+      <pre className="overflow-x-auto p-3 bg-surface-950 rounded-b-md">
+        <code className="font-mono text-xs whitespace-pre text-surface-100">{code}</code>
       </pre>
     </div>
   );
