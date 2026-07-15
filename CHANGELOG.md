@@ -2,6 +2,33 @@
 
 All notable changes to the "Mocklify" extension will be documented in this file.
 
+## [0.5.0] - 2026-07-15
+
+The AI release. A provider-agnostic chat assistant that can inspect **and modify** your
+mock servers conversationally, backed by a confirmation-gated agent, a workspace
+knowledge tool, and opt-in proactive agents. Works with Copilot, Claude, Gemini, and
+OpenAI — every model call goes through Mocklify's own AI layer.
+
+### Added
+
+- **AI Chat panel** — a new **Chat** tab in the dashboard (command `Mocklify: Open AI Chat`). Ask the agent to inspect or change your mock servers in plain language ("add a 404 route to the payments API and restart it"). Streams live tool-progress, renders assistant replies as safe GFM markdown (lists, tables, links, fenced code blocks with one-click Copy), and never navigates the webview — links open through the extension with an http/https allowlist
+- **Server agent + tool belt** — the assistant drives a hardened tool belt over your servers: list servers/routes, read recent request logs, and create server / add / update / delete route / start / stop. **Every mutation is gated behind an explicit confirmation** rendered as a before/after route diff card, all model-supplied input is validated, and route behaviors that reach out (proxy targets, database operations) are disclosed in the confirmation before you approve
+- **Undo** — each chat turn that changed servers offers a one-click undo of that turn's mutations
+- **Multi-session chat history with continue** — multiple named chat sessions (auto-titled from your first message), switch / rename / delete, per-session drafts, and full persistence across reloads and panel reopen (per workspace). Reopening continues a session with its history intact; timestamps, day dividers, copy-message, and regenerate round out the transcript
+- **`query_knowledge` tool** — the agent can answer from what Mocklify already knows: previous scan memory, recent request logs (including failures), imported API specs and their endpoints, diagnostics/contract issues, and the current route tables — each source degrading gracefully when empty
+- **`@mocklify /agent`** — the same server agent is available as a command on the existing `@mocklify` Copilot chat participant, for users who prefer Copilot Chat
+- **Proactive drift notifications** (opt-in, `mocklify.ai.driftNotifications`, default off) — when saved code calls endpoints no mock covers, a rate-limited notification offers **Fix in AI Chat**, which opens the chat pre-filled with a repair prompt (never auto-sent). Per-endpoint rate limiting keeps autosave churn from spamming you
+- **Scheduled background re-scans** (opt-in, `mocklify.ai.scheduledScan.intervalMinutes`, default 0 = off) — an unattended interval scan refreshes scan memory and, when it finds endpoints your mocks don't cover, surfaces one **Review in AI Chat** notification. Never overlaps an interactive scan, backs off on failure, and never interrupts you with error popups
+
+### Fixed
+
+- **Routes page search** now filters the list as you type (the search box previously updated state that the routes table ignored). Added a distinct "No matching routes" empty state with a Clear-filters action, a filtered count in the header, and correct matching for multi-method routes
+- Chat inline-code, code blocks, and tables now keep proper contrast in **light** theme (they previously washed out to near-white-on-white)
+
+### Changed
+
+- The chat composer's Send/Stop controls are now modern circular icon buttons
+
 ## [0.4.0] - 2026-07-10
 
 First stable release. Everything from the 0.3.x pre-releases, plus a headless CLI,

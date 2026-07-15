@@ -2,7 +2,7 @@
   "name": "mocklify",
   "displayName": "Mocklify",
   "description": "AI-powered API mocking for VS Code. Design mock servers in plain English with GitHub Copilot, Claude, OpenAI, or Gemini; import OpenAPI/Swagger specs; simulate chaos and stateful CRUD flows; generate API documentation; and let Copilot agent mode drive your mocks.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "sitharaj",
   "icon": "resources/icon.png",
   "license": "Apache-2.0",
